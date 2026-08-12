@@ -1,0 +1,91 @@
+using System.Runtime.InteropServices;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Options;
+using Station.Application.PlatformSync;
+using Station.Contracts.Registration;
+
+namespace Station.Desktop.Infrastructure;
+
+/// <summary>
+/// 平台同步后台任务：注册上报（一次）→ 补报 Outbox → 指令轮询执行回执；
+/// 上报失败留在 Outbox 由下轮补报（断网恢复自动续传）。
+/// </summary>
+public sealed class PlatformSyncWorkerHostedService : BackgroundService
+{
+    private readonly IServiceScopeFactory _scopeFactory;
+    private readonly PlatformOptions _options;
+    private long? _stationId;
+    private DateTime _lastCommandPoll = DateTime.MinValue;
+
+    public PlatformSyncWorkerHostedService(
+        IServiceScopeFactory scopeFactory,
+        IOptions<PlatformOptions> options)
+    {
+        _scopeFactory = scopeFactory;
+        _options = options.Value;
+    }
+
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    {
+        while (!stoppingToken.IsCancellationRequested)
+        {
+            try
+            {
+                if (_options.Enabled && !string.IsNullOrWhiteSpace(_options.BaseUrl))
+                {
+                    await RunSyncAsync(stoppingToken);
+                }
+            }
+            catch
+            {
+                // 平台不可达等异常不中断后台服务
+            }
+
+            await Task.Delay(TimeSpan.FromSeconds(Math.Max(3, _options.SyncIntervalSeconds)), stoppingToken);
+        }
+    }
+
+    private async Task RunSyncAsync(CancellationToken ct)
+    {
+        using var scope = _scopeFactory.CreateScope();
+        var client = scope.ServiceProvider.GetRequiredService<IPlatformClient>();
+        var outbox = scope.ServiceProvider.GetRequiredService<ISyncOutboxService>();
+        var commands = scope.ServiceProvider.GetRequiredService<ICommandService>();
+
+        if (_stationId is null)
+        {
+            var registration = new StationRegistrationRequest
+            {
+                StationCode = _options.StationCode,
+                MachineFingerprint = new MachineFingerprint
+                {
+                    CpuSerial = "unknown",
+                    MotherboardSerial = "unknown",
+                    DiskSerial = "unknown",
+                    MacAddress = "unknown"
+                },
+                OsVersion = Environment.OSVersion.VersionString,
+                CpuArch = RuntimeInformation.ProcessArchitecture.ToString(),
+                SoftwareVersion = "0.1.0",
+                UsbPortCount = 0
+            };
+            var response = await client.RegisterAsync(registration, ct);
+            if (response is not null)
+            {
+                _stationId = response.StationId;
+            }
+        }
+
+        if (_stationId is { } stationId)
+        {
+            await outbox.DrainAsync();
+
+            if (DateTime.Now - _lastCommandPoll >= TimeSpan.FromSeconds(Math.Max(3, _options.CommandPollIntervalSeconds)))
+            {
+                await commands.PollAndExecuteAsync(stationId);
+                _lastCommandPoll = DateTime.Now;
+            }
+        }
+    }
+}

@@ -12,6 +12,7 @@ public static class DependencyInjection
         services.AddStationDatabase(configuration);
         services.AddHostedService<StationDbInitializerHostedService>();
         services.AddHostedService<UploadWorkerHostedService>();
+        services.AddHostedService<PlatformSyncWorkerHostedService>();
         return services;
     }
 }

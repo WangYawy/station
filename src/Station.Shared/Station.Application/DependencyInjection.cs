@@ -6,6 +6,7 @@ using Station.Application.Alerts;
 using Station.Application.Authentication;
 using Station.Application.Authorization;
 using Station.Application.Collecting;
+using Station.Application.PlatformSync;
 using Station.Application.Recorders;
 using Station.Application.Uploading;
 using Station.Application.Users;
@@ -60,6 +61,14 @@ public static class DependencyInjection
             };
         });
         services.AddScoped<IUploadService, UploadService>();
+
+        var platformSection = configuration.GetSection(PlatformOptions.SectionName);
+        services.Configure<PlatformOptions>(platformSection);
+        services.AddSingleton(platformSection.Get<PlatformOptions>() ?? new PlatformOptions());
+        services.AddHttpClient<IPlatformClient, HttpPlatformClient>();
+        services.AddScoped<ISyncOutboxService, SyncOutboxService>();
+        services.AddScoped<ICommandExecutor, CommandExecutor>();
+        services.AddScoped<ICommandService, CommandService>();
 
         services.AddScoped<IAuditLogService, AuditLogService>();
         services.AddScoped<IAuthorizationService, AuthorizationService>();
