@@ -14,4 +14,8 @@
     <ProjectReference Include="..\Station.Desktop.WebHost\Station.Desktop.WebHost.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Update="appsettings.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>
