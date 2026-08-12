@@ -1,0 +1,44 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Station.Desktop.UI.ViewModels"
+             x:Class="Station.Desktop.UI.Views.MainView"
+             x:DataType="vm:MainWindowViewModel">
+  <Grid ColumnDefinitions="230,*">
+    <!-- 左侧导航 -->
+    <Border Background="#0f2b5b">
+      <DockPanel>
+        <TextBlock DockPanel.Dock="Top" Text="Station 采集站" Foreground="White"
+                   FontSize="17" FontWeight="Bold" Margin="16,18,16,14" />
+        <ListBox ItemsSource="{Binding NavItems}" SelectedItem="{Binding SelectedNavItem}"
+                 Background="Transparent" BorderThickness="0">
+          <ListBox.ItemTemplate>
+            <DataTemplate x:DataType="vm:NavItem">
+              <StackPanel Orientation="Horizontal" Spacing="10" Margin="14,6">
+                <TextBlock Text="{Binding Icon}" FontSize="16" />
+                <TextBlock Text="{Binding Title}" Foreground="#e2e8f0" FontSize="14" />
+              </StackPanel>
+            </DataTemplate>
+          </ListBox.ItemTemplate>
+        </ListBox>
+      </DockPanel>
+    </Border>
+
+    <!-- 右侧内容 -->
+    <Grid Grid.Column="1" RowDefinitions="Auto,*" Background="#f8fafc">
+      <Border BorderBrush="#e2e8f0" BorderThickness="0,0,0,1" Background="White" Padding="16,10">
+        <Grid ColumnDefinitions="*,Auto">
+          <TextBlock Text="{Binding CurrentUserText}" VerticalAlignment="Center"
+                     Foreground="#334155" FontSize="14" />
+          <Button Grid.Column="1" Content="注销" Command="{Binding LogoutCommand}"
+                  Background="#e2e8f0" Foreground="#0f2b5b" />
+        </Grid>
+      </Border>
+
+      <StackPanel Grid.Row="1" Margin="28" Spacing="10">
+        <TextBlock Text="{Binding PageTitle}" FontSize="24" FontWeight="Bold"
+                   Foreground="#0f2b5b" />
+        <TextBlock Text="该模块正在开发中（M6 界面骨架）" Foreground="#64748b" FontSize="14" />
+      </StackPanel>
+    </Grid>
+  </Grid>
+</UserControl>

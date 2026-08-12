@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Station.Application;
+using Station.Desktop.Application.Session;
 
 namespace Station.Desktop.Application;
 
@@ -12,6 +13,7 @@ public static class DependencyInjection
         IConfiguration configuration)
     {
         services.AddStationApplication(configuration);
+        services.AddSingleton<ISessionManager, SessionManager>();
         return services;
     }
 }

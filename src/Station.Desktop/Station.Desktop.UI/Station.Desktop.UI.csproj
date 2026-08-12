@@ -16,6 +16,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Station.Desktop.Bootstrapper\Station.Desktop.Bootstrapper.csproj" />
+    <ProjectReference Include="..\Station.Desktop.Application\Station.Desktop.Application.csproj" />
     <ProjectReference Include="..\Station.Desktop.WebHost\Station.Desktop.WebHost.csproj" />
   </ItemGroup>
 
