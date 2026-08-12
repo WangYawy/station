@@ -1,0 +1,21 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="Station.Desktop.Views.MainWindow"
+        Width="1200" Height="800"
+        WindowStartupLocation="CenterScreen"
+        Title="视音频数据采集站 · 桌面端">
+  <Grid>
+    <TextBlock Text="🚀 采集站骨架已启动（M0b）"
+               HorizontalAlignment="Center"
+               VerticalAlignment="Center"
+               FontSize="24"
+               FontWeight="Bold"
+               Foreground="#0a2f6c" />
+    <TextBlock Text="内嵌 Web 服务已启动 → http://127.0.0.1:5000"
+               HorizontalAlignment="Center"
+               VerticalAlignment="Bottom"
+               Margin="0,0,0,40"
+               FontSize="14"
+               Foreground="#64748b" />
+  </Grid>
+</Window>

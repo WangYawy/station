@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>Station.Platform.Domain</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\Station.Shared\Station.Contracts\Station.Contracts.csproj" />
+    <ProjectReference Include="..\..\Station.Shared\Station.Domain\Station.Domain.csproj" />
+  </ItemGroup>
+
+</Project>

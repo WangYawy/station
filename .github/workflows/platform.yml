@@ -1,0 +1,27 @@
+name: Platform
+
+on:
+  push:
+    paths:
+      - 'src/Station.Shared/**'
+      - 'src/Station.Platform/**'
+      - 'Station.Platform.sln'
+      - 'Directory.Build.props'
+      - '.github/workflows/platform.yml'
+  pull_request:
+    paths:
+      - 'src/Station.Shared/**'
+      - 'src/Station.Platform/**'
+      - 'Station.Platform.sln'
+      - 'Directory.Build.props'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - run: dotnet restore Station.Platform.sln
+      - run: dotnet build Station.Platform.sln -c Release --no-restore

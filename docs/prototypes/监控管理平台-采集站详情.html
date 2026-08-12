@@ -1,0 +1,1726 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>采集站详情 · 监控管理平台</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        /* ===== 全局令牌 ===== */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Segoe UI', 'PingFang SC', system-ui, sans-serif;
+            background: #f4f7fa;
+            color: #1e293b;
+            height: 100vh;
+            overflow: hidden;
+        }
+        :root {
+            --color-primary-dark: #0a2f6c;
+            --color-primary-blue: #2563eb;
+            --color-primary-light: #dbeafe;
+            --color-white: #ffffff;
+            --color-bg: #f4f7fa;
+            --color-text: #1e293b;
+            --color-text-secondary: #64748b;
+            --color-success: #22c55e;
+            --color-danger: #ef4444;
+            --color-warning: #f59e0b;
+            --color-orange: #ea580c;
+            --color-cyan: #06b6d4;
+            --shadow-card: 0 4px 12px rgba(0, 0, 0, 0.06), 0 1px 3px rgba(0, 0, 0, 0.03);
+            --shadow-blue: 0 4px 12px rgba(37, 99, 235, 0.3);
+            --radius-md: 16px;
+            --radius-full: 9999px;
+        }
+
+        /* ===== 布局 ===== */
+        .app-container {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
+            background: var(--color-bg);
+        }
+
+        /* ===== 顶部导航 ===== */
+        .top-bar {
+            flex: 0 0 56px;
+            background: var(--color-white);
+            border-bottom: 1px solid #e2e8f0;
+            display: flex;
+            align-items: center;
+            padding: 0 24px;
+            gap: 16px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02);
+            flex-shrink: 0;
+            z-index: 10;
+        }
+        .top-bar .back-btn {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            color: var(--color-primary-blue);
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 15px;
+            background: none;
+            border: none;
+            padding: 6px 12px;
+            border-radius: var(--radius-full);
+            transition: background 0.2s;
+            text-decoration: none;
+        }
+        .top-bar .back-btn:hover {
+            background: var(--color-primary-light);
+        }
+        .top-bar .back-btn i {
+            font-size: 16px;
+        }
+        .top-bar .breadcrumb {
+            font-size: 16px;
+            font-weight: 500;
+            color: var(--color-text-secondary);
+        }
+        .top-bar .breadcrumb span {
+            color: var(--color-text);
+        }
+        .top-bar .spacer {
+            flex: 1;
+        }
+        .top-bar .status-badge {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--color-success);
+        }
+        .top-bar .status-badge i {
+            font-size: 16px;
+        }
+        .top-bar .user-info {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 15px;
+            color: var(--color-text-secondary);
+        }
+        .top-bar .user-info .avatar {
+            width: 34px;
+            height: 34px;
+            border-radius: 50%;
+            background: var(--color-primary-light);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--color-primary-blue);
+            font-weight: 700;
+            font-size: 17px;
+        }
+
+        /* ===== 内容区 ===== */
+        .content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px 24px 16px 24px;
+        }
+
+        /* ===== 通用组件 ===== */
+        .card {
+            background: var(--color-white);
+            border-radius: var(--radius-md);
+            padding: 20px;
+            box-shadow: var(--shadow-card);
+            margin-bottom: 20px;
+        }
+        .card .title {
+            font-weight: 700;
+            font-size: 17px;
+            color: var(--color-primary-dark);
+            margin-bottom: 14px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .card .title .sub-title {
+            font-weight: 400;
+            font-size: 14px;
+            color: var(--color-text-secondary);
+            margin-left: auto;
+        }
+
+        .stat-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 16px;
+            margin-bottom: 20px;
+        }
+        .stat-item {
+            background: var(--color-white);
+            border-radius: var(--radius-md);
+            padding: 14px 18px;
+            box-shadow: var(--shadow-card);
+            border-left: 4px solid var(--color-primary-blue);
+        }
+        .stat-item .label {
+            font-size: 13px;
+            color: var(--color-text-secondary);
+        }
+        .stat-item .value {
+            font-size: 24px;
+            font-weight: 700;
+            color: var(--color-primary-dark);
+        }
+        .stat-item .sub {
+            font-size: 13px;
+            color: var(--color-text-secondary);
+            margin-top: 2px;
+        }
+
+        /* ===== 设备头部 ===== */
+        .device-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            flex-wrap: wrap;
+            gap: 16px;
+            margin-bottom: 20px;
+        }
+        .device-header .info h1 {
+            font-size: 24px;
+            font-weight: 700;
+            color: var(--color-primary-dark);
+        }
+        .device-header .info .meta {
+            display: flex;
+            gap: 16px;
+            font-size: 14px;
+            color: var(--color-text-secondary);
+            margin-top: 4px;
+            flex-wrap: wrap;
+        }
+        .device-header .info .meta i {
+            width: 16px;
+        }
+        .device-header .actions {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        .device-header .actions .action-btn {
+            padding: 8px 20px;
+            border-radius: var(--radius-full);
+            border: none;
+            font-weight: 600;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .device-header .actions .action-btn.primary {
+            background: var(--color-primary-blue);
+            color: #fff;
+            box-shadow: var(--shadow-blue);
+        }
+        .device-header .actions .action-btn.primary:hover {
+            background: #1d4ed8;
+        }
+        .device-header .actions .action-btn.danger {
+            background: var(--color-danger);
+            color: #fff;
+        }
+        .device-header .actions .action-btn.danger:hover {
+            background: #b91c1c;
+        }
+        .device-header .actions .action-btn.outline {
+            background: transparent;
+            color: var(--color-text-secondary);
+            border: 1px solid #e2e8f0;
+        }
+        .device-header .actions .action-btn.outline:hover {
+            background: #f1f5f9;
+        }
+        .device-header .status-tag {
+            display: inline-block;
+            padding: 2px 16px;
+            border-radius: var(--radius-full);
+            font-size: 14px;
+            font-weight: 600;
+        }
+        .device-header .status-tag.online {
+            background: #dcfce7;
+            color: #15803d;
+        }
+        .device-header .status-tag.offline {
+            background: #fee2e2;
+            color: #b91c1c;
+        }
+        .device-header .status-tag.warning {
+            background: #fef3c7;
+            color: #b45309;
+        }
+
+        /* ===== 两栏布局 ===== */
+        .two-col {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        /* ===== 监控图表 ===== */
+        .monitor-chart {
+            height: 100px;
+            display: flex;
+            align-items: flex-end;
+            gap: 8px;
+            padding: 8px 0;
+        }
+        .monitor-chart .bar {
+            flex: 1;
+            border-radius: 4px 4px 0 0;
+            min-height: 8px;
+            transition: height 0.3s;
+        }
+
+        /* ===== USB端口 ===== */
+        .usb-grid {
+            display: grid;
+            grid-template-columns: repeat(8, 1fr);
+            gap: 10px;
+        }
+        .usb-port {
+            background: #f8fafc;
+            border-radius: var(--radius-md);
+            padding: 10px 6px;
+            text-align: center;
+            border: 2px solid transparent;
+            transition: all 0.2s;
+            cursor: default;
+        }
+        .usb-port .port-id {
+            font-weight: 700;
+            font-size: 14px;
+            color: var(--color-primary-dark);
+        }
+        .usb-port .port-status {
+            font-size: 12px;
+            font-weight: 600;
+            margin-top: 2px;
+        }
+        .usb-port .port-status.active {
+            color: var(--color-success);
+        }
+        .usb-port .port-status.idle {
+            color: var(--color-text-secondary);
+        }
+        .usb-port .port-status.error {
+            color: var(--color-danger);
+        }
+        .usb-port .port-status.priority {
+            color: var(--color-orange);
+        }
+        .usb-port .port-device {
+            font-size: 11px;
+            color: var(--color-text-secondary);
+            margin-top: 2px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .usb-port .port-progress {
+            width: 100%;
+            height: 4px;
+            background: #e2e8f0;
+            border-radius: var(--radius-full);
+            margin-top: 4px;
+            overflow: hidden;
+        }
+        .usb-port .port-progress .fill {
+            height: 100%;
+            border-radius: var(--radius-full);
+            background: var(--color-primary-blue);
+        }
+
+        /* ===== 采集队列 ===== */
+        .task-item {
+            display: flex;
+            align-items: center;
+            padding: 10px 0;
+            border-bottom: 1px solid #f1f5f9;
+            gap: 16px;
+            flex-wrap: wrap;
+        }
+        .task-item:last-child {
+            border-bottom: none;
+        }
+        .task-item .task-info {
+            flex: 1;
+            min-width: 140px;
+        }
+        .task-item .task-info .task-title {
+            font-weight: 600;
+            font-size: 15px;
+        }
+        .task-item .task-info .task-meta {
+            font-size: 14px;
+            color: var(--color-text-secondary);
+        }
+        .task-item .task-progress {
+            width: 120px;
+        }
+        .task-item .task-progress .mini-bar {
+            height: 6px;
+            background: #e2e8f0;
+            border-radius: var(--radius-full);
+            overflow: hidden;
+        }
+        .task-item .task-progress .mini-bar .fill {
+            height: 100%;
+            border-radius: var(--radius-full);
+            background: var(--color-primary-blue);
+        }
+        .task-item .task-progress .progress-label {
+            font-size: 13px;
+            color: var(--color-text-secondary);
+            text-align: right;
+            margin-top: 2px;
+        }
+        .task-item .task-status {
+            font-size: 13px;
+            font-weight: 600;
+        }
+        .task-item .task-status.running {
+            color: var(--color-success);
+        }
+        .task-item .task-status.paused {
+            color: var(--color-warning);
+        }
+        .task-item .task-status.error {
+            color: var(--color-danger);
+        }
+        .task-item .task-actions {
+            display: flex;
+            gap: 6px;
+        }
+        .task-item .task-actions .mini-btn {
+            padding: 3px 12px;
+            border-radius: var(--radius-full);
+            border: none;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.15s;
+            background: #f1f5f9;
+            color: #334155;
+        }
+        .task-item .task-actions .mini-btn:hover {
+            background: #e2e8f0;
+        }
+        .task-item .task-actions .mini-btn.primary {
+            background: var(--color-primary-blue);
+            color: #fff;
+        }
+        .task-item .task-actions .mini-btn.danger {
+            background: var(--color-danger);
+            color: #fff;
+        }
+        .task-item .task-actions .mini-btn.warning {
+            background: var(--color-warning);
+            color: #fff;
+        }
+
+        /* ===== 报警列表 ===== */
+        .alert-item {
+            display: flex;
+            align-items: center;
+            padding: 8px 0;
+            border-bottom: 1px solid #f1f5f9;
+            gap: 12px;
+            font-size: 14px;
+        }
+        .alert-item:last-child {
+            border-bottom: none;
+        }
+        .alert-item .alert-level {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+        .alert-item .alert-level.critical {
+            background: var(--color-danger);
+        }
+        .alert-item .alert-level.warning {
+            background: var(--color-warning);
+        }
+        .alert-item .alert-level.info {
+            background: var(--color-primary-blue);
+        }
+        .alert-item .alert-time {
+            color: var(--color-text-secondary);
+            font-size: 13px;
+            min-width: 80px;
+        }
+        .alert-item .alert-content {
+            flex: 1;
+        }
+        .alert-item .alert-status {
+            font-size: 13px;
+            font-weight: 600;
+        }
+        .alert-item .alert-status.pending {
+            color: var(--color-warning);
+        }
+        .alert-item .alert-status.resolved {
+            color: var(--color-success);
+        }
+
+        /* ===== 指令下发 ===== */
+        .cmd-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 12px;
+        }
+        .cmd-btn {
+            padding: 14px 12px;
+            border-radius: var(--radius-md);
+            border: 1px solid #e2e8f0;
+            background: var(--color-white);
+            cursor: pointer;
+            transition: all 0.2s;
+            text-align: center;
+            font-weight: 600;
+            font-size: 14px;
+            color: var(--color-text);
+        }
+        .cmd-btn:hover {
+            border-color: var(--color-primary-blue);
+            background: var(--color-primary-light);
+        }
+        .cmd-btn i {
+            display: block;
+            font-size: 24px;
+            margin-bottom: 6px;
+            color: var(--color-primary-blue);
+        }
+        .cmd-btn.danger i {
+            color: var(--color-danger);
+        }
+        .cmd-btn.danger:hover {
+            border-color: var(--color-danger);
+            background: #fee2e2;
+        }
+        .cmd-btn.warning i {
+            color: var(--color-warning);
+        }
+        .cmd-btn.warning:hover {
+            border-color: var(--color-warning);
+            background: #fef3c7;
+        }
+
+        /* ===== 信息网格 ===== */
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+        }
+        .info-item {
+            display: flex;
+            flex-direction: column;
+            padding: 6px 0;
+            border-bottom: 1px solid #f1f5f9;
+        }
+        .info-item:last-child,
+        .info-item:nth-last-child(2) {
+            border-bottom: none;
+        }
+        .info-item .label {
+            font-size: 13px;
+            color: var(--color-text-secondary);
+        }
+        .info-item .value {
+            font-weight: 600;
+            font-size: 15px;
+            margin-top: 2px;
+        }
+        .info-item .value .tag {
+            display: inline-block;
+            background: var(--color-primary-light);
+            color: var(--color-primary-blue);
+            padding: 0 10px;
+            border-radius: var(--radius-full);
+            font-size: 13px;
+            font-weight: 500;
+        }
+
+        /* ===== 记录仪关联 ===== */
+        .recorder-chip {
+            display: inline-flex;
+            align-items: center;
+            background: #f8fafc;
+            padding: 4px 14px 4px 16px;
+            border-radius: var(--radius-full);
+            border: 1px solid #e2e8f0;
+            font-size: 14px;
+            font-weight: 500;
+            margin: 4px 8px 4px 0;
+        }
+        .recorder-chip .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        .recorder-chip .status-dot.online {
+            background: var(--color-success);
+        }
+        .recorder-chip .status-dot.offline {
+            background: var(--color-danger);
+        }
+        .recorder-chip .status-dot.idle {
+            background: var(--color-text-secondary);
+        }
+
+        /* ===== 时间线 ===== */
+        .timeline {
+            position: relative;
+            padding-left: 24px;
+        }
+        .timeline::before {
+            content: '';
+            position: absolute;
+            left: 6px;
+            top: 4px;
+            bottom: 4px;
+            width: 2px;
+            background: #e2e8f0;
+        }
+        .timeline-item {
+            padding: 6px 0 12px 0;
+            position: relative;
+        }
+        .timeline-item::before {
+            content: '';
+            position: absolute;
+            left: -20px;
+            top: 10px;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: var(--color-primary-blue);
+            border: 2px solid #fff;
+            box-shadow: 0 0 0 2px var(--color-primary-blue);
+        }
+        .timeline-item .time {
+            font-size: 13px;
+            color: var(--color-text-secondary);
+        }
+        .timeline-item .content {
+            font-size: 14px;
+            padding: 0;
+            margin-top: 2px;
+        }
+
+        /* ===== Tabs ===== */
+        .tabs {
+            display: flex;
+            gap: 0;
+            border-bottom: 2px solid #e2e8f0;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        .tabs .tab {
+            padding: 10px 24px;
+            font-weight: 600;
+            font-size: 15px;
+            cursor: pointer;
+            border-bottom: 3px solid transparent;
+            transition: all 0.2s;
+            color: var(--color-text-secondary);
+            background: transparent;
+            border-top: none;
+            border-left: none;
+            border-right: none;
+        }
+        .tabs .tab:hover {
+            color: var(--color-text);
+        }
+        .tabs .tab.active {
+            color: var(--color-primary-blue);
+            border-bottom-color: var(--color-primary-blue);
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+
+        /* ===== 策略配置（整合了顶部配置页内容） ===== */
+        .config-group {
+            background: var(--color-white);
+            border-radius: var(--radius-md);
+            padding: 20px;
+            box-shadow: var(--shadow-card);
+            margin-bottom: 20px;
+        }
+        .config-group .group-title {
+            font-weight: 700;
+            font-size: 17px;
+            margin-bottom: 12px;
+            color: var(--color-primary-dark);
+        }
+        .config-row {
+            display: flex;
+            align-items: center;
+            padding: 8px 0;
+            border-bottom: 1px solid #f1f5f9;
+            gap: 16px;
+            flex-wrap: wrap;
+        }
+        .config-row:last-child {
+            border-bottom: none;
+        }
+        .config-row .label {
+            width: 140px;
+            font-weight: 500;
+            color: var(--color-text-secondary);
+            font-size: 15px;
+        }
+        .config-row .control {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        .config-row .control input,
+        .config-row .control select {
+            padding: 6px 14px;
+            border-radius: var(--radius-full);
+            border: 1px solid #e2e8f0;
+            font-size: 15px;
+            background: #f8fafc;
+            min-width: 120px;
+        }
+        .config-row .control .toggle {
+            width: 44px;
+            height: 26px;
+            background: #cbd5e1;
+            border-radius: var(--radius-full);
+            position: relative;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+        .config-row .control .toggle.on {
+            background: var(--color-primary-blue);
+        }
+        .config-row .control .toggle .knob {
+            width: 20px;
+            height: 20px;
+            background: #fff;
+            border-radius: 50%;
+            position: absolute;
+            top: 3px;
+            left: 3px;
+            transition: 0.2s;
+        }
+        .config-row .control .toggle.on .knob {
+            left: 21px;
+        }
+        .config-row .control .hint {
+            font-size: 14px;
+            color: var(--color-text-secondary);
+        }
+        .config-row .control .btn-test {
+            padding: 4px 14px;
+            border-radius: var(--radius-full);
+            border: 1px solid var(--color-primary-blue);
+            background: transparent;
+            color: var(--color-primary-blue);
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 14px;
+        }
+        .config-row .control .btn-test:hover {
+            background: var(--color-primary-light);
+        }
+
+        .btn-deploy {
+            padding: 8px 28px;
+            background: var(--color-primary-blue);
+            color: #fff;
+            border: none;
+            border-radius: var(--radius-full);
+            font-weight: 700;
+            font-size: 15px;
+            cursor: pointer;
+            box-shadow: var(--shadow-blue);
+            transition: 0.2s;
+            margin-top: 8px;
+        }
+        .btn-deploy:hover {
+            background: #1d4ed8;
+        }
+
+        /* ===== 自检 ===== */
+        .self-test-area {
+            display: flex;
+            gap: 16px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        .self-test-area .btn-test-all {
+            padding: 8px 28px;
+            background: var(--color-primary-blue);
+            color: #fff;
+            border: none;
+            border-radius: var(--radius-full);
+            font-weight: 700;
+            font-size: 16px;
+            cursor: pointer;
+            box-shadow: var(--shadow-blue);
+        }
+        .self-test-area .btn-test-all:hover {
+            background: #1d4ed8;
+        }
+        .test-result {
+            margin-top: 12px;
+            background: #f8fafc;
+            border-radius: var(--radius-md);
+            padding: 12px;
+            display: none;
+        }
+        .test-result .item {
+            padding: 4px 0;
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            font-size: 15px;
+        }
+        .test-result .item .icon.pass {
+            color: var(--color-success);
+        }
+        .test-result .item .icon.fail {
+            color: var(--color-danger);
+        }
+
+        /* ===== 操作授权 ===== */
+        .auth-section {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        .auth-panel {
+            background: var(--color-white);
+            border-radius: var(--radius-md);
+            padding: 20px;
+            box-shadow: var(--shadow-card);
+        }
+        .auth-panel h3 {
+            font-size: 17px;
+            margin-bottom: 12px;
+            color: var(--color-primary-dark);
+        }
+        .dept-tree .tree-item {
+            padding: 4px 0 4px 20px;
+            border-left: 2px solid #e2e8f0;
+            margin-left: 10px;
+        }
+        .dept-tree .tree-item .node {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 4px 0;
+            cursor: pointer;
+            font-size: 15px;
+        }
+        .dept-tree .tree-item .node input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            accent-color: var(--color-primary-blue);
+        }
+        .user-search {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 16px;
+        }
+        .user-search input {
+            flex: 1;
+            padding: 6px 14px;
+            border-radius: var(--radius-full);
+            border: 1px solid #e2e8f0;
+            font-size: 15px;
+        }
+        .user-search button {
+            padding: 6px 18px;
+            background: var(--color-primary-blue);
+            color: #fff;
+            border: none;
+            border-radius: var(--radius-full);
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .user-list .user-chip {
+            display: inline-flex;
+            align-items: center;
+            background: var(--color-primary-light);
+            padding: 4px 12px 4px 16px;
+            border-radius: var(--radius-full);
+            margin: 4px 8px 4px 0;
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--color-primary-dark);
+        }
+        .user-list .user-chip i {
+            margin-left: 8px;
+            cursor: pointer;
+            color: var(--color-danger);
+        }
+
+        /* ===== 白名单 ===== */
+        .whitelist-table {
+            width: 100%;
+            border-collapse: collapse;
+            background: var(--color-white);
+            border-radius: var(--radius-md);
+            overflow: hidden;
+            box-shadow: var(--shadow-card);
+        }
+        .whitelist-table th {
+            background: #f8fafc;
+            text-align: left;
+            padding: 10px 12px;
+            font-weight: 600;
+            color: var(--color-text-secondary);
+        }
+        .whitelist-table td {
+            padding: 10px 12px;
+            border-bottom: 1px solid #f1f5f9;
+        }
+        .whitelist-table .btn-icon {
+            background: transparent;
+            border: none;
+            color: var(--color-danger);
+            cursor: pointer;
+            font-size: 16px;
+        }
+        .whitelist-table .btn-icon:hover {
+            opacity: 0.7;
+        }
+        .import-area {
+            margin-top: 12px;
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+        .import-area input[type="file"] {
+            display: none;
+        }
+        .import-area .file-label {
+            padding: 6px 18px;
+            background: #f1f5f9;
+            border-radius: var(--radius-full);
+            cursor: pointer;
+            font-weight: 500;
+            font-size: 14px;
+        }
+
+        /* ===== 存储管理 ===== */
+        .storage-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+        .storage-card {
+            background: var(--color-white);
+            border-radius: var(--radius-md);
+            padding: 18px;
+            box-shadow: var(--shadow-card);
+        }
+        .storage-card .name {
+            font-weight: 700;
+            font-size: 17px;
+            color: var(--color-primary-dark);
+        }
+        .storage-card .status {
+            font-size: 14px;
+            font-weight: 600;
+            float: right;
+        }
+        .storage-card .status.online {
+            color: var(--color-success);
+        }
+        .storage-card .status.offline {
+            color: var(--color-danger);
+        }
+        .storage-card .status.fuse {
+            color: var(--color-warning);
+        }
+        .storage-card .bar {
+            height: 8px;
+            background: #e2e8f0;
+            border-radius: var(--radius-full);
+            margin: 8px 0;
+            overflow: hidden;
+        }
+        .storage-card .bar .fill {
+            height: 100%;
+            border-radius: var(--radius-full);
+        }
+        .storage-card .info {
+            font-size: 14px;
+            color: var(--color-text-secondary);
+            display: flex;
+            gap: 16px;
+            flex-wrap: wrap;
+        }
+        .storage-card .action-link {
+            font-size: 14px;
+            color: var(--color-primary-blue);
+            cursor: pointer;
+            background: none;
+            border: none;
+            font-weight: 600;
+        }
+        .storage-card .action-link:hover {
+            text-decoration: underline;
+        }
+        .storage-config-row {
+            display: flex;
+            align-items: center;
+            padding: 8px 0;
+            border-bottom: 1px solid #f1f5f9;
+            gap: 16px;
+            flex-wrap: wrap;
+        }
+        .storage-config-row:last-child {
+            border-bottom: none;
+        }
+        .storage-config-row .label {
+            width: 140px;
+            font-weight: 500;
+            color: var(--color-text-secondary);
+            font-size: 15px;
+        }
+        .storage-config-row .control {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        .storage-config-row .control input,
+        .storage-config-row .control select {
+            padding: 6px 14px;
+            border-radius: var(--radius-full);
+            border: 1px solid #e2e8f0;
+            font-size: 15px;
+            background: #f8fafc;
+            min-width: 120px;
+        }
+
+        /* ===== 响应式 ===== */
+        @media (max-width: 1200px) {
+            .two-col {
+                grid-template-columns: 1fr;
+            }
+            .stat-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+            .cmd-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+            .usb-grid {
+                grid-template-columns: repeat(4, 1fr);
+            }
+            .storage-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+        @media (max-width: 768px) {
+            .stat-grid {
+                grid-template-columns: 1fr;
+            }
+            .cmd-grid {
+                grid-template-columns: 1fr;
+            }
+            .usb-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+            .info-grid {
+                grid-template-columns: 1fr;
+            }
+            .auth-section {
+                grid-template-columns: 1fr;
+            }
+            .device-header {
+                flex-direction: column;
+            }
+            .device-header .actions {
+                width: 100%;
+            }
+            .top-bar .back-btn span {
+                display: none;
+            }
+            .tabs .tab {
+                padding: 8px 14px;
+                font-size: 14px;
+            }
+            .config-row .label,
+            .storage-config-row .label {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <!-- ===== 顶部导航 ===== -->
+        <header class="top-bar">
+            <a href="javascript:history.back()" class="back-btn">
+                <i class="fas fa-arrow-left"></i>
+                <span>返回详情</span>
+            </a>
+            <div class="breadcrumb">📋 <span id="pageTitle">采集站详情</span></div>
+            <div class="spacer"></div>
+            <div class="status-badge"><i class="fas fa-circle"></i> 平台运行中</div>
+            <div class="user-info">
+                <i class="fas fa-bell"></i>
+                <div class="avatar">管</div>
+                <span>管理员</span>
+            </div>
+        </header>
+
+        <!-- ===== 主内容 ===== -->
+        <div class="content" id="contentArea">
+
+            <!-- ===== 设备头部（已移除配置按钮） ===== -->
+            <div class="device-header">
+                <div class="info">
+                    <h1 id="stationName">采集站-01（一楼大厅） <span class="status-tag online" id="stationStatus">● 在线</span></h1>
+                    <div class="meta" id="stationMeta">
+                        <span><i class="fas fa-hashtag"></i> CS-01-001</span>
+                        <span><i class="fas fa-building"></i> 一中队</span>
+                        <span><i class="fas fa-map-pin"></i> 一楼大厅东侧</span>
+                        <span><i class="fas fa-code-branch"></i> v1.3.2</span>
+                        <span><i class="fas fa-clock"></i> 最后心跳：2026-07-10 14:32:18</span>
+                    </div>
+                </div>
+                <div class="actions">
+                    <button class="action-btn primary" onclick="alert('刷新状态中...')"><i class="fas fa-sync-alt"></i> 刷新</button>
+                    <button class="action-btn danger" onclick="if(confirm('确认重启采集站吗？')){alert('已发送重启指令');}"><i class="fas fa-power-off"></i> 重启</button>
+                </div>
+            </div>
+
+            <!-- ===== 统计概览 ===== -->
+            <div class="stat-grid">
+                <div class="stat-item"><div class="label">采集任务</div><div class="value">3</div><div class="sub">进行中 2 · 已完成 1</div></div>
+                <div class="stat-item" style="border-left-color:var(--color-success);"><div class="label">今日采集</div><div class="value">32</div><div class="sub">文件数 28 · 大小 36GB</div></div>
+                <div class="stat-item" style="border-left-color:var(--color-cyan);"><div class="label">存储使用</div><div class="value">320GB</div><div class="sub">总 1TB · 32%</div></div>
+                <div class="stat-item" style="border-left-color:var(--color-warning);"><div class="label">待处理报警</div><div class="value" style="color:var(--color-warning);">2</div><div class="sub">严重 0 · 警告 1 · 提示 1</div></div>
+            </div>
+
+            <!-- ===== Tabs ===== -->
+            <div class="tabs" id="detailTabs">
+                <button class="tab active" data-tab="detail-info">设备信息</button>
+                <button class="tab" data-tab="detail-policy">策略配置</button>
+                <button class="tab" data-tab="detail-auth">操作授权</button>
+                <button class="tab" data-tab="detail-whitelist">记录仪白名单</button>
+                <button class="tab" data-tab="detail-storage">存储管理</button>
+            </div>
+
+            <!-- ===== Tab1: 设备信息 ===== -->
+            <div class="tab-content active" id="detail-info">
+                <div class="two-col">
+                    <!-- 左栏 -->
+                    <div>
+                        <!-- 实时监控 -->
+                        <div class="card">
+                            <div class="title">📊 实时资源监控</div>
+                            <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:12px;">
+                                <div style="text-align:center; background:#f8fafc; border-radius:var(--radius-md); padding:10px;">
+                                    <div style="font-size:13px; color:var(--color-text-secondary);">CPU</div>
+                                    <div style="font-size:24px; font-weight:700; color:var(--color-success);">23%</div>
+                                    <div style="font-size:12px; color:var(--color-text-secondary);">温度 52°C</div>
+                                </div>
+                                <div style="text-align:center; background:#f8fafc; border-radius:var(--radius-md); padding:10px;">
+                                    <div style="font-size:13px; color:var(--color-text-secondary);">内存</div>
+                                    <div style="font-size:24px; font-weight:700;">4.2GB</div>
+                                    <div style="font-size:12px; color:var(--color-text-secondary);">总 16GB · 26%</div>
+                                </div>
+                                <div style="text-align:center; background:#f8fafc; border-radius:var(--radius-md); padding:10px;">
+                                    <div style="font-size:13px; color:var(--color-text-secondary);">磁盘 I/O</div>
+                                    <div style="font-size:24px; font-weight:700; color:var(--color-primary-blue);">120MB/s</div>
+                                    <div style="font-size:12px; color:var(--color-text-secondary);">读 80MB/s · 写 40MB/s</div>
+                                </div>
+                                <div style="text-align:center; background:#f8fafc; border-radius:var(--radius-md); padding:10px;">
+                                    <div style="font-size:13px; color:var(--color-text-secondary);">网络</div>
+                                    <div style="font-size:24px; font-weight:700; color:var(--color-cyan);">45MB/s</div>
+                                    <div style="font-size:12px; color:var(--color-text-secondary);">上行 12MB/s · 下行 33MB/s</div>
+                                </div>
+                            </div>
+                            <div class="monitor-chart">
+                                <div class="bar" style="height:50px; background:var(--color-primary-blue);"></div>
+                                <div class="bar" style="height:65px; background:var(--color-primary-blue);"></div>
+                                <div class="bar" style="height:80px; background:var(--color-primary-blue);"></div>
+                                <div class="bar" style="height:45px; background:var(--color-primary-blue);"></div>
+                                <div class="bar" style="height:90px; background:var(--color-primary-blue);"></div>
+                                <div class="bar" style="height:70px; background:var(--color-primary-blue);"></div>
+                                <div class="bar" style="height:55px; background:var(--color-primary-blue);"></div>
+                                <div class="bar" style="height:85px; background:var(--color-primary-blue);"></div>
+                                <div class="bar" style="height:60px; background:var(--color-primary-blue);"></div>
+                                <div class="bar" style="height:75px; background:var(--color-primary-blue);"></div>
+                                <div class="bar" style="height:40px; background:var(--color-primary-blue);"></div>
+                                <div class="bar" style="height:95px; background:var(--color-primary-blue);"></div>
+                            </div>
+                            <div style="display:flex; gap:16px; font-size:13px; color:var(--color-text-secondary);">
+                                <span><span style="display:inline-block; width:12px; height:12px; background:var(--color-primary-blue); border-radius:4px;"></span> CPU</span>
+                                <span><span style="display:inline-block; width:12px; height:12px; background:var(--color-success); border-radius:4px;"></span> 内存</span>
+                                <span><span style="display:inline-block; width:12px; height:12px; background:var(--color-warning); border-radius:4px;"></span> 磁盘IO</span>
+                            </div>
+                        </div>
+
+                        <!-- USB端口 -->
+                        <div class="card">
+                            <div class="title">🔌 USB 端口状态</div>
+                            <div class="usb-grid">
+                                <div class="usb-port active">
+                                    <div class="port-id">#01</div>
+                                    <div class="port-status active">● 采集</div>
+                                    <div class="port-device">记录仪-A-001</div>
+                                    <div class="port-progress"><div class="fill" style="width:67%;"></div></div>
+                                </div>
+                                <div class="usb-port active">
+                                    <div class="port-id">#02</div>
+                                    <div class="port-status active">● 采集</div>
+                                    <div class="port-device">记录仪-B-102</div>
+                                    <div class="port-progress"><div class="fill" style="width:45%;"></div></div>
+                                </div>
+                                <div class="usb-port idle">
+                                    <div class="port-id">#03</div>
+                                    <div class="port-status idle">○ 空闲</div>
+                                    <div class="port-device">--</div>
+                                    <div class="port-progress"><div class="fill" style="width:0%;"></div></div>
+                                </div>
+                                <div class="usb-port error">
+                                    <div class="port-id">#04</div>
+                                    <div class="port-status error">● 故障</div>
+                                    <div class="port-device">记录仪-D-304</div>
+                                    <div class="port-progress"><div class="fill" style="width:0%;"></div></div>
+                                </div>
+                                <div class="usb-port priority">
+                                    <div class="port-id">#05</div>
+                                    <div class="port-status priority">★ 紧急</div>
+                                    <div class="port-device">记录仪-E-405</div>
+                                    <div class="port-progress"><div class="fill" style="width:82%;"></div></div>
+                                </div>
+                                <div class="usb-port idle">
+                                    <div class="port-id">#06</div>
+                                    <div class="port-status idle">○ 空闲</div>
+                                    <div class="port-device">--</div>
+                                    <div class="port-progress"><div class="fill" style="width:0%;"></div></div>
+                                </div>
+                                <div class="usb-port idle">
+                                    <div class="port-id">#07</div>
+                                    <div class="port-status idle">○ 空闲</div>
+                                    <div class="port-device">--</div>
+                                    <div class="port-progress"><div class="fill" style="width:0%;"></div></div>
+                                </div>
+                                <div class="usb-port idle">
+                                    <div class="port-id">#08</div>
+                                    <div class="port-status idle">○ 空闲</div>
+                                    <div class="port-device">--</div>
+                                    <div class="port-progress"><div class="fill" style="width:0%;"></div></div>
+                                </div>
+                            </div>
+                            <div style="margin-top:12px; font-size:13px; color:var(--color-text-secondary); display:flex; gap:16px; flex-wrap:wrap;">
+                                <span><span style="display:inline-block; width:12px; height:12px; background:#dcfce7; border-radius:4px;"></span> 采集中 (3)</span>
+                                <span><span style="display:inline-block; width:12px; height:12px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:4px;"></span> 空闲 (4)</span>
+                                <span><span style="display:inline-block; width:12px; height:12px; background:#fee2e2; border-radius:4px;"></span> 故障 (1)</span>
+                                <span><span style="display:inline-block; width:12px; height:12px; background:#fef3c7; border-radius:4px;"></span> 紧急 (1)</span>
+                            </div>
+                        </div>
+
+                        <!-- 采集队列 -->
+                        <div class="card">
+                            <div class="title">📋 采集队列</div>
+                            <div class="task-item">
+                                <div class="task-info"><div class="task-title">记录仪-A-001</div><div class="task-meta">#01 · MSC · 操作员：张伟</div></div>
+                                <div class="task-progress"><div class="mini-bar"><div class="fill" style="width:67%;"></div></div><div class="progress-label">67% · 12 MB/s</div></div>
+                                <div class="task-status running">● 采集中</div>
+                                <div class="task-actions"><button class="mini-btn warning">暂停</button><button class="mini-btn danger">取消</button></div>
+                            </div>
+                            <div class="task-item">
+                                <div class="task-info"><div class="task-title">记录仪-B-102</div><div class="task-meta">#02 · MTP · 操作员：李娜</div></div>
+                                <div class="task-progress"><div class="mini-bar"><div class="fill" style="width:45%;"></div></div><div class="progress-label">45% · 8 MB/s</div></div>
+                                <div class="task-status running">● 采集中</div>
+                                <div class="task-actions"><button class="mini-btn warning">暂停</button><button class="mini-btn danger">取消</button></div>
+                            </div>
+                            <div class="task-item">
+                                <div class="task-info"><div class="task-title">记录仪-E-405 <span style="font-size:12px; color:var(--color-orange);">★ 紧急</span></div><div class="task-meta">#05 · MSC · 操作员：刘洋</div></div>
+                                <div class="task-progress"><div class="mini-bar"><div class="fill" style="width:82%; background:var(--color-orange);"></div></div><div class="progress-label">82% · 18 MB/s</div></div>
+                                <div class="task-status running" style="color:var(--color-orange);">● 紧急采集</div>
+                                <div class="task-actions"><button class="mini-btn warning">暂停</button><button class="mini-btn danger">取消</button></div>
+                            </div>
+                            <div style="margin-top:12px; display:flex; gap:10px;">
+                                <button class="mini-btn" style="padding:6px 20px; background:var(--color-primary-blue); color:#fff; border:none; border-radius:var(--radius-full); font-weight:600; cursor:pointer;">全部暂停</button>
+                                <button class="mini-btn" style="padding:6px 20px; background:var(--color-success); color:#fff; border:none; border-radius:var(--radius-full); font-weight:600; cursor:pointer;">全部恢复</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 右栏 -->
+                    <div>
+                        <!-- 设备信息卡片 -->
+                        <div class="card">
+                            <div class="title">📋 设备信息</div>
+                            <div class="info-grid">
+                                <div class="info-item"><span class="label">设备编号</span><span class="value">CS-01-001</span></div>
+                                <div class="info-item"><span class="label">安装位置</span><span class="value">一楼大厅东侧</span></div>
+                                <div class="info-item"><span class="label">所属单位</span><span class="value">一中队</span></div>
+                                <div class="info-item"><span class="label">操作系统</span><span class="value">麒麟 V10 (ARM64)</span></div>
+                                <div class="info-item"><span class="label">USB 接口数</span><span class="value">8 口</span></div>
+                                <div class="info-item"><span class="label">存储容量</span><span class="value">1TB (已用 320GB)</span></div>
+                                <div class="info-item"><span class="label">软件版本</span><span class="value">v1.3.2 <span class="tag">最新</span></span></div>
+                                <div class="info-item"><span class="label">授权状态</span><span class="value" style="color:var(--color-success);">正式版 · 剩余 365 天</span></div>
+                                <div class="info-item"><span class="label">授权编号</span><span class="value">LIC-2026-07-07-001</span></div>
+                                <div class="info-item"><span class="label">国密支持</span><span class="value" style="color:var(--color-success);">✅ SM2/SM3/SM4</span></div>
+                            </div>
+                        </div>
+
+                        <!-- 远程指令 -->
+                        <div class="card">
+                            <div class="title">📡 远程指令下发</div>
+                            <div class="cmd-grid">
+                                <button class="cmd-btn" onclick="alert('已发送重启指令至采集站')"><i class="fas fa-power-off"></i> 重启服务</button>
+                                <button class="cmd-btn" onclick="alert('已发送清理缓存指令')"><i class="fas fa-broom"></i> 清理缓存</button>
+                                <button class="cmd-btn" onclick="alert('已触发策略同步')"><i class="fas fa-sync-alt"></i> 同步策略</button>
+                                <button class="cmd-btn" onclick="alert('正在生成自检报告...')"><i class="fas fa-stethoscope"></i> 自检报告</button>
+                                <button class="cmd-btn warning" onclick="alert('已发送升级检查指令')"><i class="fas fa-upload"></i> 升级检查</button>
+                                <button class="cmd-btn" onclick="alert('正在导出日志...')"><i class="fas fa-file-export"></i> 导出日志</button>
+                                <button class="cmd-btn danger" onclick="if(confirm('确认执行系统重启吗？采集站将离线约3分钟。')){alert('已发送系统重启指令');}"><i class="fas fa-sync-alt"></i> 系统重启</button>
+                                <button class="cmd-btn" onclick="alert('已发送配置重置指令')"><i class="fas fa-undo-alt"></i> 恢复默认</button>
+                            </div>
+                            <div style="margin-top:12px; font-size:13px; color:var(--color-text-secondary);">
+                                <i class="fas fa-info-circle"></i> 所有指令需采集站在线时生效，带数字签名验证
+                            </div>
+                        </div>
+
+                        <!-- 关联记录仪 -->
+                        <div class="card">
+                            <div class="title">📱 关联记录仪</div>
+                            <div>
+                                <span class="recorder-chip"><span class="status-dot online"></span> 记录仪-A-001 · 张伟</span>
+                                <span class="recorder-chip"><span class="status-dot online"></span> 记录仪-B-102 · 李娜</span>
+                                <span class="recorder-chip"><span class="status-dot online"></span> 记录仪-E-405 · 刘洋</span>
+                                <span class="recorder-chip"><span class="status-dot idle"></span> 记录仪-C-203 · 王强</span>
+                                <span class="recorder-chip"><span class="status-dot idle"></span> 记录仪-F-506 · 赵磊</span>
+                            </div>
+                            <div style="margin-top:8px;">
+                                <button class="mini-btn" style="padding:4px 16px; background:var(--color-primary-blue); color:#fff; border:none; border-radius:var(--radius-full); font-weight:600; cursor:pointer; font-size:13px;">查看全部</button>
+                            </div>
+                        </div>
+
+                        <!-- 最近报警 -->
+                        <div class="card">
+                            <div class="title">⚠️ 最近报警</div>
+                            <div class="alert-item">
+                                <span class="alert-level warning"></span>
+                                <span class="alert-time">14:20:05</span>
+                                <span class="alert-content">存储目标 NAS-01 连接超时，已触发熔断</span>
+                                <span class="alert-status pending">待处理</span>
+                            </div>
+                            <div class="alert-item">
+                                <span class="alert-level info"></span>
+                                <span class="alert-time">14:10:00</span>
+                                <span class="alert-content">端口 #04 记录仪 D-304 采集失败</span>
+                                <span class="alert-status pending">待处理</span>
+                            </div>
+                            <div class="alert-item">
+                                <span class="alert-level warning"></span>
+                                <span class="alert-time">13:55:00</span>
+                                <span class="alert-content">磁盘空间低于 20%</span>
+                                <span class="alert-status resolved">已处置</span>
+                            </div>
+                            <div style="margin-top:10px;">
+                                <button class="mini-btn" style="padding:4px 16px; background:var(--color-primary-blue); color:#fff; border:none; border-radius:var(--radius-full); font-weight:600; cursor:pointer; font-size:13px;">查看全部报警</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ===== Tab2: 策略配置（整合了顶部配置页的全部内容） ===== -->
+            <div class="tab-content" id="detail-policy">
+                <!-- 采集策略 -->
+                <div class="config-group">
+                    <div class="group-title">📡 采集策略</div>
+                    <div class="config-row"><span class="label">自动采集</span><div class="control"><div class="toggle on" onclick="this.classList.toggle('on')"><div class="knob"></div></div><span class="hint">开启</span></div></div>
+                    <div class="config-row"><span class="label">采集后擦除</span><div class="control"><div class="toggle" onclick="this.classList.toggle('on')"><div class="knob"></div></div><span class="hint">关闭（需二次确认）</span></div></div>
+                    <div class="config-row"><span class="label">采集附属文件</span><div class="control"><div class="toggle on" onclick="this.classList.toggle('on')"><div class="knob"></div></div><span class="hint">日志、图片</span></div></div>
+                </div>
+
+                <!-- 网络安全 -->
+                <div class="config-group">
+                    <div class="group-title">🔐 网络安全</div>
+                    <div class="config-row">
+                        <span class="label">Web端口</span>
+                        <div class="control">
+                            <input type="number" value="443" style="width:90px;">
+                            <span class="hint">HTTPS</span>
+                        </div>
+                    </div>
+                    <div class="config-row">
+                        <span class="label">HTTPS证书</span>
+                        <div class="control">
+                            <span style="color:var(--color-success);"><i class="fas fa-check-circle"></i> 已安装</span>
+                            <button class="btn-test">上传</button>
+                        </div>
+                    </div>
+                    <div class="config-row">
+                        <span class="label">允许HTTP</span>
+                        <div class="control">
+                            <div class="toggle" onclick="this.classList.toggle('on')"><div class="knob"></div></div>
+                            <span class="hint">关闭（推荐）</span>
+                        </div>
+                    </div>
+                    <div class="config-row">
+                        <span class="label">登录锁定</span>
+                        <div class="control">
+                            <input type="number" value="5" style="width:70px;"> 次
+                            <input type="number" value="15" style="width:70px;"> 分钟
+                            <span class="hint">连续失败锁定</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 设备自检 -->
+                <div class="config-group">
+                    <div class="group-title">🛠️ 设备自检</div>
+                    <div class="self-test-area">
+                        <button class="btn-test-all" id="selfTestBtn"><i class="fas fa-stethoscope"></i> 一键自检</button>
+                        <span style="font-size:15px; color:var(--color-text-secondary);">检测USB端口、磁盘、网络、存储目标</span>
+                    </div>
+                    <div class="test-result" id="selfTestResult">
+                        <div class="item"><span class="icon pass"><i class="fas fa-check-circle"></i></span> USB端口 #01~#08 正常</div>
+                        <div class="item"><span class="icon pass"><i class="fas fa-check-circle"></i></span> 磁盘读写正常</div>
+                        <div class="item"><span class="icon fail"><i class="fas fa-times-circle"></i></span> 存储目标 NAS-01 不可达 (需检查网络)</div>
+                        <div class="item"><span class="icon pass"><i class="fas fa-check-circle"></i></span> 网络连接正常</div>
+                        <div style="margin-top:12px; text-align:right;">
+                            <button class="btn-test" style="padding:4px 16px;">下载报告 (PDF)</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 下发按钮 -->
+                <button class="btn-deploy" onclick="alert('策略已下发至采集站')"><i class="fas fa-cloud-upload-alt"></i> 下发配置至采集站</button>
+                <div style="margin-top:8px; font-size:14px; color:var(--color-text-secondary);">
+                    <i class="fas fa-info-circle"></i> 配置下发后，采集站将热加载生效，无需重启服务。
+                </div>
+            </div>
+
+            <!-- ===== Tab3: 操作授权 ===== -->
+            <div class="tab-content" id="detail-auth">
+                <div class="auth-section">
+                    <div class="auth-panel">
+                        <h3>按部门授权</h3>
+                        <div class="dept-tree">
+                            <div class="tree-item"><div class="node"><input type="checkbox" checked> 一中队</div></div>
+                            <div class="tree-item" style="margin-left:30px;"><div class="node"><input type="checkbox"> 一中队-1组</div></div>
+                            <div class="tree-item" style="margin-left:30px;"><div class="node"><input type="checkbox" checked> 一中队-2组</div></div>
+                            <div class="tree-item"><div class="node"><input type="checkbox"> 二中队</div></div>
+                            <div class="tree-item" style="margin-left:30px;"><div class="node"><input type="checkbox"> 二中队-1组</div></div>
+                            <div class="tree-item"><div class="node"><input type="checkbox" checked> 特勤队</div></div>
+                        </div>
+                    </div>
+                    <div class="auth-panel">
+                        <h3>指定用户（精确）</h3>
+                        <div class="user-search">
+                            <input type="text" placeholder="输入警员姓名或编号...">
+                            <button><i class="fas fa-plus"></i> 添加</button>
+                        </div>
+                        <div class="user-list">
+                            <span class="user-chip">张伟 <i class="fas fa-times"></i></span>
+                            <span class="user-chip">李娜 <i class="fas fa-times"></i></span>
+                            <span class="user-chip">王强 <i class="fas fa-times"></i></span>
+                            <span class="user-chip">刘洋 <i class="fas fa-times"></i></span>
+                            <span style="font-size:14px; color:var(--color-text-secondary);">+ 5 人</span>
+                        </div>
+                        <div style="margin-top:12px; font-size:14px; color:var(--color-text-secondary);">共授权 12 人</div>
+                    </div>
+                </div>
+                <button class="btn-deploy" style="margin-top:20px;" onclick="alert('授权名单已下发至采集站')"><i class="fas fa-cloud-upload-alt"></i> 下发授权名单</button>
+            </div>
+
+            <!-- ===== Tab4: 记录仪白名单 ===== -->
+            <div class="tab-content" id="detail-whitelist">
+                <table class="whitelist-table">
+                    <thead><tr><th>序列号</th><th>型号</th><th>绑定警员</th><th>状态</th><th>操作</th></tr></thead>
+                    <tbody>
+                        <tr><td>R2023-001-A</td><td>警翼 F1</td><td>张伟</td><td><span style="color:var(--color-success);">授权</span></td><td><button class="btn-icon"><i class="fas fa-trash"></i></button></td></tr>
+                        <tr><td>R2023-002-B</td><td>警翼 F1</td><td>李娜</td><td><span style="color:var(--color-success);">授权</span></td><td><button class="btn-icon"><i class="fas fa-trash"></i></button></td></tr>
+                        <tr><td>R2023-003-C</td><td>海康 DSJ</td><td>王强</td><td><span style="color:var(--color-warning);">待审核</span></td><td><button class="btn-icon"><i class="fas fa-check" style="color:var(--color-success);"></i></button><button class="btn-icon"><i class="fas fa-times" style="color:var(--color-danger);"></i></button></td></tr>
+                        <tr><td>R2023-004-D</td><td>警翼 F2</td><td>—</td><td><span style="color:var(--color-danger);">未授权</span></td><td><button class="btn-icon"><i class="fas fa-plus" style="color:var(--color-primary-blue);"></i></button></td></tr>
+                    </tbody>
+                </table>
+                <div class="import-area">
+                    <span style="font-weight:500;">批量导入：</span>
+                    <label class="file-label"><i class="fas fa-file-upload"></i> 上传 CSV</label>
+                    <input type="file" accept=".csv">
+                    <span style="font-size:14px; color:var(--color-text-secondary);">或手动添加序列号</span>
+                </div>
+                <button class="btn-deploy" style="margin-top:16px;" onclick="alert('白名单已同步至采集站')"><i class="fas fa-cloud-upload-alt"></i> 同步白名单至采集站</button>
+            </div>
+
+            <!-- ===== Tab5: 存储管理 ===== -->
+            <div class="tab-content" id="detail-storage">
+                <!-- 存储目标状态 -->
+                <div class="card">
+                    <div class="title">📊 存储目标状态</div>
+                    <div class="storage-grid" id="storageGrid">
+                        <div class="storage-card">
+                            <div><span class="name"><i class="fas fa-hdd"></i> 本地磁盘 (D:)</span>
+                                <span class="status online">✅ 在线</span></div>
+                            <div class="bar"><div class="fill" style="width:32%; background:var(--color-primary-blue);"></div></div>
+                            <div class="info"><span>已用 320GB / 总 1TB</span><span>32%</span>
+                                <button class="action-link" onclick="alert('编辑存储目标：本地磁盘')">编辑</button>
+                            </div>
+                        </div>
+                        <div class="storage-card">
+                            <div><span class="name"><i class="fas fa-network-wired"></i> NAS-01</span>
+                                <span class="status online">✅ 在线</span></div>
+                            <div class="bar"><div class="fill" style="width:52%; background:var(--color-success);"></div></div>
+                            <div class="info"><span>已用 2.1TB / 总 4TB</span><span>52%</span>
+                                <button class="action-link" onclick="alert('编辑存储目标：NAS-01')">编辑</button>
+                            </div>
+                        </div>
+                        <div class="storage-card">
+                            <div><span class="name"><i class="fas fa-cloud"></i> OOS 北京</span>
+                                <span class="status online">✅ 在线</span></div>
+                            <div class="bar"><div class="fill" style="width:0%; background:var(--color-primary-blue);"></div></div>
+                            <div class="info"><span>已用 -- / 总 ∞</span><span>0%</span>
+                                <button class="action-link" onclick="alert('编辑存储目标：OOS 北京')">编辑</button>
+                            </div>
+                        </div>
+                        <div class="storage-card">
+                            <div><span class="name"><i class="fas fa-server"></i> FTP 备份</span>
+                                <span class="status fuse">⚠️ 熔断中</span></div>
+                            <div class="bar"><div class="fill" style="width:48%; background:var(--color-warning);"></div></div>
+                            <div class="info"><span>已用 480GB / 总 1TB</span><span>48%</span>
+                                <button class="action-link" onclick="alert('编辑存储目标：FTP 备份')">编辑</button>
+                                <button class="action-link" style="color:var(--color-danger);" onclick="alert('尝试恢复熔断目标：FTP 备份')">尝试恢复</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div style="margin-top:12px; display:flex; gap:12px;">
+                        <button class="btn-deploy" style="padding:6px 20px; font-size:14px; background:var(--color-success);"><i class="fas fa-plus"></i> 添加存储目标</button>
+                        <button class="btn-deploy" style="padding:6px 20px; font-size:14px; background:var(--color-text-secondary);"><i class="fas fa-sync-alt"></i> 刷新状态</button>
+                    </div>
+                </div>
+
+                <!-- 存储配置 -->
+                <div class="card">
+                    <div class="title">⚙️ 存储配置</div>
+                    <div class="storage-config-row">
+                        <span class="label">熔断阈值</span>
+                        <div class="control">
+                            <input type="number" value="5" style="width:70px;"> 次
+                            <input type="number" value="5" style="width:70px;"> 分钟
+                            <span class="hint">连续失败次数/时间窗口</span>
+                        </div>
+                    </div>
+                    <div class="storage-config-row">
+                        <span class="label">视频保存天数</span>
+                        <div class="control">
+                            <input type="number" value="90" style="width:80px;"> 天
+                            <span class="hint">超过此天数的视频文件将被自动清理</span>
+                        </div>
+                    </div>
+                    <div class="storage-config-row">
+                        <span class="label">日志保存天数</span>
+                        <div class="control">
+                            <input type="number" value="180" style="width:80px;"> 天
+                            <span class="hint">超过此天数的日志文件将被自动清理</span>
+                        </div>
+                    </div>
+                    <div class="storage-config-row">
+                        <span class="label">清理执行时间</span>
+                        <div class="control">
+                            <input type="time" value="02:00" style="width:120px;">
+                            <span class="hint">每日闲时执行</span>
+                        </div>
+                    </div>
+                    <button class="btn-deploy" onclick="alert('存储配置已下发至采集站')"><i class="fas fa-cloud-upload-alt"></i> 下发配置至采集站</button>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        (function() {
+            'use strict';
+
+            // ===== 从URL参数获取采集站编号 =====
+            const urlParams = new URLSearchParams(window.location.search);
+            const stationId = urlParams.get('station') || 'CS-01-001';
+
+            // ===== 模拟数据 =====
+            const stationData = {
+                'CS-01-001': {
+                    name: '采集站-01（一楼大厅）',
+                    status: 'online',
+                    statusLabel: '● 在线',
+                    meta: {
+                        id: 'CS-01-001',
+                        dept: '一中队',
+                        location: '一楼大厅东侧',
+                        version: 'v1.3.2',
+                        heartbeat: '2026-07-10 14:32:18'
+                    }
+                },
+                'CS-02-001': {
+                    name: '采集站-02（二楼东）',
+                    status: 'online',
+                    statusLabel: '● 在线',
+                    meta: {
+                        id: 'CS-02-001',
+                        dept: '一中队',
+                        location: '二楼东侧',
+                        version: 'v1.3.0',
+                        heartbeat: '2026-07-10 14:30:00'
+                    }
+                },
+                'CS-03-001': {
+                    name: '采集站-03（特勤中队）',
+                    status: 'warning',
+                    statusLabel: '● 降级',
+                    meta: {
+                        id: 'CS-03-001',
+                        dept: '特勤队',
+                        location: '特勤中队',
+                        version: 'v1.3.2',
+                        heartbeat: '2026-07-10 14:25:00'
+                    }
+                },
+                'CS-04-001': {
+                    name: '采集站-04（机动队）',
+                    status: 'offline',
+                    statusLabel: '● 离线',
+                    meta: {
+                        id: 'CS-04-001',
+                        dept: '机动队',
+                        location: '机动队',
+                        version: 'v1.2.1',
+                        heartbeat: '2026-07-10 13:45:00'
+                    }
+                }
+            };
+
+            const data = stationData[stationId] || stationData['CS-01-001'];
+
+            // ===== 更新页面标题和信息 =====
+            document.getElementById('pageTitle').textContent = data.name;
+            document.getElementById('stationName').innerHTML = data.name + ' <span class="status-tag ' + data.status +
+                '" id="stationStatus">' + data.statusLabel + '</span>';
+            const metaHtml =
+                `
+                <span><i class="fas fa-hashtag"></i> ${data.meta.id}</span>
+                <span><i class="fas fa-building"></i> ${data.meta.dept}</span>
+                <span><i class="fas fa-map-pin"></i> ${data.meta.location}</span>
+                <span><i class="fas fa-code-branch"></i> ${data.meta.version}</span>
+                <span><i class="fas fa-clock"></i> 最后心跳：${data.meta.heartbeat}</span>
+            `;
+            document.getElementById('stationMeta').innerHTML = metaHtml;
+
+            // ===== Tabs切换 =====
+            const tabs = document.querySelectorAll('#detailTabs .tab');
+            const contents = {
+                'detail-info': document.getElementById('detail-info'),
+                'detail-policy': document.getElementById('detail-policy'),
+                'detail-auth': document.getElementById('detail-auth'),
+                'detail-whitelist': document.getElementById('detail-whitelist'),
+                'detail-storage': document.getElementById('detail-storage')
+            };
+
+            tabs.forEach(tab => {
+                tab.addEventListener('click', function() {
+                    tabs.forEach(t => t.classList.remove('active'));
+                    this.classList.add('active');
+                    const target = this.dataset.tab;
+                    Object.keys(contents).forEach(key => {
+                        contents[key].classList.toggle('active', key === target);
+                    });
+                });
+            });
+
+            // ===== Toggle开关 =====
+            document.querySelectorAll('.toggle').forEach(t => {
+                t.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    this.classList.toggle('on');
+                });
+            });
+
+            // ===== 自检模拟 =====
+            document.getElementById('selfTestBtn').addEventListener('click', function() {
+                const resultDiv = document.getElementById('selfTestResult');
+                resultDiv.style.display = 'block';
+                const orig = this.innerHTML;
+                this.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 检测中...';
+                this.disabled = true;
+                setTimeout(() => {
+                    this.innerHTML = orig;
+                    this.disabled = false;
+                    const items = resultDiv.querySelectorAll('.item .icon');
+                    items.forEach((icon, idx) => {
+                        if (Math.random() > 0.7) {
+                            icon.className = 'icon fail';
+                            icon.innerHTML = '<i class="fas fa-times-circle"></i>';
+                        } else {
+                            icon.className = 'icon pass';
+                            icon.innerHTML = '<i class="fas fa-check-circle"></i>';
+                        }
+                    });
+                }, 2000);
+            });
+
+            // ===== 测试连接按钮 =====
+            document.querySelectorAll('.btn-test').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const orig = this.innerHTML;
+                    this.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 测试中...';
+                    this.disabled = true;
+                    setTimeout(() => {
+                        this.innerHTML = '<i class="fas fa-check-circle"></i> 成功';
+                        setTimeout(() => {
+                            this.innerHTML = orig;
+                            this.disabled = false;
+                        }, 1000);
+                    }, 800);
+                });
+            });
+
+            // ===== 指令按钮反馈 =====
+            document.querySelectorAll('.cmd-btn, .btn-deploy').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    this.style.transform = 'scale(0.95)';
+                    setTimeout(() => { this.style.transform = 'scale(1)'; }, 150);
+                });
+            });
+
+            console.log('采集站详情页加载完成，当前采集站：' + stationId);
+        })();
+    </script>
+
+</body>
+</html>

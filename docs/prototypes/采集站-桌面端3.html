@@ -1,0 +1,1819 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.5, user-scalable=yes">
+    <title>视音频数据采集站 · 桌面端</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        /* ===== 全局令牌 ===== */
+        :root {
+            --color-primary-dark: #0a2f6c;
+            --color-primary-blue: #2563eb;
+            --color-primary-light: #dbeafe;
+            --color-white: #ffffff;
+            --color-bg: #f4f7fa;
+            --color-text: #1e293b;
+            --color-text-secondary: #64748b;
+            --color-success: #22c55e;
+            --color-danger: #ef4444;
+            --color-warning: #f59e0b;
+            --color-orange: #ea580c;
+            --color-cyan: #06b6d4;
+            --font-family: 'Segoe UI', 'PingFang SC', system-ui, sans-serif;
+            --shadow-card: 0 4px 12px rgba(0,0,0,0.06), 0 1px 3px rgba(0,0,0,0.03);
+            --shadow-blue: 0 4px 12px rgba(37,99,235,0.3);
+            --radius-md: 16px;
+            --radius-full: 9999px;
+        }
+        * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+        body {
+            font-family: var(--font-family);
+            background: var(--color-bg);
+            color: var(--color-text);
+            height: 100vh;
+            overflow: hidden;
+            touch-action: pan-y;
+            user-select: none;
+        }
+        #app {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            max-width: 1920px;
+            margin: 0 auto;
+            background: var(--color-bg);
+        }
+
+        /* ===== 顶部导航 ===== */
+        .top-nav {
+            flex: 0 0 64px;
+            background: var(--color-primary-dark);
+            border-bottom: 2px solid var(--color-primary-blue);
+            display: flex;
+            align-items: center;
+            padding: 0 20px;
+            gap: 20px;
+            box-shadow: 0 4px 12px rgba(10,47,108,0.25);
+            z-index: 10;
+            min-height: 64px;
+        }
+        .nav-left { display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
+        .nav-left .logo { font-size: 28px; color: #60a5fa; filter: drop-shadow(0 0 4px rgba(96,165,250,0.3)); }
+        .nav-left .app-title { font-size: 20px; font-weight: 700; color: #fff; letter-spacing: 1px; white-space:nowrap; }
+        .nav-center { display: flex; align-items: center; gap: 8px; flex: 1; justify-content: center; }
+        .nav-center .menu-item {
+            padding: 8px 24px; font-size: 18px; font-weight: 600; color: #cbd5e1;
+            border-radius: 30px; cursor: pointer; transition: all 0.2s;
+            touch-action: manipulation; white-space: nowrap; min-height: 48px;
+            display: flex; align-items: center; justify-content: center;
+            border: 1px solid transparent; background: transparent;
+        }
+        .nav-center .menu-item:hover { background: rgba(255,255,255,0.08); color:#fff; }
+        .nav-center .menu-item.active { background: var(--color-primary-blue); color:#fff; box-shadow: var(--shadow-blue); border-color: #60a5fa; }
+        .nav-center .menu-item i { margin-right: 8px; font-size:18px; }
+        .nav-right {
+            display: flex; align-items: center; gap: 6px; flex-shrink: 0;
+        }
+        .nav-right .icon-btn {
+            width: 44px; height: 44px; border-radius:50%; border:none;
+            background:transparent; font-size:20px; color:#cbd5e1;
+            cursor:pointer; display:flex; align-items:center; justify-content:center;
+            transition: background 0.2s, color 0.2s;
+            touch-action: manipulation;
+        }
+        .nav-right .icon-btn:hover { background:rgba(255,255,255,0.12); color:#fff; }
+        .nav-right .badge { position:relative; }
+        .nav-right .badge::after {
+            content: '3';
+            position: absolute; top:2px; right:2px;
+            background: var(--color-danger); color:#fff;
+            font-size:11px; font-weight:700; width:20px; height:20px; border-radius:50%;
+            display:flex; align-items:center; justify-content:center;
+            border:2px solid var(--color-primary-dark);
+        }
+        .nav-right .auth-status {
+            display: flex; align-items:center; gap:6px;
+            font-size:15px; font-weight:600; color:#e2e8f0;
+            margin-left:8px; padding:6px 16px 6px 12px;
+            background:rgba(255,255,255,0.1); border-radius:30px;
+            border:1px solid rgba(255,255,255,0.15);
+        }
+        .nav-right .auth-status .dot {
+            width:10px; height:10px; border-radius:50%;
+            background: var(--color-success);
+            display:inline-block; box-shadow: 0 0 8px var(--color-success);
+        }
+        .nav-right .user-label {
+            font-size:14px; color:#e2e8f0; margin-left:4px; padding:4px 12px;
+            background:rgba(255,255,255,0.15); border-radius:30px; cursor:pointer;
+            border:1px solid rgba(255,255,255,0.1);
+        }
+        .nav-right .user-label:hover { background:rgba(255,255,255,0.25); }
+
+        /* ===== 公告栏 ===== */
+        .notice-bar {
+            flex: 0 0 40px;
+            background: #fef3c7;
+            border-bottom: 1px solid #fcd34d;
+            display: flex;
+            align-items: center;
+            padding: 0 20px;
+            overflow: hidden;
+            white-space: nowrap;
+            position: relative;
+        }
+        .notice-bar .notice-icon { color: #d97706; font-size: 18px; margin-right: 16px; flex-shrink:0; }
+        .notice-bar .notice-text { font-size: 15px; color: #92400e; overflow: hidden; position: relative; flex:1; font-weight:500; }
+        .notice-bar .notice-text .scroll-wrap { display: inline-block; white-space: nowrap; animation: scrollNotice 20s linear infinite; }
+        @keyframes scrollNotice {
+            0% { transform: translateX(100%); }
+            10% { transform: translateX(0%); }
+            90% { transform: translateX(0%); }
+            100% { transform: translateX(-100%); }
+        }
+        .notice-bar .notice-close {
+            background: none; border: none; font-size: 18px; color: #92400e;
+            cursor: pointer; padding: 0 8px; flex-shrink:0; min-height:40px; opacity:0.7;
+        }
+        .notice-bar .notice-close:hover { opacity:1; }
+        .notice-bar.hidden { display: none; }
+
+        /* ===== 主内容 ===== */
+        .main-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 16px 24px 12px 24px;
+            background: var(--color-bg);
+            scroll-behavior: smooth;
+            -webkit-overflow-scrolling: touch;
+        }
+        .page { display: none; }
+        .page.active { display: block; }
+
+        /* ===== 工作台 - 卡片网格 ===== */
+        .card-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 16px;
+            margin-bottom: 20px;
+        }
+        @media (max-width:1200px) { .card-grid { grid-template-columns: repeat(4,1fr); } }
+        @media (max-width:900px) { .card-grid { grid-template-columns: repeat(3,1fr); } }
+        @media (max-width:600px) { .card-grid { grid-template-columns: repeat(2,1fr); } }
+
+        .channel-card {
+            background: var(--color-white);
+            border-radius: var(--radius-md);
+            padding: 16px 14px 14px 14px;
+            box-shadow: var(--shadow-card);
+            border-top: 4px solid var(--color-primary-blue);
+            transition: all 0.2s;
+            cursor: pointer;
+            touch-action: manipulation;
+            display: flex;
+            flex-direction: column;
+            min-height: 215px;
+            position: relative;
+        }
+        .channel-card:active { transform: scale(0.97); }
+        .channel-card .card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 4px; }
+        .channel-card .port { font-size: 20px; font-weight: 700; color: var(--color-primary-dark); }
+        .channel-card .port .emergency { color: var(--color-danger); margin-left: 4px; font-size: 16px; }
+        .channel-card .device-id { font-size: 16px; font-weight: 700; color: var(--color-text); display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 2px; }
+        .channel-card .device-id .protocol { font-size: 12px; font-weight: 600; color: #475569; background: #eef2f6; padding: 0 10px; border-radius: 12px; line-height: 22px; letter-spacing: 0.3px; }
+        .channel-card .device-id .placeholder { color: var(--color-text-secondary); font-weight: 400; }
+        .channel-card .operator-dept { font-size: 14px; color: var(--color-text-secondary); margin: 2px 0 2px 0; font-weight: 500; }
+        .channel-card .operator-dept i { margin-right: 4px; color: var(--color-primary-blue); }
+        .channel-card .operator-dept .placeholder { color: var(--color-text-secondary); font-weight: 400; }
+        .channel-card .storage-file-info { display: flex; gap: 12px; font-size: 13px; color: var(--color-text-secondary); margin: 2px 0 4px 0; font-weight: 500; flex-wrap: wrap; }
+        .channel-card .storage-file-info i { margin-right: 4px; color: var(--color-primary-blue); }
+        .channel-card .storage-file-info .placeholder { color: var(--color-text-secondary); font-weight: 400; }
+        .channel-card .progress-area { margin: 6px 0 6px 0; }
+        .channel-card .progress-bar { width: 100%; height: 14px; background: #e2e8f0; border-radius: var(--radius-full); overflow: hidden; position: relative; }
+        .channel-card .progress-bar .fill { height: 100%; border-radius: var(--radius-full); background: var(--color-primary-blue); transition: width 0.3s; width: 0%; }
+        .channel-card .progress-label { display: flex; justify-content: space-between; font-size: 14px; color: #475569; margin-top: 4px; font-weight: 500; }
+        .channel-card .progress-label .speed-text { color: var(--color-primary-blue); font-weight:600; }
+        .channel-card .progress-label .percent-text { font-weight:600; }
+        .channel-card .card-actions { display: flex; justify-content: space-between; align-items: center; margin-top: auto; gap: 6px; flex-wrap: wrap; }
+        .channel-card .card-actions .battery-info { display: flex; align-items: center; gap: 6px; font-size: 14px; color: #475569; font-weight: 500; flex-shrink: 0; }
+        .channel-card .card-actions .battery-info i { font-size: 18px; }
+        .channel-card .card-actions .action-btns { display: flex; gap: 6px; flex-wrap: wrap; }
+        .channel-card .card-actions .action-btns .text-btn {
+            padding: 6px 14px; font-size: 14px; font-weight: 700; border-radius: var(--radius-full);
+            border: none; cursor: pointer; touch-action: manipulation; min-height: 38px;
+            display: flex; align-items: center; justify-content: center; transition: all 0.15s;
+            white-space: nowrap; background: #f1f5f9; color: #334155; box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+        }
+        .channel-card .card-actions .action-btns .text-btn:active { transform: scale(0.92); }
+        .channel-card .card-actions .action-btns .text-btn.primary { background: var(--color-primary-blue); color:#fff; box-shadow: var(--shadow-blue); }
+        .channel-card .card-actions .action-btns .text-btn.primary:active { background: #1d4ed8; }
+        .channel-card .card-actions .action-btns .text-btn.danger { background: var(--color-danger); color:#fff; box-shadow: 0 2px 8px rgba(220,38,38,0.3); }
+        .channel-card .card-actions .action-btns .text-btn.danger:active { background: #b91c1c; }
+        .channel-card .card-actions .action-btns .text-btn.success { background: var(--color-success); color:#fff; }
+        .channel-card .card-actions .action-btns .text-btn.warning { background: var(--color-warning); color:#fff; }
+        .channel-card .card-actions .action-btns .text-btn.warning:active { background: #d97706; }
+        .channel-card .card-actions .action-btns .text-btn.priority { background: var(--color-orange); color:#fff; box-shadow: 0 2px 8px rgba(234,88,12,0.3); }
+        .channel-card .card-actions .action-btns .text-btn.priority.active { background: var(--color-danger); box-shadow: 0 0 0 2px #fca5a5, 0 2px 8px rgba(220,38,38,0.4); }
+        .channel-card .card-actions .action-btns .text-btn:disabled { opacity:0.5; pointer-events:none; }
+
+        .channel-card .status-badge {
+            position: absolute; top: 12px; right: 12px;
+            font-size: 12px; font-weight: 700; padding: 2px 14px; border-radius: var(--radius-full);
+            background: #f1f5f9; color: #64748b; text-transform: uppercase; letter-spacing: 0.3px;
+        }
+        .channel-card .status-badge.active { background: #dcfce7; color: #15803d; }
+        .channel-card .status-badge.error { background: #fee2e2; color: #b91c1c; }
+        .channel-card .status-badge.warning { background: #fef3c7; color: #b45309; }
+        .channel-card .status-badge.idle { background: #f1f5f9; color: #94a3b8; }
+
+        .channel-card.idle .device-id,
+        .channel-card.idle .operator-dept,
+        .channel-card.idle .storage-file-info,
+        .channel-card.idle .progress-area { opacity: 0.45; }
+        .channel-card.idle .card-actions .action-btns .text-btn:not(.primary) { display: none; }
+        .channel-card.emergency-card { border-top-color: var(--color-danger); background: #fef2f2; }
+
+        /* ===== 底部面板（通用） ===== */
+        .bottom-sheet-overlay {
+            position: fixed; bottom: 0; left: 0; right: 0;
+            background: rgba(10,47,108,0.6); backdrop-filter: blur(4px);
+            z-index: 1000; display: none; align-items: flex-end; justify-content: center;
+            height: 100vh; touch-action: none;
+        }
+        .bottom-sheet-overlay.open { display: flex; }
+        .bottom-sheet {
+            background: var(--color-white); border-radius: 28px 28px 0 0;
+            width: 100%; max-width: 800px; max-height: 70vh;
+            padding: 24px 24px 30px 24px; box-shadow: 0 -8px 30px rgba(0,0,0,0.15);
+            overflow-y: auto; transform: translateY(100%);
+            transition: transform 0.35s cubic-bezier(0.32, 0.72, 0, 1);
+            touch-action: pan-y;
+        }
+        .bottom-sheet-overlay.open .bottom-sheet { transform: translateY(0); }
+        .bottom-sheet .sheet-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; padding-bottom: 12px; border-bottom: 2px solid #e2e8f0; }
+        .bottom-sheet .sheet-header h2 { font-size: 22px; font-weight: 700; color: var(--color-primary-dark); }
+        .bottom-sheet .sheet-header .close-btn { width: 48px; height: 48px; border-radius:50%; border:none; background: #f1f5f9; font-size:24px; color:#475569; cursor:pointer; display:flex; align-items:center; justify-content:center; transition: background 0.2s; }
+        .bottom-sheet .sheet-header .close-btn:active { background: #e2e8f0; }
+        .bottom-sheet .file-list { display: flex; flex-direction: column; gap: 10px; }
+        .bottom-sheet .file-item {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 14px 16px; background: #f8fafc; border-radius: 14px;
+            border-left: 5px solid var(--color-primary-blue); min-height: 60px;
+            flex-wrap: wrap; gap: 8px;
+        }
+        .bottom-sheet .file-item .file-info { display: flex; flex-direction: column; gap:2px; flex:1; min-width:120px; }
+        .bottom-sheet .file-item .file-name { font-size:16px; font-weight:600; color:#0f172a; }
+        .bottom-sheet .file-item .file-meta { font-size:14px; color:var(--color-text-secondary); display:flex; flex-wrap:wrap; gap:12px; }
+        .bottom-sheet .file-item .file-status { font-size:14px; font-weight:600; display:flex; align-items:center; gap:6px; }
+        .bottom-sheet .file-item .file-status .dot { width:10px; height:10px; border-radius:50%; display:inline-block; }
+        .bottom-sheet .file-item .file-status .dot.green { background: var(--color-success); }
+        .bottom-sheet .file-item .file-status .dot.blue { background: var(--color-primary-blue); }
+        .bottom-sheet .file-item .file-status .dot.red { background: var(--color-danger); }
+        .bottom-sheet .file-item .file-status .dot.orange { background: var(--color-warning); }
+        .bottom-sheet .sheet-actions { display: flex; gap: 12px; margin-top: 20px; padding-top: 16px; border-top: 1px solid #e2e8f0; }
+        .bottom-sheet .sheet-actions button {
+            flex: 1; padding: 14px 0; font-size: 17px; font-weight: 700;
+            border-radius: var(--radius-full); border: none; background: #f1f5f9;
+            color: #334155; cursor: pointer; touch-action: manipulation; min-height: 54px;
+            transition: background 0.2s;
+        }
+        .bottom-sheet .sheet-actions button.primary { background: var(--color-primary-blue); color:#fff; box-shadow: var(--shadow-blue); }
+        .bottom-sheet .sheet-actions button:active { transform: scale(0.96); }
+
+        /* ===== 采集作业页面 ===== */
+        .device-pool { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 24px; }
+        .device-chip {
+            background: var(--color-white); padding: 8px 16px; border-radius: var(--radius-full);
+            border: 1px solid #e2e8f0; display: flex; align-items: center; gap: 10px;
+            font-size: 15px; font-weight: 500; box-shadow: var(--shadow-card);
+        }
+        .device-chip .status-dot { width: 10px; height: 10px; border-radius:50%; display:inline-block; }
+        .device-chip .status-dot.green { background: var(--color-success); }
+        .device-chip .status-dot.red { background: var(--color-danger); }
+        .device-chip .status-dot.yellow { background: var(--color-warning); }
+
+        .task-table { background: var(--color-white); border-radius: var(--radius-md); overflow: hidden; box-shadow: var(--shadow-card); }
+        .task-item { display: flex; align-items: center; padding: 14px 20px; border-bottom: 1px solid #f1f5f9; gap: 16px; flex-wrap: wrap; }
+        .task-item:last-child { border-bottom: none; }
+        .task-item .task-info { flex: 1; min-width: 150px; }
+        .task-item .task-info .task-title { font-weight: 600; font-size: 16px; }
+        .task-item .task-info .task-meta { font-size: 14px; color: var(--color-text-secondary); }
+        .task-item .task-progress { width: 120px; }
+        .task-item .task-progress .mini-bar { height: 8px; background: #e2e8f0; border-radius: var(--radius-full); overflow:hidden; }
+        .task-item .task-progress .mini-bar .fill { height:100%; background: var(--color-primary-blue); border-radius: var(--radius-full); }
+        .task-item .task-actions { display: flex; gap: 6px; }
+
+        /* ===== 历史记录 ===== */
+        .history-controls { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 16px; align-items: center; }
+        .history-controls input, .history-controls select { padding: 8px 16px; border-radius: var(--radius-full); border: 1px solid #e2e8f0; font-size: 15px; background: var(--color-white); }
+        .history-controls .btn-export { padding: 8px 20px; background: var(--color-primary-blue); color:#fff; border: none; border-radius: var(--radius-full); font-weight:600; cursor:pointer; }
+        .history-controls .btn-export:hover { background: #1d4ed8; }
+        .history-controls .group-select { margin-left: auto; }
+
+        .history-list { background: var(--color-white); border-radius: var(--radius-md); box-shadow: var(--shadow-card); overflow: hidden; }
+        .history-group { border-bottom: 1px solid #e2e8f0; }
+        .history-group:last-child { border-bottom: none; }
+        .history-group-header {
+            display: flex; align-items: center; padding: 12px 20px; background: #f8fafc;
+            font-weight: 700; font-size: 16px; color: var(--color-primary-dark);
+            cursor: pointer; touch-action: manipulation; user-select: none; gap: 12px;
+        }
+        .history-group-header i { transition: transform 0.2s; }
+        .history-group-header.collapsed i { transform: rotate(-90deg); }
+        .history-group-body { padding: 0 20px; }
+        .history-group-body.collapsed { display: none; }
+
+        .history-item {
+            display: flex; align-items: center; padding: 12px 0;
+            border-bottom: 1px solid #f1f5f9; gap: 12px; flex-wrap: wrap; font-size: 14px;
+        }
+        .history-item:last-child { border-bottom: none; }
+        .history-item .col { flex: 1; min-width: 100px; }
+        .history-item .col .label { font-size: 12px; color: var(--color-text-secondary); display: block; }
+        .history-item .col .value { font-weight: 500; font-size: 15px; color: var(--color-text); word-break: break-all; }
+        .history-item .col .value .hash { font-family: monospace; font-size: 13px; color: var(--color-text-secondary); background: #f1f5f9; padding: 0 6px; border-radius: 4px; }
+        .history-item .col .status-badge-sm { display: inline-block; padding: 2px 12px; border-radius: var(--radius-full); font-size: 13px; font-weight: 700; }
+        .history-item .col .status-badge-sm.synced { background: #dcfce7; color: #15803d; }
+        .history-item .col .status-badge-sm.pending { background: #fef3c7; color: #b45309; }
+        .history-item .col .status-badge-sm.failed { background: #fee2e2; color: #b91c1c; }
+
+        .pagination {
+            display: flex; justify-content: flex-end; align-items: center;
+            gap: 12px; margin-top: 16px; font-size: 15px;
+        }
+        .pagination button { padding: 6px 16px; border-radius: var(--radius-full); border: 1px solid #e2e8f0; background: var(--color-white); cursor: pointer; font-weight: 500; touch-action: manipulation; }
+        .pagination button:hover { background: #f1f5f9; }
+        .pagination button:disabled { opacity: 0.4; pointer-events: none; }
+
+        /* ===== 日志中心 ===== */
+        .log-tabs { display: flex; gap: 8px; margin-bottom: 16px; }
+        .log-tabs .log-tab { padding: 8px 20px; border-radius: var(--radius-full); border: 1px solid #e2e8f0; background: var(--color-white); font-weight: 600; font-size: 15px; cursor: pointer; touch-action: manipulation; min-height: 40px; transition: all 0.2s; }
+        .log-tabs .log-tab.active { background: var(--color-primary-blue); color:#fff; border-color: var(--color-primary-blue); }
+        .log-controls { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 16px; align-items: center; }
+        .log-controls select, .log-controls input { padding: 8px 16px; border-radius: var(--radius-full); border: 1px solid #e2e8f0; font-size: 15px; background: var(--color-white); }
+        .log-controls .btn-export { padding: 8px 20px; background: var(--color-primary-blue); color:#fff; border: none; border-radius: var(--radius-full); font-weight:600; cursor:pointer; }
+        .log-controls .btn-export:hover { background: #1d4ed8; }
+        .log-list { background: var(--color-white); border-radius: var(--radius-md); box-shadow: var(--shadow-card); padding: 0 20px; }
+        .log-item { display: flex; align-items: center; padding: 12px 0; border-bottom: 1px solid #f1f5f9; gap: 12px; font-size: 15px; }
+        .log-item:last-child { border-bottom: none; }
+        .log-item .log-time { color: var(--color-text-secondary); min-width: 80px; }
+        .log-item .log-level { font-weight: 700; min-width: 60px; }
+        .log-item .log-level.info { color: var(--color-primary-blue); }
+        .log-item .log-level.warn { color: var(--color-warning); }
+        .log-item .log-level.error { color: var(--color-danger); }
+        .log-item .log-content { flex:1; }
+        .log-item .log-content .masked { background: #f1f5f9; padding: 2px 8px; border-radius:4px; font-family:monospace; color:#475569; font-size:14px; }
+        .log-item .log-content .masked::before { content: '🔒 '; font-size:12px; }
+
+        /* ===== 设置页面 ===== */
+        .settings-layout {
+            display: flex;
+            gap: 20px;
+            height: 100%;
+            min-height: 500px;
+        }
+        .settings-nav {
+            flex: 0 0 200px;
+            background: var(--color-white);
+            border-radius: var(--radius-md);
+            box-shadow: var(--shadow-card);
+            padding: 12px 0;
+            overflow-y: auto;
+            max-height: 100%;
+        }
+        .settings-nav .nav-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 18px;
+            cursor: pointer;
+            font-size: 15px;
+            font-weight: 500;
+            color: var(--color-text-secondary);
+            border-left: 4px solid transparent;
+            transition: all 0.15s;
+            touch-action: manipulation;
+            min-height: 48px;
+        }
+        .settings-nav .nav-item:hover {
+            background: var(--color-primary-light);
+            color: var(--color-primary-dark);
+        }
+        .settings-nav .nav-item.active {
+            background: var(--color-primary-light);
+            color: var(--color-primary-blue);
+            border-left-color: var(--color-primary-blue);
+            font-weight: 600;
+        }
+        .settings-nav .nav-item i {
+            width: 20px;
+            text-align: center;
+            font-size: 16px;
+        }
+        .settings-content {
+            flex: 1;
+            overflow-y: auto;
+            padding-right: 4px;
+        }
+        .settings-content .settings-group {
+            display: none;
+            background: var(--color-white);
+            border-radius: var(--radius-md);
+            padding: 20px;
+            box-shadow: var(--shadow-card);
+            margin-bottom: 20px;
+        }
+        .settings-content .settings-group.active {
+            display: block;
+        }
+        .settings-content .settings-group .group-title {
+            font-weight: 700;
+            font-size: 18px;
+            color: var(--color-primary-dark);
+            margin-bottom: 16px;
+            border-bottom: 1px solid #e2e8f0;
+            padding-bottom: 8px;
+        }
+        .config-row {
+            display: flex;
+            align-items: center;
+            padding: 10px 0;
+            border-bottom: 1px solid #f1f5f9;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+        .config-row:last-child { border-bottom: none; }
+        .config-row .label { width: 150px; font-weight: 500; color: var(--color-text-secondary); }
+        .config-row .control { flex:1; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+        .config-row .control input, .config-row .control select { padding: 8px 16px; border-radius: var(--radius-full); border: 1px solid #e2e8f0; font-size: 15px; background: #f8fafc; min-width: 140px; }
+        .config-row .control .toggle { width: 48px; height: 28px; background: #cbd5e1; border-radius: var(--radius-full); position: relative; cursor: pointer; transition: 0.2s; }
+        .config-row .control .toggle.on { background: var(--color-primary-blue); }
+        .config-row .control .toggle .knob { width: 22px; height: 22px; background: #fff; border-radius: 50%; position: absolute; top: 3px; left: 3px; transition: 0.2s; }
+        .config-row .control .toggle.on .knob { left: 23px; }
+        .config-row .control .hint { font-size: 14px; color: var(--color-text-secondary); }
+        .config-row .control .btn-test { padding: 4px 16px; border-radius: var(--radius-full); border:1px solid var(--color-primary-blue); background: transparent; color: var(--color-primary-blue); cursor: pointer; font-weight:600; }
+        .config-row .control .btn-test:hover { background: var(--color-primary-light); }
+        .config-row .control .lock-icon { color: var(--color-text-secondary); margin-left:8px; }
+        .config-row .control .status-badge-sm { display: inline-block; padding: 0 12px; border-radius: var(--radius-full); font-size: 12px; font-weight: 700; }
+        .config-row .control .status-badge-sm.bound { background: #dcfce7; color: #15803d; }
+        .config-row .control .status-badge-sm.unbound { background: #f1f5f9; color: #64748b; }
+
+        .bio-enroll-area { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin: 8px 0; }
+        .bio-enroll-area .user-chip { display: inline-flex; align-items: center; background: var(--color-primary-light); padding: 4px 14px 4px 16px; border-radius: var(--radius-full); font-size: 14px; font-weight: 500; color: var(--color-primary-dark); gap: 8px; }
+        .bio-enroll-area .user-chip .badge { font-size: 11px; font-weight: 700; padding: 0 8px; border-radius: var(--radius-full); }
+        .bio-enroll-area .user-chip .badge.bound { background: #dcfce7; color: #15803d; }
+        .bio-enroll-area .user-chip .badge.unbound { background: #f1f5f9; color: #64748b; }
+        .bio-enroll-area .btn-enroll { padding: 4px 16px; border-radius: var(--radius-full); border: 1px solid var(--color-primary-blue); background: transparent; color: var(--color-primary-blue); cursor: pointer; font-weight: 600; font-size: 13px; transition: all 0.2s; }
+        .bio-enroll-area .btn-enroll:hover { background: var(--color-primary-light); }
+        .bio-enroll-area .btn-enroll:disabled { opacity: 0.4; pointer-events: none; }
+        .bio-enroll-area .btn-enroll.danger { border-color: var(--color-danger); color: var(--color-danger); }
+        .bio-enroll-area .btn-enroll.danger:hover { background: #fee2e2; }
+
+        .logout-area { margin-top: 12px; padding-top: 16px; border-top: 1px solid #e2e8f0; display: flex; gap: 12px; flex-wrap: wrap; }
+        .btn-logout { padding: 8px 24px; border-radius: var(--radius-full); border: none; background: var(--color-danger); color: #fff; font-weight: 700; font-size: 15px; cursor: pointer; transition: all 0.2s; }
+        .btn-logout:hover { background: #b91c1c; }
+
+        /* ===== 关于弹窗 ===== */
+        .modal-overlay { position: fixed; top:0;left:0;right:0;bottom:0; background: rgba(0,0,0,0.5); backdrop-filter: blur(4px); z-index: 2000; display: none; align-items: center; justify-content: center; }
+        .modal-overlay.open { display: flex; }
+        .modal-box { background: var(--color-white); border-radius: var(--radius-md); max-width: 480px; width: 90%; padding: 32px; box-shadow: 0 20px 60px rgba(0,0,0,0.3); position: relative; }
+        .modal-box .close-modal { position: absolute; top: 16px; right: 20px; font-size: 28px; color: var(--color-text-secondary); cursor: pointer; background: none; border: none; }
+        .modal-box .close-modal:hover { color: var(--color-text); }
+        .modal-box h2 { font-size: 24px; color: var(--color-primary-dark); margin-bottom: 16px; }
+        .modal-box .info-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #f1f5f9; }
+        .modal-box .info-row:last-child { border-bottom: none; }
+        .modal-box .info-row .label { color: var(--color-text-secondary); }
+        .modal-box .info-row .value { font-weight: 600; }
+
+        /* ===== 底部状态栏 ===== */
+        .bottom-bar {
+            flex: 0 0 56px;
+            background: var(--color-primary-dark);
+            border-top: 2px solid var(--color-primary-blue);
+            display: flex;
+            align-items: center;
+            padding: 0 20px;
+            gap: 16px;
+            font-size: 14px;
+            color: #cbd5e1;
+            flex-wrap: nowrap;
+            overflow-x: auto;
+            white-space: nowrap;
+            font-weight: 500;
+            box-shadow: 0 -4px 12px rgba(10,47,108,0.2);
+        }
+        .bottom-bar .item { display: flex; align-items:center; gap:6px; flex-shrink:0; }
+        .bottom-bar .item i { font-size:15px; }
+        .bottom-bar .item .wifi-icon { font-size:16px; }
+        .bottom-bar .item .wifi-icon.online { color: var(--color-success); }
+        .bottom-bar .item .wifi-icon.offline { color: var(--color-danger); }
+        .bottom-bar .item .heartbeat-icon { color: #ef4444; animation: pulse 1.5s ease-in-out infinite; }
+        @keyframes pulse {
+            0% { opacity:0.5; transform:scale(0.9); }
+            50% { opacity:1; transform:scale(1.2); }
+            100% { opacity:0.5; transform:scale(0.9); }
+        }
+        .bottom-bar .item .stat-number { font-weight:700; color:#fff; }
+        .bottom-bar .divider { width:1px; height:28px; background:#334155; flex-shrink:0; }
+        .bottom-bar .time-display { margin-left: auto; font-family: 'Consolas', 'Courier New', monospace; font-size: 15px; letter-spacing: 0.5px; color: #e2e8f0; flex-shrink: 0; display: flex; align-items: center; gap: 6px; }
+        .bottom-bar .time-display i { font-size:14px; color:#94a3b8; }
+        @media (max-width:700px) { .bottom-bar { font-size:12px; gap:10px; padding:0 12px; } .bottom-bar .item.hide-mobile { display:none; } .bottom-bar .time-display { font-size:13px; } }
+
+        /* ===== 登录覆盖层 ===== */
+        #loginOverlay {
+            position: fixed; top:0;left:0;right:0;bottom:0;
+            background: rgba(10,47,108,0.85); backdrop-filter: blur(8px);
+            z-index: 9999; display: none; align-items: center; justify-content: center;
+        }
+        #loginOverlay.open { display: flex; }
+        .login-box { background: var(--color-white); border-radius: var(--radius-md); padding: 36px 40px 32px 40px; max-width: 420px; width: 90%; box-shadow: 0 20px 60px rgba(0,0,0,0.4); position: relative; }
+        .login-box .login-title { text-align: center; margin-bottom: 24px; }
+        .login-box .login-title i { font-size: 48px; color: var(--color-primary-blue); display: block; margin-bottom: 8px; }
+        .login-box .login-title h2 { font-size: 24px; font-weight: 700; color: var(--color-primary-dark); }
+        .login-box .login-title p { font-size: 14px; color: var(--color-text-secondary); margin-top: 4px; }
+        .login-tabs { display: flex; border-bottom: 2px solid #e2e8f0; margin-bottom: 20px; }
+        .login-tabs .tab { flex: 1; text-align: center; padding: 10px 0; font-weight: 600; font-size: 15px; color: var(--color-text-secondary); cursor: pointer; border-bottom: 3px solid transparent; transition: all 0.2s; }
+        .login-tabs .tab:hover { color: var(--color-text); }
+        .login-tabs .tab.active { color: var(--color-primary-blue); border-bottom-color: var(--color-primary-blue); }
+        .login-panel { display: none; padding: 8px 0; }
+        .login-panel.active { display: block; }
+        .login-panel .input-group { margin-bottom: 16px; }
+        .login-panel .input-group input { width: 100%; padding: 12px 16px; border-radius: var(--radius-full); border: 1px solid #e2e8f0; font-size: 16px; background: #f8fafc; outline: none; transition: border-color 0.2s; }
+        .login-panel .input-group input:focus { border-color: var(--color-primary-blue); box-shadow: 0 0 0 3px rgba(37,99,235,0.1); }
+        .login-panel .btn-login { width: 100%; padding: 12px; border-radius: var(--radius-full); border: none; background: var(--color-primary-blue); color: #fff; font-weight: 700; font-size: 17px; cursor: pointer; transition: all 0.2s; box-shadow: var(--shadow-blue); }
+        .login-panel .btn-login:hover { background: #1d4ed8; }
+        .login-panel .btn-login:active { transform: scale(0.97); }
+        .login-panel .btn-login.bio { background: #f1f5f9; color: var(--color-text); box-shadow: none; display: flex; align-items: center; justify-content: center; gap: 10px; }
+        .login-panel .btn-login.bio:hover { background: #e2e8f0; }
+        .login-panel .btn-login.bio i { font-size: 20px; color: var(--color-primary-blue); }
+        .login-panel .btn-login.bio.finger i { color: var(--color-orange); }
+        .login-panel .btn-login.bio.face i { color: var(--color-cyan); }
+        .login-error { display: block; text-align: center; color: var(--color-danger); font-size: 14px; margin-top: 12px; min-height: 20px; }
+        .login-box .close-login { position: absolute; top: 12px; right: 16px; background: none; border: none; font-size: 24px; color: var(--color-text-secondary); cursor: pointer; }
+        .login-box .close-login:hover { color: var(--color-text); }
+
+        /* ===== 空闲超时提示 ===== */
+        .idle-warning { position: fixed; bottom: 70px; left: 50%; transform: translateX(-50%); background: rgba(239,68,68,0.95); color: #fff; padding: 10px 24px; border-radius: var(--radius-full); font-size: 14px; font-weight: 600; box-shadow: 0 4px 16px rgba(0,0,0,0.2); z-index: 5000; display: none; animation: fadeInUp 0.3s ease; white-space: nowrap; pointer-events: none; }
+        @keyframes fadeInUp { from { opacity:0; transform:translateX(-50%) translateY(20px); } to { opacity:1; transform:translateX(-50%) translateY(0); } }
+
+        /* ===== Toast ===== */
+        .custom-toast { position: fixed; bottom: 120px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.8); color: #fff; padding: 10px 24px; border-radius: 30px; font-size: 15px; font-weight: 500; z-index: 6000; animation: fadeInUp 0.3s ease; box-shadow: 0 4px 16px rgba(0,0,0,0.3); pointer-events: none; white-space: nowrap; max-width: 90%; }
+        @media (max-width:600px) { .custom-toast { font-size: 13px; padding: 8px 16px; } }
+
+        /* ===== 响应式 ===== */
+        @media (max-width: 900px) {
+            .settings-layout {
+                flex-direction: column;
+            }
+            .settings-nav {
+                flex: none;
+                display: flex;
+                flex-wrap: nowrap;
+                overflow-x: auto;
+                padding: 8px 12px;
+                gap: 4px;
+                border-radius: var(--radius-md);
+                background: var(--color-white);
+                box-shadow: var(--shadow-card);
+                margin-bottom: 16px;
+                min-height: 56px;
+            }
+            .settings-nav .nav-item {
+                flex: 0 0 auto;
+                padding: 8px 16px;
+                border-left: none;
+                border-bottom: 3px solid transparent;
+                min-height: 40px;
+                font-size: 14px;
+                white-space: nowrap;
+            }
+            .settings-nav .nav-item.active {
+                border-left: none;
+                border-bottom-color: var(--color-primary-blue);
+            }
+            .settings-content {
+                padding-right: 0;
+            }
+        }
+        @media (max-width: 480px) {
+            .settings-nav .nav-item {
+                font-size: 13px;
+                padding: 6px 12px;
+            }
+            .config-row .label {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+<div id="app">
+    <!-- ===== 顶部导航 ===== -->
+    <header class="top-nav">
+        <div class="nav-left">
+            <i class="fas fa-shield-alt logo"></i>
+            <span class="app-title">采集站</span>
+        </div>
+        <div class="nav-center" id="navCenter">
+            <button class="menu-item active" data-page="dashboard"><i class="fas fa-chart-pie"></i> 工作台</button>
+            <button class="menu-item" data-page="collect"><i class="fas fa-microphone-alt"></i> 采集作业</button>
+            <button class="menu-item" data-page="history"><i class="fas fa-history"></i> 历史记录</button>
+            <button class="menu-item" data-page="logs"><i class="fas fa-list-ul"></i> 日志中心</button>
+            <button class="menu-item" data-page="settings"><i class="fas fa-cog"></i> 设置</button>
+        </div>
+        <div class="nav-right">
+            <button class="icon-btn" title="语言"><i class="fas fa-globe"></i></button>
+            <button class="icon-btn" title="主题"><i class="fas fa-moon"></i></button>
+            <button class="icon-btn badge" title="报警"><i class="fas fa-bell"></i></button>
+            <button class="icon-btn" id="aboutBtn" title="关于"><i class="fas fa-info-circle"></i></button>
+            <div class="auth-status"><span class="dot"></span><span>正式版</span></div>
+            <span class="user-label" id="userLabel" title="点击登录/切换用户">
+                <i class="fas fa-user"></i> <span id="userNameDisplay">未登录</span>
+            </span>
+        </div>
+    </header>
+
+    <!-- ===== 公告栏 ===== -->
+    <div class="notice-bar" id="noticeBar">
+        <span class="notice-icon"><i class="fas fa-exclamation-triangle"></i></span>
+        <div class="notice-text"><span class="scroll-wrap">📢 系统升级通知：2026-07-10 02:00 维护，预计2小时。 | 新版本 v1.3 已发布，支持国密算法与存储熔断。</span></div>
+        <button class="notice-close" id="closeNotice"><i class="fas fa-times"></i></button>
+    </div>
+
+    <!-- ===== 主内容 ===== -->
+    <div class="main-content" id="mainContent">
+        <!-- 工作台 -->
+        <div class="page active" id="pageDashboard"><div class="card-grid" id="cardGrid"></div></div>
+        <!-- 采集作业 -->
+        <div class="page" id="pageCollect">
+            <h2 style="font-size:22px; font-weight:700; color:var(--color-primary-dark); margin-bottom:16px;">📡 设备连接池</h2>
+            <div class="device-pool" id="devicePool"></div>
+            <h2 style="font-size:22px; font-weight:700; color:var(--color-primary-dark); margin:24px 0 16px 0;">📋 采集队列（当前任务）</h2>
+            <div class="task-table" id="taskTable"></div>
+        </div>
+        <!-- 历史记录 -->
+        <div class="page" id="pageHistory">
+            <div class="history-controls">
+                <input type="text" id="historySearch" placeholder="记录仪编号或文件名" style="flex:1; min-width:140px;">
+                <input type="date" id="historyDateFrom" value="2026-07-01" style="width:150px;">
+                <input type="date" id="historyDateTo" value="2026-07-07" style="width:150px;">
+                <select id="historyStatus"><option value="all">全部状态</option><option value="synced">已同步</option><option value="pending">同步中</option><option value="failed">失败</option></select>
+                <select id="historyGroupBy" class="group-select"><option value="none">无分组</option><option value="device">按设备分组</option><option value="date">按日期分组</option><option value="dept">按部门/用户分组</option></select>
+                <button class="btn-export" id="exportHistoryBtn"><i class="fas fa-file-export"></i> 导出</button>
+            </div>
+            <div class="history-list" id="historyList"></div>
+            <div class="pagination" id="historyPagination">
+                <button id="historyPrev"><i class="fas fa-chevron-left"></i> 上一页</button>
+                <span>第 <span id="historyCurrentPage">1</span> / <span id="historyTotalPages">1</span> 页</span>
+                <button id="historyNext">下一页 <i class="fas fa-chevron-right"></i></button>
+            </div>
+        </div>
+        <!-- 日志中心 -->
+        <div class="page" id="pageLogs">
+            <div class="log-tabs" id="logTabs">
+                <button class="log-tab active" data-log="operation">操作日志</button>
+                <button class="log-tab" data-log="device">设备日志</button>
+                <button class="log-tab" data-log="alarm">报警日志</button>
+            </div>
+            <div class="log-controls">
+                <select id="logLevelFilter"><option value="all">全部级别</option><option value="info">INFO</option><option value="warn">WARN</option><option value="error">ERROR</option></select>
+                <input type="text" id="logSearch" placeholder="搜索关键词..." style="flex:1; min-width:140px;">
+                <button class="btn-export" id="exportLogBtn"><i class="fas fa-file-export"></i> 导出</button>
+            </div>
+            <div class="log-list" id="logList"></div>
+            <div class="pagination">
+                <button id="prevPage"><i class="fas fa-chevron-left"></i> 上一页</button>
+                <span>第 <span id="currentPage">1</span> / <span id="totalPages">1</span> 页</span>
+                <button id="nextPage">下一页 <i class="fas fa-chevron-right"></i></button>
+            </div>
+        </div>
+        <!-- 设置 -->
+        <div class="page" id="pageSettings">
+            <div class="settings-layout">
+                <!-- 左侧书签导航 -->
+                <nav class="settings-nav" id="settingsNav">
+                    <div class="nav-item active" data-target="basic"><i class="fas fa-sliders-h"></i> 基本设置</div>
+                    <div class="nav-item" data-target="storage"><i class="fas fa-hdd"></i> 存储策略</div>
+                    <div class="nav-item" data-target="collect-policy"><i class="fas fa-microphone"></i> 采集策略</div>
+                    <div class="nav-item" data-target="network"><i class="fas fa-network-wired"></i> 网络与平台</div>
+                    <div class="nav-item" data-target="license"><i class="fas fa-key"></i> 授权与激活</div>
+                    <div class="nav-item" data-target="bio"><i class="fas fa-fingerprint"></i> 生物识别管理</div>
+                    <div class="nav-item" data-target="permission"><i class="fas fa-lock"></i> 操作权限管理</div>
+                    <div class="nav-item" data-target="security"><i class="fas fa-shield-alt"></i> 安全与自检</div>
+                </nav>
+                <!-- 右侧内容 -->
+                <div class="settings-content" id="settingsContent">
+                    <!-- 基本设置 -->
+                    <div class="settings-group active" id="group-basic">
+                        <div class="group-title">📋 基本设置</div>
+                        <div class="config-row"><span class="label">本机编号</span><div class="control"><input type="text" value="CS-01-001" readonly><span class="lock-icon"><i class="fas fa-lock"></i></span></div></div>
+                        <div class="config-row"><span class="label">安装位置</span><div class="control"><input type="text" value="一楼大厅东侧"></div></div>
+                        <div class="config-row"><span class="label">运行模式</span><div class="control"><select><option>平台版 ● 在线</option><option>单机版</option></select></div></div>
+                    </div>
+                    <!-- 存储策略 -->
+                    <div class="settings-group" id="group-storage">
+                        <div class="group-title">💾 存储策略</div>
+                        <div class="config-row"><span class="label">存储目标</span><div class="control"><select><option>本地磁盘 D:\ (优先)</option><option>NAS-01</option><option>OOS 北京</option></select></div></div>
+                        <div class="config-row"><span class="label">熔断阈值</span><div class="control"><input type="number" value="5" style="width:80px;"> 次 / <input type="number" value="5" style="width:80px;"> 分钟</div></div>
+                        <div class="config-row"><span class="label">保存天数</span><div class="control"><input type="number" value="90" style="width:80px;"> 天（视频） <input type="number" value="180" style="width:80px;"> 天（日志）</div></div>
+                        <div class="config-row"><span class="label">清理执行时间</span><div class="control"><input type="time" value="02:00"></div></div>
+                    </div>
+                    <!-- 采集策略 -->
+                    <div class="settings-group" id="group-collect-policy">
+                        <div class="group-title">📡 采集策略</div>
+                        <div class="config-row"><span class="label">自动采集</span><div class="control"><div class="toggle on" onclick="this.classList.toggle('on')"><div class="knob"></div></div><span class="hint">开启</span></div></div>
+                        <div class="config-row"><span class="label">采集后擦除</span><div class="control"><div class="toggle" onclick="this.classList.toggle('on')"><div class="knob"></div></div><span class="hint">关闭（需二次确认）</span></div></div>
+                        <div class="config-row"><span class="label">采集附属文件</span><div class="control"><div class="toggle on" onclick="this.classList.toggle('on')"><div class="knob"></div></div><span class="hint">日志、图片</span></div></div>
+                    </div>
+                    <!-- 网络与平台 -->
+                    <div class="settings-group" id="group-network">
+                        <div class="group-title">🌐 网络与平台</div>
+                        <div class="config-row"><span class="label">平台地址</span><div class="control"><input type="text" value="https://platform.example.com:443"></div></div>
+                        <div class="config-row"><span class="label">心跳间隔</span><div class="control"><input type="number" value="30" style="width:80px;"> 秒</div></div>
+                        <div class="config-row"><span class="label">通信协议</span><div class="control"><select><option>WebSocket (优先)</option><option>HTTP/2 长轮询 (降级)</option></select></div></div>
+                    </div>
+                    <!-- 授权与激活 -->
+                    <div class="settings-group" id="group-license">
+                        <div class="group-title">🔑 授权与激活</div>
+                        <div class="config-row"><span class="label">授权状态</span><div class="control"><span style="font-weight:600; color:var(--color-success);">正式版 · 剩余 365 天</span></div></div>
+                        <div class="config-row"><span class="label">注册码</span><div class="control"><input type="text" placeholder="输入激活码" style="min-width:200px;"> <button class="btn-test">激活</button></div></div>
+                    </div>
+                    <!-- 生物识别管理 -->
+                    <div class="settings-group" id="group-bio">
+                        <div class="group-title">🖐️ 生物识别管理</div>
+                        <div style="font-size:14px; color:var(--color-text-secondary); margin-bottom:12px;">管理操作员的指纹和人脸特征绑定。采集特征需在采集站硬件上操作。</div>
+                        <div class="bio-enroll-area">
+                            <span class="user-chip"><i class="fas fa-user-circle"></i> 张伟 <span class="badge bound">指纹 ✅</span><span class="badge bound">人脸 ✅</span></span>
+                            <button class="btn-enroll" onclick="simulateEnroll(this,'指纹')">录入指纹</button>
+                            <button class="btn-enroll" onclick="simulateEnroll(this,'人脸')">录入人脸</button>
+                            <button class="btn-enroll danger" onclick="if(confirm('确认解绑张伟的生物特征吗？')){alert('已解绑');location.reload();}">解绑</button>
+                        </div>
+                        <div class="bio-enroll-area">
+                            <span class="user-chip"><i class="fas fa-user-circle"></i> 李娜 <span class="badge bound">指纹 ✅</span><span class="badge unbound">人脸 ❌</span></span>
+                            <button class="btn-enroll" onclick="simulateEnroll(this,'指纹')">录入指纹</button>
+                            <button class="btn-enroll" onclick="simulateEnroll(this,'人脸')">录入人脸</button>
+                            <button class="btn-enroll danger" onclick="if(confirm('确认解绑李娜的生物特征吗？')){alert('已解绑');location.reload();}">解绑</button>
+                        </div>
+                        <div class="bio-enroll-area">
+                            <span class="user-chip"><i class="fas fa-user-circle"></i> 王强 <span class="badge unbound">指纹 ❌</span><span class="badge unbound">人脸 ❌</span></span>
+                            <button class="btn-enroll" onclick="simulateEnroll(this,'指纹')">录入指纹</button>
+                            <button class="btn-enroll" onclick="simulateEnroll(this,'人脸')">录入人脸</button>
+                            <button class="btn-enroll danger" onclick="if(confirm('确认解绑王强的生物特征吗？')){alert('已解绑');location.reload();}">解绑</button>
+                        </div>
+                        <div style="margin-top:8px; font-size:13px; color:var(--color-text-secondary);"><i class="fas fa-info-circle"></i> 特征数据经 SM3 哈希后加密存储于本地，不上传平台。</div>
+                    </div>
+                    <!-- 操作权限管理 -->
+                    <div class="settings-group" id="group-permission">
+                        <div class="group-title">🔐 操作权限管理</div>
+                        <div style="font-size:14px; color:var(--color-text-secondary); margin-bottom:12px;">配置哪些功能需要登录后才能操作。默认仅“设置”需要登录。</div>
+                        <div class="config-row"><span class="label">设置</span><div class="control"><div class="toggle on" style="pointer-events:none; opacity:0.7;"><div class="knob"></div></div><span class="hint">始终需要登录（固定）</span></div></div>
+                        <div class="config-row"><span class="label">历史记录</span><div class="control"><div class="toggle" id="permHistory" onclick="togglePermission('history')"><div class="knob"></div></div><span class="hint" id="permHistoryHint">不需要登录</span></div></div>
+                        <div class="config-row"><span class="label">日志中心</span><div class="control"><div class="toggle" id="permLogs" onclick="togglePermission('logs')"><div class="knob"></div></div><span class="hint" id="permLogsHint">不需要登录</span></div></div>
+                        <div class="config-row"><span class="label">采集控制</span><div class="control"><div class="toggle" id="permCollect" onclick="togglePermission('collect')"><div class="knob"></div></div><span class="hint" id="permCollectHint">不需要登录</span></div></div>
+                        <div style="margin-top:8px; font-size:13px; color:var(--color-text-secondary);"><i class="fas fa-info-circle"></i> 修改后立即生效。空闲超时时间：<strong>1分钟</strong>（有操作自动延长）</div>
+                    </div>
+                    <!-- 安全与自检 -->
+                    <div class="settings-group" id="group-security">
+                        <div class="group-title">🛡️ 安全与自检</div>
+                        <div class="config-row"><span class="label">国密证书</span><div class="control"><span style="color:var(--color-success);"><i class="fas fa-check-circle"></i> 已安装</span> <button class="btn-test">查看</button></div></div>
+                        <div class="config-row"><span class="label">登录锁定阈值</span><div class="control"><input type="number" value="5" style="width:80px;"> 次 / <input type="number" value="15" style="width:80px;"> 分钟</div></div>
+                        <div class="config-row"><span class="label">自检</span><div class="control"><button class="btn-test" id="selfTestBtn"><i class="fas fa-stethoscope"></i> 一键自检</button></div></div>
+                        <div class="logout-area">
+                            <button class="btn-logout" id="logoutBtn"><i class="fas fa-sign-out-alt"></i> 退出登录</button>
+                            <span style="font-size:14px; color:var(--color-text-secondary); align-self:center;" id="loginStatusText">当前状态：未登录</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== 底部状态栏 ===== -->
+    <footer class="bottom-bar" id="bottomBar">
+        <span class="item"><i class="fas fa-network-wired"></i> 本机IP: 192.168.1.10</span>
+        <span class="item"><i class="fas fa-wifi wifi-icon online"></i><span>网络正常</span></span>
+        <span class="item"><i class="fas fa-heartbeat heartbeat-icon"></i><span>心跳正常</span></span>
+        <span class="divider"></span>
+        <span class="item"><i class="fas fa-hdd"></i> 系统盘 320GB/1TB</span>
+        <span class="item"><i class="fas fa-microchip"></i> CPU 23%</span>
+        <span class="divider"></span>
+        <span class="item"><i class="fas fa-plug"></i> 在线 <span class="stat-number" id="bottomOnline">28</span>/30</span>
+        <span class="item"><i class="fas fa-file-video"></i> 今日 <span class="stat-number" id="bottomToday">156</span></span>
+        <span class="item"><i class="fas fa-cloud-upload-alt" style="color:var(--color-warning);"></i> 待上传 <span class="stat-number" id="bottomPending">12</span></span>
+        <span class="time-display"><i class="far fa-clock"></i><span id="clockDisplay">2026-07-09 14:30:25</span></span>
+    </footer>
+</div>
+
+<!-- ===== 底部面板（通用） ===== -->
+<div class="bottom-sheet-overlay" id="bottomSheetOverlay">
+    <div class="bottom-sheet" id="bottomSheet">
+        <div class="sheet-header"><h2 id="sheetTitle">📁 记录仪A-009 文件任务</h2><button class="close-btn" id="closeSheet"><i class="fas fa-times"></i></button></div>
+        <div class="file-list" id="fileList"></div>
+        <div class="sheet-actions"><button><i class="fas fa-pause"></i> 全部暂停</button><button class="primary"><i class="fas fa-play"></i> 全部恢复</button></div>
+    </div>
+</div>
+
+<!-- ===== 关于弹窗 ===== -->
+<div class="modal-overlay" id="aboutModal">
+    <div class="modal-box">
+        <button class="close-modal" id="closeAbout"><i class="fas fa-times"></i></button>
+        <h2><i class="fas fa-shield-alt" style="color:var(--color-primary-blue);"></i> 关于采集站</h2>
+        <div class="info-row"><span class="label">软件版本</span><span class="value">v1.3.2 (Build 20260707)</span></div>
+        <div class="info-row"><span class="label">编译时间</span><span class="value">2026-07-07 10:30</span></div>
+        <div class="info-row"><span class="label">运行模式</span><span class="value">平台版</span></div>
+        <div class="info-row"><span class="label">授权状态</span><span class="value" style="color:var(--color-success);">正式版 · 剩余 365 天</span></div>
+        <div class="info-row"><span class="label">授权编号</span><span class="value">LIC-2026-07-07-001</span></div>
+        <div class="info-row"><span class="label">国密支持</span><span class="value" style="color:var(--color-success);">✅ SM2/SM3/SM4</span></div>
+        <div class="info-row"><span class="label">运行环境</span><span class="value">.NET 8.0 · Avalonia UI</span></div>
+        <div class="info-row"><span class="label">操作系统</span><span class="value">麒麟 V10 (ARM64)</span></div>
+        <div style="margin-top:16px; font-size:14px; color:var(--color-text-secondary); text-align:center;">本系统符合《密码法》《数据安全法》《个人信息保护法》及等保2.0要求</div>
+    </div>
+</div>
+
+<!-- ===== 登录覆盖层 ===== -->
+<div id="loginOverlay">
+    <div class="login-box">
+        <button class="close-login" id="closeLoginBtn"><i class="fas fa-times"></i></button>
+        <div class="login-title"><i class="fas fa-shield-alt"></i><h2>采集站登录</h2><p>请验证身份以继续操作</p></div>
+        <div class="login-tabs" id="loginTabs">
+            <span class="tab active" data-tab="password">密码</span>
+            <span class="tab" data-tab="fingerprint">指纹</span>
+            <span class="tab" data-tab="face">人脸</span>
+        </div>
+        <div class="login-panel active" id="panel-password">
+            <div class="input-group"><input type="password" id="passwordInput" placeholder="请输入密码 (默认: 123456)" onkeydown="if(event.key==='Enter')passwordLogin()"></div>
+            <button class="btn-login" onclick="passwordLogin()"><i class="fas fa-key"></i> 登录</button>
+        </div>
+        <div class="login-panel" id="panel-fingerprint">
+            <p style="text-align:center; font-size:15px; color:var(--color-text-secondary); margin-bottom:16px;"><i class="fas fa-fingerprint" style="font-size:32px; display:block; margin-bottom:8px; color:var(--color-orange);"></i>请将手指按压在指纹识别器上</p>
+            <button class="btn-login bio finger" onclick="bioLogin('指纹')"><i class="fas fa-fingerprint"></i> 模拟指纹验证</button>
+        </div>
+        <div class="login-panel" id="panel-face">
+            <p style="text-align:center; font-size:15px; color:var(--color-text-secondary); margin-bottom:16px;"><i class="fas fa-user-circle" style="font-size:32px; display:block; margin-bottom:8px; color:var(--color-cyan);"></i>请面向摄像头进行人脸识别</p>
+            <button class="btn-login bio face" onclick="bioLogin('人脸')"><i class="fas fa-user-circle"></i> 模拟人脸验证</button>
+        </div>
+        <span class="login-error" id="loginError"></span>
+    </div>
+</div>
+
+<!-- ===== 空闲超时提示 ===== -->
+<div class="idle-warning" id="idleWarning">⏱️ 即将自动退出登录，请操作以保持会话</div>
+
+<script>
+    (function() {
+        'use strict';
+
+        // ============================================================
+        // 1. 数据定义
+        // ============================================================
+        const protocols = ['MSC', 'MTP', 'SDK'];
+        const users = ['张伟', '李娜', '王强', '刘洋', '陈敏', '赵磊', '孙悦', '周涛', '吴迪', '郑爽',
+            '林峰', '何雪', '黄海', '刘佳', '陈晨', '杨光', '赵静', '王磊', '李欣', '张鹏',
+            '刘芳', '陈涛', '王宇', '李敏', '张杰', '刘洋', '陈晨', '赵磊', '孙悦', '周涛'
+        ];
+        const depts = ['一中队', '二中队', '三中队', '机动队', '特勤队'];
+        const STATE = { IDLE: 'idle', RUNNING: 'running', PAUSED: 'paused', DONE: 'done', ERROR: 'error' };
+        const LOG_DATA = {
+            operation: [
+                { time: '14:30:22', level: 'info', content: '用户 张* 登录采集站' },
+                { time: '14:28:10', level: 'info', content: '用户 李* 修改采集策略：自动采集已开启' },
+                { time: '14:20:05', level: 'warn', content: '存储目标 NAS-01 连接超时，已触发熔断' },
+                { time: '14:15:30', level: 'info', content: '用户 王* 导出日志文件' },
+                { time: '14:10:00', level: 'error', content: '端口 #12 记录仪 记录仪-B-102 采集失败，校验错误' },
+                { time: '13:55:00', level: 'warn', content: '磁盘空间低于 20%，请及时清理' },
+                { time: '13:30:00', level: 'info', content: '用户 赵* 导出历史记录' },
+            ],
+            device: [
+                { time: '14:32:00', level: 'info', content: 'USB端口 #01 设备插入：记录仪-A-001 (MSC)' },
+                { time: '14:30:15', level: 'info', content: '磁盘 I/O 正常，写入速率 120MB/s' },
+                { time: '14:25:00', level: 'warn', content: 'CPU 温度 78°C，接近阈值' },
+                { time: '14:20:00', level: 'error', content: '网络接口 eth0 断开，已触发降级模式' },
+                { time: '14:15:00', level: 'info', content: '系统自检完成：所有端口正常' },
+                { time: '13:45:00', level: 'info', content: 'USB端口 #05 设备拔出' },
+            ],
+            alarm: [
+                { time: '14:20:05', level: 'error', content: '存储目标 NAS-01 不可达，已熔断' },
+                { time: '14:10:00', level: 'error', content: '端口 #12 记录仪 B-102 采集失败' },
+                { time: '13:55:00', level: 'warn', content: '磁盘空间低于 20%，请及时清理' },
+                { time: '13:30:00', level: 'error', content: '非授权设备尝试接入端口 #05，已拒绝' },
+                { time: '12:00:00', level: 'warn', content: '心跳超时，采集站离线 3 分钟' },
+            ]
+        };
+        const HISTORY_TARGETS = ['NAS-01', 'NAS-02', 'OOS 北京', 'FTP 备份', '本地磁盘'];
+
+        function randomItem(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+
+        function randomInt(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
+
+        // ============================================================
+        // 2. 状态管理
+        // ============================================================
+        let cardData = [];
+        let historyData = [];
+        let auth = { isLoggedIn: false, user: null, loginTime: null, idleTimer: null, warningTimer: null };
+        const PERM = { settings: true, history: false, logs: false, collect: false };
+        const IDLE_TIMEOUT = 60; // 秒
+        let currentLogType = 'operation';
+
+        // ============================================================
+        // 3. 数据生成
+        // ============================================================
+        function generateCards(count) {
+            const cards = [];
+            for (let i = 1; i <= count; i++) {
+                let state;
+                const r = Math.random();
+                if (r < 0.2) state = STATE.IDLE;
+                else if (r < 0.35) state = STATE.RUNNING;
+                else if (r < 0.5) state = STATE.PAUSED;
+                else if (r < 0.7) state = STATE.DONE;
+                else state = STATE.ERROR;
+                const isEmergency = (state === STATE.RUNNING || state === STATE.PAUSED) && (i % 7 === 0);
+                let progress = 0;
+                if (state === STATE.IDLE) progress = 0;
+                else if (state === STATE.ERROR) progress = 0;
+                else if (state === STATE.DONE) progress = 100;
+                else if (state === STATE.RUNNING) progress = randomInt(20, 85);
+                else if (state === STATE.PAUSED) progress = randomInt(10, 70);
+                const protocol = randomItem(protocols);
+                const user = users[(i - 1) % users.length];
+                const dept = randomItem(depts);
+                const battery = randomInt(20, 98);
+                const speed = (state === STATE.RUNNING) ? randomInt(5, 25) : 0;
+                const storageTotal = randomInt(64, 512);
+                const storageUsed = randomInt(10, Math.floor(storageTotal * 0.85));
+                const fileCount = randomInt(3, 25);
+                cards.push({
+                    id: i,
+                    port: `#${String(i).padStart(2, '0')}`,
+                    user, dept,
+                    deviceId: `记录仪-${String.fromCharCode(65 + ((i-1) % 26))}-${String(100 + i).slice(1)}`,
+                    protocol, battery, progress, speed, state, isEmergency,
+                    isIdle: state === STATE.IDLE,
+                    isError: state === STATE.ERROR,
+                    isDone: state === STATE.DONE,
+                    isPaused: state === STATE.PAUSED,
+                    isRunning: state === STATE.RUNNING,
+                    storageTotal, storageUsed, fileCount
+                });
+            }
+            return cards;
+        }
+
+        function generateHistoryFiles(count) {
+            const files = [];
+            const statuses = ['synced', 'synced', 'synced', 'pending', 'failed', 'synced'];
+            for (let i = 0; i < count; i++) {
+                const card = cardData[i % cardData.length] || { deviceId: '记录仪-A-001', user: '张伟', dept: '一中队' };
+                const status = statuses[i % statuses.length];
+                const date = new Date(2026, 6, 7 - (i % 7), 8 + (i % 12), (i * 3) % 60);
+                const dateStr = date.toISOString().slice(0, 10);
+                const timeStr = date.toTimeString().slice(0, 8);
+                const size = (0.5 + Math.random() * 3.5).toFixed(1) + 'GB';
+                const duration = Math.floor(60 + Math.random() * 900) + 's';
+                const hash = 'a3f' + Math.random().toString(16).slice(2, 8) + '...';
+                files.push({
+                    id: i + 1,
+                    fileName: `VID_${dateStr.replace(/-/g,'')}_${String(i).padStart(4,'0')}.mp4`,
+                    fileSize: size, duration,
+                    deviceId: card.deviceId || '记录仪-A-001',
+                    operator: card.user || '未知',
+                    dept: card.dept || '一中队',
+                    uploadTime: dateStr + ' ' + timeStr,
+                    storageTarget: randomItem(HISTORY_TARGETS),
+                    syncStatus: status,
+                    hash: hash
+                });
+            }
+            return files;
+        }
+
+        // ============================================================
+        // 4. 渲染函数
+        // ============================================================
+        function renderCards(data) {
+            const grid = document.getElementById('cardGrid');
+            let html = '';
+            data.forEach(c => {
+                let badgeCls = 'idle',
+                    badgeLabel = '空闲';
+                if (c.isError) { badgeCls = 'error';
+                    badgeLabel = '故障'; } else if (c.isDone) { badgeCls = 'active';
+                    badgeLabel = '完成'; } else if (c.isPaused) { badgeCls = 'warning';
+                    badgeLabel = '已暂停'; } else if (c.isRunning) { badgeCls = 'active';
+                    badgeLabel = '采集中'; }
+                const batteryIcon = c.battery > 70 ? 'fa-battery-full' : (c.battery > 40 ? 'fa-battery-three-quarters' :
+                    'fa-battery-quarter');
+                const batteryColor = c.battery > 70 ? '#22c55e' : (c.battery > 40 ? '#f59e0b' : '#ef4444');
+                const emergencyStar = c.isEmergency ? `<span class="emergency"><i class="fas fa-star"></i></span>` : '';
+                const emergencyCardClass = c.isEmergency ? 'emergency-card' : '';
+                let deviceIdHtml, operatorDeptHtml, storageFileHtml, progressHtml;
+                if (c.isIdle) {
+                    deviceIdHtml = `<span class="placeholder">-- 等待设备连接</span>`;
+                    operatorDeptHtml = `<span class="placeholder">--</span>`;
+                    storageFileHtml = `<span class="placeholder">存储：-- / -- · 文件数：--</span>`;
+                    progressHtml =
+                        `<div class="progress-area"><div class="progress-bar"><div class="fill" style="width:0%;"></div></div><div class="progress-label"><span class="speed-text">-- MB/s</span><span class="percent-text">0%</span></div></div>`;
+                } else {
+                    const remain = c.storageTotal - c.storageUsed;
+                    deviceIdHtml =
+                        `${c.deviceId} <span class="protocol"><i class="fas fa-link"></i> ${c.protocol}</span>`;
+                    operatorDeptHtml = `<span>${c.dept} · 操作员：${c.user}</span>`;
+                    storageFileHtml =
+                        `<span><i class="fas fa-hdd"></i> ${remain}GB / ${c.storageTotal}GB · <i class="fas fa-file"></i> 文件数：${c.fileCount}</span>`;
+                    progressHtml =
+                        `<div class="progress-area"><div class="progress-bar"><div class="fill" style="width:${c.progress}%;"></div></div><div class="progress-label"><span class="speed-text"><i class="fas fa-tachometer-alt"></i> ${c.speed} MB/s</span><span class="percent-text">${c.progress}%</span></div></div>`;
+                }
+                let actionBtns = '';
+                if (c.isIdle) {
+                    actionBtns = `<button class="text-btn primary" data-action="start">开始</button>`;
+                } else if (c.isError) {
+                    actionBtns = `<button class="text-btn danger" data-action="retry">重试</button>`;
+                } else if (c.isDone) {
+                    actionBtns = `<button class="text-btn success" disabled>已完成</button>`;
+                } else {
+                    let mainBtn = '',
+                        cancelBtn = '',
+                        priorityBtn = '';
+                    if (c.isPaused) {
+                        mainBtn = `<button class="text-btn primary" data-action="resume">恢复</button>`;
+                        cancelBtn = `<button class="text-btn danger" data-action="cancel">取消</button>`;
+                    } else if (c.isRunning) {
+                        mainBtn = `<button class="text-btn warning" data-action="pause">暂停</button>`;
+                        cancelBtn = `<button class="text-btn danger" data-action="cancel">取消</button>`;
+                    }
+                    if (c.isRunning || c.isPaused) {
+                        const activeCls = c.isEmergency ? 'active' : '';
+                        priorityBtn =
+                            `<button class="text-btn priority ${activeCls}" data-action="priority">优先</button>`;
+                    }
+                    actionBtns = mainBtn + cancelBtn + priorityBtn;
+                }
+                let bottomBatteryHtml = '';
+                if (!c.isIdle) {
+                    bottomBatteryHtml =
+                        `<span class="battery-info"><i class="fas ${batteryIcon}" style="color:${batteryColor};"></i> ${c.battery}%</span>`;
+                }
+                html += `
+                    <div class="channel-card ${c.isIdle ? 'idle' : ''} ${emergencyCardClass}" data-id="${c.id}">
+                        <div class="status-badge ${badgeCls}">${badgeLabel}</div>
+                        <div class="card-header"><span class="port">${c.port} ${emergencyStar}</span></div>
+                        <div class="device-id">${deviceIdHtml}</div>
+                        <div class="operator-dept"><i class="fas fa-user"></i> ${operatorDeptHtml}</div>
+                        <div class="storage-file-info">${storageFileHtml}</div>
+                        ${progressHtml}
+                        <div class="card-actions">${bottomBatteryHtml}<div class="action-btns">${actionBtns}</div></div>
+                    </div>
+                `;
+            });
+            grid.innerHTML = html;
+
+            // 绑定卡片点击弹出详情
+            grid.querySelectorAll('.channel-card').forEach(el => {
+                el.addEventListener('click', function(e) {
+                    if (e.target.closest('button')) return;
+                    const id = parseInt(this.dataset.id);
+                    const card = cardData.find(d => d.id === id);
+                    if (card && !card.isIdle) {
+                        openBottomSheet(card.deviceId, [
+                            { name: '2026-07-07_001.mp4', size: '2.3GB', status: '已上传', statusCls: 'green',
+                                target: 'NAS-01', time: '14:20' },
+                            { name: '2026-07-07_002.mp4', size: '1.1GB', status: '上传中 80%', statusCls: 'blue',
+                                target: 'OOS 北京', time: '14:25' },
+                            { name: '2026-07-07_003.mp4', size: '500MB', status: '失败', statusCls: 'red',
+                                target: '本地', time: '14:26' },
+                        ]);
+                    }
+                });
+            });
+
+            // 绑定按钮事件（带权限检查）
+            grid.querySelectorAll('.text-btn[data-action]').forEach(btn => {
+                btn.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    if (PERM.collect && !auth.isLoggedIn) {
+                        showToast('请先登录以执行采集控制');
+                        showLogin();
+                        return;
+                    }
+                    const cardEl = this.closest('.channel-card');
+                    if (!cardEl) return;
+                    const id = parseInt(cardEl.dataset.id);
+                    const action = this.dataset.action;
+                    const card = cardData.find(d => d.id === id);
+                    if (!card) return;
+                    executeAction(card, action);
+                });
+            });
+            updateStats(data);
+        }
+
+        function executeAction(card, action) {
+            switch (action) {
+                case 'start':
+                    if (card.isIdle) {
+                        card.state = STATE.RUNNING;
+                        card.progress = randomInt(10, 30);
+                        card.speed = randomInt(5, 25);
+                        card.isRunning = true;
+                        card.isIdle = false;
+                        card.isPaused = false;
+                        card.isError = false;
+                        card.isDone = false;
+                        card.deviceId =
+                            `记录仪-${String.fromCharCode(65 + ((card.id-1) % 26))}-${String(100 + card.id).slice(1)}`;
+                        card.protocol = randomItem(protocols);
+                        card.user = users[(card.id - 1) % users.length];
+                        card.dept = randomItem(depts);
+                        card.battery = randomInt(20, 98);
+                        card.storageTotal = randomInt(64, 512);
+                        card.storageUsed = randomInt(10, Math.floor(card.storageTotal * 0.85));
+                        card.fileCount = randomInt(3, 25);
+                    }
+                    break;
+                case 'pause':
+                    if (card.isRunning) { card.state = STATE.PAUSED;
+                        card.isPaused = true;
+                        card.isRunning = false; }
+                    break;
+                case 'resume':
+                    if (card.isPaused) { card.state = STATE.RUNNING;
+                        card.isRunning = true;
+                        card.isPaused = false;
+                        card.speed = randomInt(5, 25); }
+                    break;
+                case 'cancel':
+                    if (card.isRunning || card.isPaused) {
+                        card.state = STATE.IDLE;
+                        card.progress = 0;
+                        card.speed = 0;
+                        card.isRunning = false;
+                        card.isPaused = false;
+                        card.isIdle = true;
+                        card.isDone = false;
+                        card.isEmergency = false;
+                        card.deviceId = '';
+                        card.protocol = '';
+                        card.user = '';
+                        card.dept = '';
+                        card.battery = 0;
+                        card.storageTotal = 0;
+                        card.storageUsed = 0;
+                        card.fileCount = 0;
+                    }
+                    break;
+                case 'retry':
+                    if (card.isError) {
+                        card.state = STATE.RUNNING;
+                        card.progress = randomInt(10, 30);
+                        card.speed = randomInt(5, 25);
+                        card.isRunning = true;
+                        card.isError = false;
+                        card.isIdle = false;
+                    }
+                    break;
+                case 'priority':
+                    card.isEmergency = !card.isEmergency;
+                    break;
+                default:
+                    break;
+            }
+            renderAll();
+        }
+
+        function updateStats(data) {
+            const online = data.filter(d => d.isRunning || d.isPaused || d.isDone).length;
+            const today = data.filter(d => d.progress > 0).length;
+            const pending = data.filter(d => (d.isRunning || d.isPaused) && d.progress < 100).length;
+            document.getElementById('bottomOnline').textContent = online;
+            document.getElementById('bottomToday').textContent = today;
+            document.getElementById('bottomPending').textContent = pending;
+        }
+
+        function renderCollectPage() {
+            const pool = document.getElementById('devicePool');
+            const devices = cardData.filter(d => !d.isIdle).slice(0, 8);
+            if (devices.length === 0) {
+                pool.innerHTML = '<div style="color:var(--color-text-secondary); font-size:15px;">暂无连接的设备</div>';
+            } else {
+                let html = '';
+                devices.forEach(d => {
+                    const dot = d.isError ? 'red' : (d.isRunning || d.isPaused || d.isDone ? 'green' :
+                    'yellow');
+                    html +=
+                        `<div class="device-chip"><span class="status-dot ${dot}"></span>${d.deviceId}<span style="font-size:12px;color:var(--color-text-secondary);">${d.protocol}</span><span style="font-size:12px;color:var(--color-text-secondary);">${d.battery}%</span><span style="font-size:12px;color:var(--color-text-secondary);">${d.user}</span></div>`;
+                });
+                pool.innerHTML = html;
+            }
+            const table = document.getElementById('taskTable');
+            const tasks = cardData.filter(d => d.isRunning || d.isPaused || d.isError).slice(0, 6);
+            if (tasks.length === 0) {
+                table.innerHTML =
+                    '<div style="padding:30px; text-align:center; color:var(--color-text-secondary);">暂无进行中的采集任务</div>';
+                return;
+            }
+            let html = '';
+            tasks.forEach(t => {
+                const statusText = t.isRunning ? '采集中' : (t.isPaused ? '已暂停' : '故障');
+                html += `
+                    <div class="task-item">
+                        <div class="task-info"><div class="task-title">${t.deviceId}</div><div class="task-meta">${t.port} · ${t.protocol} · ${statusText} · 操作员：${t.user}</div></div>
+                        <div class="task-progress"><div class="mini-bar"><div class="fill" style="width:${t.progress}%;"></div></div><div style="font-size:13px; text-align:right; color:var(--color-text-secondary);">${t.progress}%</div></div>
+                        <div class="task-actions">
+                            ${t.isRunning ? `<button class="text-btn warning" style="padding:4px 12px;font-size:13px;min-height:32px;" data-action="pause" data-id="${t.id}">暂停</button>` : ''}
+                            ${t.isPaused ? `<button class="text-btn primary" style="padding:4px 12px;font-size:13px;min-height:32px;" data-action="resume" data-id="${t.id}">恢复</button>` : ''}
+                            ${t.isError ? `<button class="text-btn danger" style="padding:4px 12px;font-size:13px;min-height:32px;" data-action="retry" data-id="${t.id}">重试</button>` : ''}
+                            <button class="text-btn danger" style="padding:4px 12px;font-size:13px;min-height:32px;" data-action="cancel" data-id="${t.id}">取消</button>
+                        </div>
+                    </div>
+                `;
+            });
+            table.innerHTML = html;
+            table.querySelectorAll('[data-action]').forEach(btn => {
+                btn.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    const id = parseInt(this.dataset.id);
+                    const action = this.dataset.action;
+                    const card = cardData.find(d => d.id === id);
+                    if (!card) return;
+                    if (action === 'pause' && card.isRunning) {
+                        card.state = STATE.PAUSED;
+                        card.isPaused = true;
+                        card.isRunning = false;
+                    } else if (action === 'resume' && card.isPaused) {
+                        card.state = STATE.RUNNING;
+                        card.isRunning = true;
+                        card.isPaused = false;
+                        card.speed = randomInt(5, 25);
+                    } else if (action === 'retry' && card.isError) {
+                        card.state = STATE.RUNNING;
+                        card.progress = randomInt(10, 30);
+                        card.speed = randomInt(5, 25);
+                        card.isRunning = true;
+                        card.isError = false;
+                        card.isIdle = false;
+                    } else if (action === 'cancel' && (card.isRunning || card.isPaused)) {
+                        card.state = STATE.IDLE;
+                        card.progress = 0;
+                        card.speed = 0;
+                        card.isRunning = false;
+                        card.isPaused = false;
+                        card.isIdle = true;
+                        card.isDone = false;
+                        card.isEmergency = false;
+                        card.deviceId = '';
+                        card.protocol = '';
+                        card.user = '';
+                        card.dept = '';
+                        card.battery = 0;
+                        card.storageTotal = 0;
+                        card.storageUsed = 0;
+                        card.fileCount = 0;
+                    }
+                    renderAll();
+                });
+            });
+        }
+
+        function renderHistory() {
+            const searchVal = document.getElementById('historySearch').value.toLowerCase();
+            const dateFrom = document.getElementById('historyDateFrom').value;
+            const dateTo = document.getElementById('historyDateTo').value;
+            const statusFilter = document.getElementById('historyStatus').value;
+            const groupBy = document.getElementById('historyGroupBy').value;
+            let filtered = historyData.filter(item => {
+                if (searchVal && !item.fileName.toLowerCase().includes(searchVal) && !item.deviceId.toLowerCase()
+                    .includes(searchVal)) return false;
+                if (dateFrom && item.uploadTime.slice(0, 10) < dateFrom) return false;
+                if (dateTo && item.uploadTime.slice(0, 10) > dateTo) return false;
+                if (statusFilter !== 'all' && item.syncStatus !== statusFilter) return false;
+                return true;
+            });
+            filtered.sort((a, b) => b.uploadTime.localeCompare(a.uploadTime));
+            const total = filtered.length;
+            const totalPages = Math.ceil(total / 6) || 1;
+            let page = parseInt(document.getElementById('historyCurrentPage').textContent) || 1;
+            if (page > totalPages) page = totalPages;
+            const start = (page - 1) * 6;
+            const pageItems = filtered.slice(start, start + 6);
+            let groups = [];
+            if (groupBy === 'none') {
+                groups = [{ key: '全部记录', items: pageItems }];
+            } else {
+                const map = new Map();
+                pageItems.forEach(item => {
+                    let key = '';
+                    if (groupBy === 'device') key = item.deviceId;
+                    else if (groupBy === 'date') key = item.uploadTime.slice(0, 10);
+                    else if (groupBy === 'dept') key = item.dept + ' · ' + item.operator;
+                    if (!map.has(key)) map.set(key, []);
+                    map.get(key).push(item);
+                });
+                groups = Array.from(map.entries()).map(([k, v]) => ({ key: k, items: v }));
+                groups.sort((a, b) => a.key.localeCompare(b.key));
+            }
+            const container = document.getElementById('historyList');
+            if (groups.length === 0 || groups.every(g => g.items.length === 0)) {
+                container.innerHTML = '<div style="padding:30px; text-align:center; color:var(--color-text-secondary);">暂无匹配的历史记录</div>';
+            } else {
+                let html = '';
+                groups.forEach(group => {
+                    html +=
+                        `<div class="history-group"><div class="history-group-header" onclick="this.classList.toggle('collapsed');this.nextElementSibling.classList.toggle('collapsed');"><i class="fas fa-chevron-down"></i><span>${group.key}</span><span style="margin-left:auto;font-weight:400;color:var(--color-text-secondary);font-size:14px;">${group.items.length} 条</span></div><div class="history-group-body">`;
+                    group.items.forEach(item => {
+                        const st = { synced: { label: '已同步', cls: 'synced' }, pending: { label: '同步中',
+                                cls: 'pending' }, failed: { label: '失败', cls: 'failed' } } [
+                            item.syncStatus] || { label: '未知', cls: 'pending' };
+                        html += `
+                            <div class="history-item">
+                                <div class="col" style="flex:1.5;min-width:140px;"><span class="label">文件名</span><span class="value">${item.fileName}</span></div>
+                                <div class="col" style="flex:0.8;"><span class="label">大小 / 时长</span><span class="value">${item.fileSize} / ${item.duration}</span></div>
+                                <div class="col" style="flex:0.9;"><span class="label">设备编号</span><span class="value">${item.deviceId}</span></div>
+                                <div class="col" style="flex:0.9;"><span class="label">操作人 / 部门</span><span class="value">${item.operator} · ${item.dept}</span></div>
+                                <div class="col" style="flex:1;"><span class="label">上传时间</span><span class="value">${item.uploadTime}</span></div>
+                                <div class="col" style="flex:0.9;"><span class="label">存储目标</span><span class="value">${item.storageTarget}</span></div>
+                                <div class="col" style="flex:0.8;"><span class="label">同步状态</span><span class="value"><span class="status-badge-sm ${st.cls}">${st.label}</span></span></div>
+                                <div class="col" style="flex:1.2;"><span class="label">SM3 哈希</span><span class="value"><span class="hash">${item.hash}</span></span></div>
+                            </div>
+                        `;
+                    });
+                    html += `</div></div>`;
+                });
+                container.innerHTML = html;
+            }
+            document.getElementById('historyCurrentPage').textContent = page;
+            document.getElementById('historyTotalPages').textContent = totalPages;
+            document.getElementById('historyPrev').disabled = (page <= 1);
+            document.getElementById('historyNext').disabled = (page >= totalPages);
+        }
+
+        function renderLogs() {
+            const level = document.getElementById('logLevelFilter').value;
+            const search = document.getElementById('logSearch').value.toLowerCase();
+            const data = LOG_DATA[currentLogType] || [];
+            let filtered = data.filter(item => {
+                if (level !== 'all' && item.level !== level) return false;
+                if (search && !item.content.toLowerCase().includes(search) && !item.time.includes(search))
+                return false;
+                return true;
+            });
+            const total = filtered.length;
+            const totalPages = Math.ceil(total / 5) || 1;
+            let page = parseInt(document.getElementById('currentPage').textContent) || 1;
+            if (page > totalPages) page = totalPages;
+            const start = (page - 1) * 5;
+            const pageItems = filtered.slice(start, start + 5);
+            const list = document.getElementById('logList');
+            let html = '';
+            pageItems.forEach(item => {
+                const cls = item.level === 'error' ? 'error' : (item.level === 'warn' ? 'warn' : 'info');
+                html +=
+                    `<div class="log-item"><span class="log-time">${item.time}</span><span class="log-level ${cls}">${item.level.toUpperCase()}</span><span class="log-content">${item.content}</span></div>`;
+            });
+            list.innerHTML = html || '<div style="padding:20px; text-align:center; color:var(--color-text-secondary);">无匹配日志</div>';
+            document.getElementById('currentPage').textContent = page;
+            document.getElementById('totalPages').textContent = totalPages;
+            document.getElementById('prevPage').disabled = (page <= 1);
+            document.getElementById('nextPage').disabled = (page >= totalPages);
+        }
+
+        function openBottomSheet(title, files) {
+            const overlay = document.getElementById('bottomSheetOverlay');
+            document.getElementById('sheetTitle').textContent = `📁 ${title} 文件任务`;
+            let html = '';
+            files.forEach(f => {
+                html += `
+                    <div class="file-item">
+                        <div class="file-info"><span class="file-name">${f.name}</span><span class="file-meta"><span>${f.size}</span><span>目标: ${f.target}</span><span>${f.time}</span></span></div>
+                        <div class="file-status"><span class="dot ${f.statusCls}"></span> ${f.status}${f.status === '失败' ? ' <button style="background:#2563eb;color:#fff;border:none;border-radius:30px;padding:4px 16px;font-size:14px;font-weight:600;cursor:pointer;min-height:36px;">重试</button>' : ''}</div>
+                    </div>
+                `;
+            });
+            document.getElementById('fileList').innerHTML = html;
+            overlay.classList.add('open');
+        }
+
+        function closeBottomSheet() {
+            document.getElementById('bottomSheetOverlay').classList.remove('open');
+        }
+
+        // ============================================================
+        // 5. 登录/权限/空闲管理
+        // ============================================================
+        function showLogin(returnPage) {
+            document.getElementById('loginOverlay').classList.add('open');
+            document.getElementById('loginError').textContent = '';
+            document.getElementById('passwordInput').value = '';
+            switchLoginTab('password');
+            if (returnPage) document.getElementById('loginOverlay').dataset.returnPage = returnPage;
+            else delete document.getElementById('loginOverlay').dataset.returnPage;
+        }
+
+        function hideLogin() {
+            document.getElementById('loginOverlay').classList.remove('open');
+            const returnPage = document.getElementById('loginOverlay').dataset.returnPage;
+            if (returnPage) {
+                const menuItem = document.querySelector(`.nav-center .menu-item[data-page="${returnPage}"]`);
+                if (menuItem) menuItem.click();
+                delete document.getElementById('loginOverlay').dataset.returnPage;
+            }
+        }
+
+        function switchLoginTab(tab) {
+            document.querySelectorAll('.login-tabs .tab').forEach(t => t.classList.remove('active'));
+            document.querySelector(`.login-tabs .tab[data-tab="${tab}"]`).classList.add('active');
+            document.querySelectorAll('.login-panel').forEach(p => p.classList.remove('active'));
+            document.getElementById('panel-' + tab).classList.add('active');
+            document.getElementById('loginError').textContent = '';
+        }
+
+        function loginSuccess(user) {
+            auth.isLoggedIn = true;
+            auth.user = user || '管理员';
+            auth.loginTime = Date.now();
+            document.getElementById('userNameDisplay').textContent = auth.user;
+            document.getElementById('loginStatusText').textContent = '当前状态：已登录 (' + auth.user + ')';
+            hideLogin();
+            resetIdleTimer();
+            showToast('登录成功，欢迎回来 ' + auth.user);
+        }
+
+        function logout() {
+            if (!auth.isLoggedIn) return;
+            auth.isLoggedIn = false;
+            auth.user = null;
+            auth.loginTime = null;
+            document.getElementById('userNameDisplay').textContent = '未登录';
+            document.getElementById('loginStatusText').textContent = '当前状态：未登录';
+            clearIdleTimer();
+            const dashboardBtn = document.querySelector('.nav-center .menu-item[data-page="dashboard"]');
+            if (dashboardBtn) dashboardBtn.click();
+            showToast('已安全退出');
+        }
+
+        function resetIdleTimer() {
+            clearIdleTimer();
+            if (!auth.isLoggedIn) return;
+            auth.idleTimer = setTimeout(() => {
+                document.getElementById('idleWarning').style.display = 'block';
+                auth.warningTimer = setTimeout(() => {
+                    document.getElementById('idleWarning').style.display = 'none';
+                    logout();
+                    showToast('⏱️ 已自动退出（1分钟无操作）');
+                }, 10000);
+            }, IDLE_TIMEOUT * 1000);
+        }
+
+        function clearIdleTimer() {
+            if (auth.idleTimer) { clearTimeout(auth.idleTimer);
+                auth.idleTimer = null; }
+            if (auth.warningTimer) { clearTimeout(auth.warningTimer);
+                auth.warningTimer = null; }
+            document.getElementById('idleWarning').style.display = 'none';
+        }
+
+        function onUserActivity() {
+            if (auth.isLoggedIn) resetIdleTimer();
+        }
+
+        window.passwordLogin = function () {
+            const pwd = document.getElementById('passwordInput').value;
+            const errorEl = document.getElementById('loginError');
+            if (pwd === '123456') { loginSuccess('管理员'); } else if (pwd === 'user') { loginSuccess('操作员'); } else if (pwd
+                .trim() === '') { errorEl.textContent = '⚠️ 请输入密码'; } else { errorEl.textContent =
+                    '❌ 密码错误，请重试 (默认密码: 123456)'; }
+        }
+
+        function bioLogin(type) {
+            const errorEl = document.getElementById('loginError');
+            errorEl.textContent = '⏳ ' + type + '识别中...';
+            const btn = document.querySelector('.login-panel.active .btn-login');
+            if (btn) btn.disabled = true;
+            setTimeout(() => {
+                if (btn) btn.disabled = false;
+                if (Math.random() > 0.15) { loginSuccess('操作员 (' + type + ')'); } else { errorEl.textContent =
+                        '❌ ' + type + '识别失败，请重试'; }
+            }, 1500);
+        }
+
+        function togglePermission(key) {
+            const toggle = document.getElementById('perm' + key.charAt(0).toUpperCase() + key.slice(1));
+            const hint = document.getElementById('perm' + key.charAt(0).toUpperCase() + key.slice(1) + 'Hint');
+            if (!toggle) return;
+            PERM[key] = !PERM[key];
+            toggle.classList.toggle('on');
+            hint.textContent = PERM[key] ? '需要登录' : '不需要登录';
+            showToast('权限配置已更新：' + (key === 'history' ? '历史记录' : key === 'logs' ? '日志中心' : '采集控制') +
+                (PERM[key] ? ' 需要登录' : ' 不需要登录'));
+        }
+
+        function simulateEnroll(btn, type) {
+            const orig = btn.innerHTML;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 采集' + type + '中...';
+            btn.disabled = true;
+            setTimeout(() => {
+                btn.innerHTML = '✅ 采集成功';
+                btn.style.background = '#dcfce7';
+                btn.style.color = '#15803d';
+                setTimeout(() => {
+                    btn.innerHTML = orig;
+                    btn.style.background = '';
+                    btn.style.color = '';
+                    btn.disabled = false;
+                    showToast('✅ ' + type + '特征录入成功');
+                }, 800);
+            }, 1500);
+        }
+
+        // ============================================================
+        // 6. Toast & 杂项
+        // ============================================================
+        function showToast(msg) {
+            const existing = document.querySelector('.custom-toast');
+            if (existing) existing.remove();
+            const toast = document.createElement('div');
+            toast.className = 'custom-toast';
+            toast.textContent = msg;
+            document.body.appendChild(toast);
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                toast.style.transition = 'opacity 0.5s';
+                setTimeout(() => toast.remove(), 500);
+            }, 2500);
+        }
+
+        function renderAll() {
+            renderCards(cardData);
+            renderCollectPage();
+            renderHistory();
+            renderLogs();
+        }
+
+        // ============================================================
+        // 7. 导航与权限检查
+        // ============================================================
+        function switchPage(page) {
+            // 权限检查
+            if (page === 'settings') {
+                if (!auth.isLoggedIn) { showLogin('settings'); return; }
+            }
+            if (page === 'history') {
+                if (PERM.history && !auth.isLoggedIn) { showLogin('history'); return; }
+            }
+            if (page === 'logs') {
+                if (PERM.logs && !auth.isLoggedIn) { showLogin('logs'); return; }
+            }
+            // 切换导航激活
+            document.querySelectorAll('.nav-center .menu-item').forEach(m => m.classList.remove('active'));
+            const activeItem = document.querySelector(`.nav-center .menu-item[data-page="${page}"]`);
+            if (activeItem) activeItem.classList.add('active');
+            document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+            const target = document.getElementById('page' + page.charAt(0).toUpperCase() + page.slice(1));
+            if (target) target.classList.add('active');
+            // 刷新内容
+            if (page === 'history') renderHistory();
+            if (page === 'logs') renderLogs();
+            if (page === 'dashboard' || page === 'collect') renderAll();
+            if (page === 'settings') {
+                document.getElementById('permHistory').classList.toggle('on', PERM.history);
+                document.getElementById('permHistoryHint').textContent = PERM.history ? '需要登录' : '不需要登录';
+                document.getElementById('permLogs').classList.toggle('on', PERM.logs);
+                document.getElementById('permLogsHint').textContent = PERM.logs ? '需要登录' : '不需要登录';
+                document.getElementById('permCollect').classList.toggle('on', PERM.collect);
+                document.getElementById('permCollectHint').textContent = PERM.collect ? '需要登录' : '不需要登录';
+                document.getElementById('loginStatusText').textContent = auth.isLoggedIn ? '当前状态：已登录 (' + auth
+                    .user + ')' : '当前状态：未登录';
+                document.getElementById('userNameDisplay').textContent = auth.isLoggedIn ? auth.user : '未登录';
+            }
+        }
+
+        // ============================================================
+        // 8. 设置页书签导航切换
+        // ============================================================
+        const settingsNavItems = document.querySelectorAll('#settingsNav .nav-item');
+        const settingsGroups = {
+            basic: document.getElementById('group-basic'),
+            storage: document.getElementById('group-storage'),
+            'collect-policy': document.getElementById('group-collect-policy'),
+            network: document.getElementById('group-network'),
+            license: document.getElementById('group-license'),
+            bio: document.getElementById('group-bio'),
+            permission: document.getElementById('group-permission'),
+            security: document.getElementById('group-security')
+        };
+
+        function switchSettingsTab(target) {
+            // 更新导航激活状态
+            settingsNavItems.forEach(item => {
+                item.classList.toggle('active', item.dataset.target === target);
+            });
+            // 显示对应的group
+            Object.keys(settingsGroups).forEach(key => {
+                const group = settingsGroups[key];
+                if (key === target) {
+                    group.classList.add('active');
+                } else {
+                    group.classList.remove('active');
+                }
+            });
+        }
+
+        settingsNavItems.forEach(item => {
+            item.addEventListener('click', function(e) {
+                const target = this.dataset.target;
+                switchSettingsTab(target);
+            });
+        });
+
+        // 默认激活基本设置
+        switchSettingsTab('basic');
+
+        // ============================================================
+        // 9. 事件绑定
+        // ============================================================
+        document.querySelectorAll('.nav-center .menu-item').forEach(item => {
+            item.addEventListener('click', function(e) {
+                const page = this.dataset.page;
+                switchPage(page);
+            });
+        });
+
+        document.getElementById('userLabel').addEventListener('click', function() {
+            if (auth.isLoggedIn) {
+                if (confirm('确认退出登录吗？')) logout();
+            } else {
+                showLogin('dashboard');
+            }
+        });
+
+        document.getElementById('logoutBtn').addEventListener('click', function() {
+            if (auth.isLoggedIn) {
+                if (confirm('确认退出登录吗？')) logout();
+            } else {
+                showToast('当前未登录');
+            }
+        });
+
+        document.querySelectorAll('.login-tabs .tab').forEach(tab => {
+            tab.addEventListener('click', function() {
+                switchLoginTab(this.dataset.tab);
+            });
+        });
+
+        document.getElementById('closeLoginBtn').addEventListener('click', function() {
+            if (auth.isLoggedIn) hideLogin();
+            else document.getElementById('loginError').textContent = '⚠️ 请先登录以访问此功能';
+        });
+        document.getElementById('loginOverlay').addEventListener('click', function(e) {
+            if (e.target === this) {
+                if (auth.isLoggedIn) hideLogin();
+                else document.getElementById('loginError').textContent = '⚠️ 请先登录以访问此功能';
+            }
+        });
+
+        document.getElementById('closeSheet').addEventListener('click', closeBottomSheet);
+        document.getElementById('bottomSheetOverlay').addEventListener('click', function(e) {
+            if (e.target === this) closeBottomSheet();
+        });
+
+        document.getElementById('aboutBtn').addEventListener('click', function() {
+            document.getElementById('aboutModal').classList.add('open');
+        });
+        document.getElementById('closeAbout').addEventListener('click', function() {
+            document.getElementById('aboutModal').classList.remove('open');
+        });
+        document.getElementById('aboutModal').addEventListener('click', function(e) {
+            if (e.target === this) this.classList.remove('open');
+        });
+
+        document.getElementById('closeNotice').addEventListener('click', function() {
+            document.getElementById('noticeBar').classList.add('hidden');
+        });
+
+        // 日志Tab切换
+        document.querySelectorAll('.log-tab').forEach(tab => {
+            tab.addEventListener('click', function() {
+                document.querySelectorAll('.log-tab').forEach(t => t.classList.remove('active'));
+                this.classList.add('active');
+                currentLogType = this.dataset.log;
+                document.getElementById('currentPage').textContent = 1;
+                renderLogs();
+            });
+        });
+
+        // 日志控件
+        document.getElementById('logLevelFilter').addEventListener('change', function() { document.getElementById(
+                'currentPage').textContent = 1;
+            renderLogs(); });
+        document.getElementById('logSearch').addEventListener('input', function() { document.getElementById(
+                'currentPage').textContent = 1;
+            renderLogs(); });
+        document.getElementById('prevPage').addEventListener('click', function() {
+            let p = parseInt(document.getElementById('currentPage').textContent);
+            if (p > 1) { p--;
+                document.getElementById('currentPage').textContent = p;
+                renderLogs(); }
+        });
+        document.getElementById('nextPage').addEventListener('click', function() {
+            let p = parseInt(document.getElementById('currentPage').textContent);
+            const total = parseInt(document.getElementById('totalPages').textContent);
+            if (p < total) { p++;
+                document.getElementById('currentPage').textContent = p;
+                renderLogs(); }
+        });
+        document.getElementById('exportLogBtn').addEventListener('click', function() {
+            alert('模拟导出日志为CSV文件（实际生产将实现后台导出）');
+        });
+
+        // 历史控件
+        document.getElementById('historySearch').addEventListener('input', function() { document.getElementById(
+                'historyCurrentPage').textContent = 1;
+            renderHistory(); });
+        document.getElementById('historyDateFrom').addEventListener('change', function() { document.getElementById(
+                'historyCurrentPage').textContent = 1;
+            renderHistory(); });
+        document.getElementById('historyDateTo').addEventListener('change', function() { document.getElementById(
+                'historyCurrentPage').textContent = 1;
+            renderHistory(); });
+        document.getElementById('historyStatus').addEventListener('change', function() { document.getElementById(
+                'historyCurrentPage').textContent = 1;
+            renderHistory(); });
+        document.getElementById('historyGroupBy').addEventListener('change', function() { document.getElementById(
+                'historyCurrentPage').textContent = 1;
+            renderHistory(); });
+        document.getElementById('historyPrev').addEventListener('click', function() {
+            let p = parseInt(document.getElementById('historyCurrentPage').textContent);
+            if (p > 1) { p--;
+                document.getElementById('historyCurrentPage').textContent = p;
+                renderHistory(); }
+        });
+        document.getElementById('historyNext').addEventListener('click', function() {
+            let p = parseInt(document.getElementById('historyCurrentPage').textContent);
+            const total = parseInt(document.getElementById('historyTotalPages').textContent);
+            if (p < total) { p++;
+                document.getElementById('historyCurrentPage').textContent = p;
+                renderHistory(); }
+        });
+        document.getElementById('exportHistoryBtn').addEventListener('click', function() {
+            alert('模拟导出历史记录为CSV文件（实际生产将实现后台导出）');
+        });
+
+        // 自检模拟
+        document.getElementById('selfTestBtn').addEventListener('click', function() {
+            const orig = this.innerHTML;
+            this.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 检测中...';
+            this.disabled = true;
+            setTimeout(() => {
+                this.innerHTML = '<i class="fas fa-check-circle"></i> 自检完成';
+                setTimeout(() => {
+                    this.innerHTML = orig;
+                    this.disabled = false;
+                }, 1500);
+            }, 1500);
+        });
+
+        // 用户活动重置空闲计时器
+        document.addEventListener('click', onUserActivity);
+        document.addEventListener('touchstart', onUserActivity);
+        document.addEventListener('mousemove', onUserActivity);
+
+        // 时钟
+        function updateClock() {
+            const now = new Date();
+            const y = now.getFullYear();
+            const mo = String(now.getMonth() + 1).padStart(2, '0');
+            const d = String(now.getDate()).padStart(2, '0');
+            const h = String(now.getHours()).padStart(2, '0');
+            const m = String(now.getMinutes()).padStart(2, '0');
+            const s = String(now.getSeconds()).padStart(2, '0');
+            document.getElementById('clockDisplay').textContent = `${y}-${mo}-${d} ${h}:${m}:${s}`;
+        }
+        setInterval(updateClock, 1000);
+        updateClock();
+
+        // ============================================================
+        // 10. 初始化
+        // ============================================================
+        cardData = generateCards(30);
+        historyData = generateHistoryFiles(45);
+        renderAll();
+
+        // 默认展开历史分组
+        setTimeout(() => {
+            document.querySelectorAll('.history-group-header').forEach(h => {
+                h.classList.remove('collapsed');
+                const body = h.nextElementSibling;
+                if (body) body.classList.remove('collapsed');
+            });
+        }, 300);
+
+        console.log('采集站桌面端已启动（完整功能，设置页左侧书签导航）');
+        console.log('默认密码: 123456');
+        console.log('权限配置: 设置需要登录，其他功能默认不需要');
+        console.log('点击右上角 "未登录" 可登录');
+        console.log('登录后1分钟无操作自动退出');
+    })();
+</script>
+</body>
+</html>

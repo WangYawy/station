@@ -1,0 +1,32 @@
+# .NET
+bin/
+obj/
+*.user
+*.suo
+.vs/
+*.nupkg
+TestResults/
+
+# Node / 前端
+node_modules/
+dist/
+.vite/
+
+# 运行产物
+logs/
+*.db
+*.db-shm
+*.db-wal
+publish/
+
+# 历史归档（旧代码含独立 .git，仅本地参考，不纳入版本库）
+archive/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# OS
+Thumbs.db
+.DS_Store

@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>Station.Platform.Application</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Station.Platform.Domain\Station.Platform.Domain.csproj" />
+  </ItemGroup>
+
+</Project>
