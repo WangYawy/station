@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>Station.Spike.DatabaseAdapter</RootNamespace>
+    <AssemblyName>Station.Spike.DatabaseAdapter</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Kdbndp" Version="8.0.0" />
+    <PackageReference Include="SqlSugarCore" Version="5.1.4.216" />
+    <PackageReference Include="MySqlConnector" Version="2.3.7" />
+    <PackageReference Include="Npgsql" Version="8.0.9" />
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.9" />
+  </ItemGroup>
+
+</Project>

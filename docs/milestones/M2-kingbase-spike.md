@@ -30,10 +30,10 @@
 | 7 | 索引：`idx_spike_status`、`idx_spike_collected` + 主键索引均生效 | ✅ |
 | 8 | 清理测试表 | ✅ |
 
-验证代码：[spikes/Station.Spike.Kingbase](../../spikes/Station.Spike.Kingbase/Program.cs)
+验证代码：[spikes/Station.Spike.DatabaseAdapter](../../spikes/Station.Spike.DatabaseAdapter/Program.cs)（`--db kingbase`）
 
 ```powershell
-dotnet run --project spikes/Station.Spike.Kingbase -c Release
+dotnet run --project spikes/Station.Spike.DatabaseAdapter -c Release -- --db kingbase
 ```
 
 ## 3. 关键差异点与注意事项（开发期必须遵守）
