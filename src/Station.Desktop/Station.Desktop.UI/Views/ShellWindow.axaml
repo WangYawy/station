@@ -1,9 +1,69 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         x:Class="Station.Desktop.UI.Views.ShellWindow"
-        Width="1200" Height="800"
-        MinWidth="960" MinHeight="640"
+        Width="1280" Height="820"
+        MinWidth="1024" MinHeight="680"
         WindowStartupLocation="CenterScreen"
         Title="视音频数据采集站 · 桌面端">
-  <ContentControl x:Name="MainContent" />
+  <Grid RowDefinitions="Auto,Auto,*,Auto">
+    <!-- 顶部导航 -->
+    <Border Grid.Row="0" Background="#0a2f6c" Padding="16,8"
+            BorderBrush="#2563eb" BorderThickness="0,0,0,2">
+      <Grid ColumnDefinitions="Auto,*,Auto">
+        <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+          <TextBlock Text="📹" FontSize="24" />
+          <TextBlock Text="采集站" FontSize="20" FontWeight="Bold" Foreground="White"
+                     LetterSpacing="1" VerticalAlignment="Center" />
+        </StackPanel>
+
+        <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Center"
+                    VerticalAlignment="Center" Spacing="6">
+          <Button x:Name="NavWorkbench" Tag="workbench" Content="工作台" Classes="nav-pill"
+                  Click="OnNavClick" />
+          <Button x:Name="NavCollect" Tag="collect" Content="采集作业" Classes="nav-pill"
+                  Click="OnNavClick" />
+          <Button x:Name="NavHistory" Tag="history" Content="历史记录" Classes="nav-pill"
+                  Click="OnNavClick" />
+          <Button x:Name="NavLogs" Tag="logs" Content="日志中心" Classes="nav-pill"
+                  Click="OnNavClick" />
+          <Button x:Name="NavSettings" Tag="settings" Content="设置" Classes="nav-pill"
+                  Click="OnNavClick" />
+        </StackPanel>
+
+        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="12"
+                    VerticalAlignment="Center">
+          <Border Background="#14532d" CornerRadius="9999" Padding="10,3" VerticalAlignment="Center">
+            <TextBlock Text="正式版" Foreground="#bbf7d0" FontSize="12" FontWeight="SemiBold" />
+          </Border>
+          <TextBlock x:Name="SessionStatusText" Text="未登录" Foreground="#cbd5e1" FontSize="13"
+                     VerticalAlignment="Center" />
+          <Button x:Name="LogoutButton" Content="退出登录" Click="OnLogoutClick"
+                  IsVisible="False" Background="#1e3a8a" Foreground="White" />
+        </StackPanel>
+      </Grid>
+    </Border>
+
+    <!-- 空闲超时警告 -->
+    <Border Grid.Row="1" x:Name="IdleWarningBar" IsVisible="False" Background="#fef3c7"
+            BorderBrush="#f59e0b" BorderThickness="0,0,0,1">
+      <TextBlock x:Name="IdleWarningText" Text="即将自动退出登录，请操作以保持会话"
+                 Foreground="#92400e" FontSize="13" Margin="16,6" HorizontalAlignment="Center" />
+    </Border>
+
+    <!-- 模块内容 -->
+    <ContentControl Grid.Row="2" x:Name="ModuleContent" />
+
+    <!-- 底部状态栏 -->
+    <Border Grid.Row="3" Background="#eef2f7" BorderBrush="#dbe3ec" BorderThickness="0,1,0,0"
+            Padding="16,6">
+      <Grid ColumnDefinitions="Auto,*,Auto">
+        <StackPanel Orientation="Horizontal" Spacing="18">
+          <TextBlock Text="本机IP: 192.168.1.10" FontSize="12" Foreground="#64748b" />
+          <TextBlock Text="● 网络正常" FontSize="12" Foreground="#22c55e" />
+          <TextBlock Text="● 心跳正常" FontSize="12" Foreground="#22c55e" />
+        </StackPanel>
+        <TextBlock Grid.Column="2" x:Name="ClockText" FontSize="12" Foreground="#64748b" />
+      </Grid>
+    </Border>
+  </Grid>
 </Window>

@@ -25,6 +25,9 @@ public partial class LoginViewModel : ObservableObject
     [ObservableProperty]
     private bool _isBusy;
 
+    /// <summary>登录成功后触发（供对话框自动关闭）。</summary>
+    public event Action? LoggedIn;
+
     public LoginViewModel(IAuthenticationService authentication, ISessionManager sessions)
     {
         _authentication = authentication;
@@ -49,6 +52,7 @@ public partial class LoginViewModel : ObservableObject
             {
                 Password = string.Empty;
                 _sessions.Start(result.Session);
+                LoggedIn?.Invoke();
                 return;
             }
 

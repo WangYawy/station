@@ -1,25 +1,30 @@
-using Avalonia.Input;
 using Avalonia.Controls;
+using Avalonia.Input;
 using Station.Application.Authentication;
 using Station.Desktop.Application.Session;
 
 namespace Station.Desktop.UI.Services;
 
 /// <summary>
-/// 会话空闲追踪：必须登录模式下，无操作达到配置时长（默认 1 分钟）自动退出登录。
-/// 键盘/鼠标任意输入都会重置计时。
+/// 会话空闲追踪：无操作达到配置时长（默认 1 分钟）自动退出登录；
+/// 临近超时（默认 10 秒）通过 <see cref="WarningChanged"/> 通知 UI 展示
+/// "即将自动退出登录，请操作以保持会话"；任意输入重置计时。
 /// </summary>
 public sealed class SessionIdleTracker : IDisposable
 {
     private readonly ISessionManager _sessions;
-    private readonly AuthOptions _options;
+    private readonly TimeSpan _timeout;
+    private readonly TimeSpan _warningThreshold = TimeSpan.FromSeconds(10);
     private CancellationTokenSource? _cts;
     private TopLevel? _topLevel;
+
+    /// <summary>剩余秒数；-1 表示隐藏警告。</summary>
+    public event Action<int>? WarningChanged;
 
     public SessionIdleTracker(ISessionManager sessions, AuthOptions options)
     {
         _sessions = sessions;
-        _options = options;
+        _timeout = TimeSpan.FromMinutes(options.AutoLogoutMinutes);
         _sessions.SessionChanged += OnSessionChanged;
     }
 
@@ -44,6 +49,7 @@ public sealed class SessionIdleTracker : IDisposable
         }
         else
         {
+            WarningChanged?.Invoke(-1);
             StopTimer();
         }
     }
@@ -52,6 +58,7 @@ public sealed class SessionIdleTracker : IDisposable
     {
         if (_sessions.IsAuthenticated)
         {
+            WarningChanged?.Invoke(-1);
             ResetTimer();
         }
     }
@@ -60,6 +67,7 @@ public sealed class SessionIdleTracker : IDisposable
     {
         if (_sessions.IsAuthenticated)
         {
+            WarningChanged?.Invoke(-1);
             ResetTimer();
         }
     }
@@ -67,20 +75,31 @@ public sealed class SessionIdleTracker : IDisposable
     private void ResetTimer()
     {
         StopTimer();
-        if (_options.AutoLogoutMinutes <= 0)
+        if (_timeout <= TimeSpan.Zero)
         {
             return;
         }
 
         _cts = new CancellationTokenSource();
-        _ = RunIdleTimerAsync(_cts.Token);
+        _ = RunIdleLoopAsync(_cts.Token);
     }
 
-    private async Task RunIdleTimerAsync(CancellationToken cancellationToken)
+    private async Task RunIdleLoopAsync(CancellationToken cancellationToken)
     {
+        var remaining = (int)_timeout.TotalSeconds;
         try
         {
-            await Task.Delay(TimeSpan.FromMinutes(_options.AutoLogoutMinutes), cancellationToken);
+            while (remaining > 0)
+            {
+                await Task.Delay(TimeSpan.FromSeconds(1), cancellationToken);
+                remaining--;
+                if (remaining <= (int)_warningThreshold.TotalSeconds)
+                {
+                    WarningChanged?.Invoke(remaining);
+                }
+            }
+
+            WarningChanged?.Invoke(-1);
             _sessions.Clear();
         }
         catch (OperationCanceledException)

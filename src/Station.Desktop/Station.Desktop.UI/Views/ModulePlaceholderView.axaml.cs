@@ -2,9 +2,9 @@ using Avalonia.Controls;
 
 namespace Station.Desktop.UI.Views;
 
-public partial class MainView : UserControl
+public partial class ModulePlaceholderView : UserControl
 {
-    public MainView()
+    public ModulePlaceholderView()
     {
         InitializeComponent();
     }

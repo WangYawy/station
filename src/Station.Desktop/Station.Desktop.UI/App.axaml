@@ -4,5 +4,20 @@
              RequestedThemeVariant="Default">
   <Application.Styles>
     <FluentTheme />
+    <Style Selector="Button.nav-pill">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Foreground" Value="#cbd5e1" />
+      <Setter Property="CornerRadius" Value="9999" />
+      <Setter Property="Padding" Value="18,7" />
+      <Setter Property="FontSize" Value="15" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+    <Style Selector="Button.nav-pill:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="#1e3a8a" />
+    </Style>
+    <Style Selector="Button.nav-pill.nav-pill-selected">
+      <Setter Property="Background" Value="#2563eb" />
+      <Setter Property="Foreground" Value="White" />
+    </Style>
   </Application.Styles>
 </Application>

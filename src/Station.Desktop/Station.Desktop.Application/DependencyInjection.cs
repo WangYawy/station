@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Station.Application;
+using Station.Desktop.Application.OperationAccess;
 using Station.Desktop.Application.Session;
 
 namespace Station.Desktop.Application;
@@ -14,6 +15,8 @@ public static class DependencyInjection
     {
         services.AddStationApplication(configuration);
         services.AddSingleton<ISessionManager, SessionManager>();
+        services.Configure<OperationAuthOptions>(configuration.GetSection(OperationAuthOptions.SectionName));
+        services.AddSingleton<IOperationAccessService, OperationAccessService>();
         return services;
     }
 }

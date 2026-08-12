@@ -1,0 +1,48 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:Station.Desktop.UI.ViewModels"
+        x:Class="Station.Desktop.UI.Views.LoginDialog"
+        x:DataType="vm:LoginViewModel"
+        Width="440" Height="520"
+        CanResize="False"
+        ShowInTaskbar="False"
+        WindowStartupLocation="CenterOwner"
+        Title="采集站登录">
+  <Grid Background="#f1f5f9" RowDefinitions="Auto,Auto,*">
+    <StackPanel Grid.Row="0" Margin="28,24,28,0" Spacing="4">
+      <TextBlock Text="采集站登录" FontSize="22" FontWeight="Bold" Foreground="#0a2f6c"
+                 HorizontalAlignment="Center" />
+      <TextBlock Text="请验证身份以继续操作" FontSize="13" Foreground="#64748b"
+                 HorizontalAlignment="Center" />
+    </StackPanel>
+
+    <!-- 验证方式页签：P0 密码；指纹/人脸 P1 占位 -->
+    <TabControl Grid.Row="1" Margin="28,16,28,0" Background="Transparent">
+      <TabItem Header="密码">
+        <StackPanel Spacing="10" Margin="0,14,0,0">
+          <TextBox Text="{Binding UserName}" PlaceholderText="请输入账号" />
+          <TextBox Text="{Binding Password}" PasswordChar="●" PlaceholderText="请输入密码" />
+          <TextBlock Text="{Binding ErrorMessage}" Foreground="#dc2626" TextWrapping="Wrap"
+                     IsVisible="{Binding HasError}" />
+        </StackPanel>
+      </TabItem>
+      <TabItem Header="指纹" IsEnabled="False">
+        <TextBlock Text="请将手指按压在指纹识别器上（P1 生物识别，暂未启用）"
+                   Margin="0,14,0,0" Foreground="#64748b" TextWrapping="Wrap" />
+      </TabItem>
+      <TabItem Header="人脸" IsEnabled="False">
+        <TextBlock Text="请面向摄像头进行人脸识别（P1 生物识别，暂未启用）"
+                   Margin="0,14,0,0" Foreground="#64748b" TextWrapping="Wrap" />
+      </TabItem>
+    </TabControl>
+
+    <StackPanel Grid.Row="2" Margin="28,18,28,24" Orientation="Horizontal" Spacing="12"
+                HorizontalAlignment="Stretch">
+      <Button Content="登 录" Command="{Binding LoginCommand}" IsDefault="True"
+              IsEnabled="{Binding !IsBusy}" Height="36" Background="#0a2f6c" Foreground="White"
+              HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" />
+      <Button Content="取消" Click="OnCancelClick" Height="36" Background="#e2e8f0"
+              Foreground="#334155" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" />
+    </StackPanel>
+  </Grid>
+</Window>

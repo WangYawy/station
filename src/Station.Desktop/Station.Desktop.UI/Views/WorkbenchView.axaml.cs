@@ -2,9 +2,9 @@ using Avalonia.Controls;
 
 namespace Station.Desktop.UI.Views;
 
-public partial class LoginView : UserControl
+public partial class WorkbenchView : UserControl
 {
-    public LoginView()
+    public WorkbenchView()
     {
         InitializeComponent();
     }
