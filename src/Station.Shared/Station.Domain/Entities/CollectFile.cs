@@ -45,4 +45,18 @@ public sealed class CollectFile
 
     [SugarColumn(IsNullable = true)]
     public DateTime? OriginalModifiedAt { get; set; }
+
+    public UploadStatus SyncStatus { get; set; } = UploadStatus.Pending;
+
+    public double UploadProgress { get; set; }
+
+    public double UploadSpeedBytesPerSecond { get; set; }
+
+    [SugarColumn(IsNullable = true, Length = 512)]
+    public string? UploadError { get; set; }
+
+    public int UploadRetryCount { get; set; }
+
+    [SugarColumn(IsNullable = true, Length = 512)]
+    public string? RemotePath { get; set; }
 }

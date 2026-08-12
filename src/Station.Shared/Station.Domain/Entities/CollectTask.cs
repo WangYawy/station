@@ -61,5 +61,14 @@ public sealed class CollectTask
     [SugarColumn(IsNullable = true, Length = 512)]
     public string? ErrorMessage { get; set; }
 
+    public UploadStatus SyncStatus { get; set; } = UploadStatus.Pending;
+
+    public int UploadedFiles { get; set; }
+
+    public long UploadedBytes { get; set; }
+
+    [SugarColumn(IsNullable = true, Length = 512)]
+    public string? UploadError { get; set; }
+
     public DateTime CreatedAt { get; set; }
 }

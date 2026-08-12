@@ -8,6 +8,7 @@
     <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="8.0.0" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="8.0.2" />
     <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="8.0.1" />
+    <ProjectReference Include="..\..\Station.Shared\Station.Application\Station.Application.csproj" />
     <ProjectReference Include="..\..\Station.Shared\Station.Infrastructure\Station.Infrastructure.csproj" />
     <ProjectReference Include="..\..\Station.Shared\Station.Contracts\Station.Contracts.csproj" />
     <ProjectReference Include="..\..\Station.Shared\Station.Domain\Station.Domain.csproj" />

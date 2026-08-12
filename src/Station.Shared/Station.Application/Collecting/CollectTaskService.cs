@@ -1,9 +1,10 @@
 using System.Collections.Concurrent;
 using Microsoft.Extensions.Options;
-using Station.Infrastructure;
-using Station.Infrastructure.Db;
+using SqlSugar;
 using Station.Domain.Entities;
 using Station.Domain.Enums;
+using Station.Infrastructure;
+using Station.Infrastructure.Db;
 using Station.Infrastructure.IdGenerators;
 using Station.Infrastructure.Repositories;
 
@@ -79,7 +80,6 @@ public sealed class CollectTaskService : ICollectTaskService
             throw new InvalidOperationException("任务正在运行中");
         }
 
-        // 扫描筛选
         task.Status = CollectTaskStatus.Scanning;
         task.StartedAt ??= DateTime.Now;
         task.ErrorMessage = null;
@@ -214,7 +214,6 @@ public sealed class CollectTaskService : ICollectTaskService
         }
         else if (await _tasks.GetByIdAsync(taskId) is { } idle)
         {
-            // 未在运行的任务直接标记
             idle.Status = finalStatus;
             idle.CompletedAt = DateTime.Now;
             idle.ErrorMessage = reason;
@@ -231,16 +230,13 @@ public sealed class CollectTaskService : ICollectTaskService
 
     private async Task RunCollectAsync(long taskId, TaskControl control)
     {
-        // 后台采集使用独立客户端，避免与 UI/查询共享作用域并发冲突
-        // 后台采集使用独立长连接客户端：单连接跑完整任务，避免连接池并发复用冲突
+        // 后台采集使用独立长连接客户端，DB 操作用同步调用（Kdbndp 异步长连接易报 command already in progress）
         using var loopClient = _sqlSugarFactory.CreateClient(_dbOptions, autoCloseConnection: false);
-        var loopTasks = new RepositoryBase<CollectTask>(loopClient);
-        var loopFiles = new RepositoryBase<CollectFile>(loopClient);
         CollectTask? task = null;
         try
         {
             var ct = control.Cts.Token;
-            task = await loopTasks.GetByIdAsync(taskId);
+            task = loopClient.Queryable<CollectTask>().InSingle(taskId);
             if (task is null)
             {
                 return;
@@ -250,9 +246,10 @@ public sealed class CollectTaskService : ICollectTaskService
 
             while (!ct.IsCancellationRequested)
             {
-                var file = (await loopFiles.GetListAsync(f =>
-                        f.TaskId == taskId && f.Status == CollectFileStatus.Pending))
+                var file = loopClient.Queryable<CollectFile>()
+                    .Where(f => f.TaskId == taskId && f.Status == CollectFileStatus.Pending)
                     .OrderBy(f => f.Id)
+                    .ToList()
                     .FirstOrDefault();
                 if (file is null)
                 {
@@ -262,7 +259,7 @@ public sealed class CollectTaskService : ICollectTaskService
                 control.CurrentFileId = file.Id;
                 file.Status = CollectFileStatus.Copying;
                 file.Progress = 0;
-                await loopFiles.UpdateAsync(file);
+                loopClient.Updateable(file).ExecuteCommand();
 
                 var destination = Path.Combine(_options.CacheDirectory, task.TaskNo, file.RelativePath);
                 double lastPersistedProgress = -1;
@@ -295,7 +292,7 @@ public sealed class CollectTaskService : ICollectTaskService
                             lastPersistedProgress = progress;
                             try
                             {
-                                await loopFiles.UpdateAsync(file);
+                                loopClient.Updateable(file).ExecuteCommand();
                             }
                             catch
                             {
@@ -307,7 +304,7 @@ public sealed class CollectTaskService : ICollectTaskService
 
                 // 校验大小
                 file.Status = CollectFileStatus.Verifying;
-                await loopFiles.UpdateAsync(file);
+                loopClient.Updateable(file).ExecuteCommand();
                 var copied = new FileInfo(destination).Length;
                 if (copied != file.Size)
                 {
@@ -317,12 +314,12 @@ public sealed class CollectTaskService : ICollectTaskService
                 file.Status = CollectFileStatus.Completed;
                 file.Progress = 1;
                 file.CollectedAt = DateTime.Now;
-                await loopFiles.UpdateAsync(file);
+                loopClient.Updateable(file).ExecuteCommand();
 
                 task.CollectedFiles++;
                 task.CollectedBytes += file.Size;
                 task.Status = CollectTaskStatus.Collecting;
-                await loopTasks.UpdateAsync(task);
+                loopClient.Updateable(task).ExecuteCommand();
 
                 control.CurrentFileId = 0;
             }
@@ -337,21 +334,21 @@ public sealed class CollectTaskService : ICollectTaskService
             {
                 task.FailedFiles++;
                 task.ErrorMessage = ex.Message;
-                var failedFile = await loopFiles.GetByIdAsync(control.CurrentFileId);
+                var failedFile = loopClient.Queryable<CollectFile>().InSingle(control.CurrentFileId);
                 if (failedFile is not null)
                 {
                     failedFile.Status = CollectFileStatus.Failed;
                     failedFile.ErrorMessage = ex.Message;
-                    await loopFiles.UpdateAsync(failedFile);
+                    loopClient.Updateable(failedFile).ExecuteCommand();
                 }
 
-                await loopTasks.UpdateAsync(task);
+                loopClient.Updateable(task).ExecuteCommand();
             }
         }
 
         try
         {
-            await FinalizeAsync(taskId, control, loopTasks, loopFiles);
+            FinalizeAsync(taskId, control, loopClient);
         }
         catch (Exception ex)
         {
@@ -375,20 +372,16 @@ public sealed class CollectTaskService : ICollectTaskService
         }
     }
 
-    private async Task FinalizeAsync(
-        long taskId,
-        TaskControl control,
-        RepositoryBase<CollectTask> loopTasks,
-        RepositoryBase<CollectFile> loopFiles)
+    private void FinalizeAsync(long taskId, TaskControl control, ISqlSugarClient loopClient)
     {
-        var task = await loopTasks.GetByIdAsync(taskId);
+        var task = loopClient.Queryable<CollectTask>().InSingle(taskId);
         if (task is null)
         {
             _controls.TryRemove(taskId, out _);
             return;
         }
 
-        var files = await loopFiles.GetListAsync(f => f.TaskId == taskId);
+        var files = loopClient.Queryable<CollectFile>().Where(f => f.TaskId == taskId).ToList();
         var current = control.CurrentFileId;
 
         if (control.PauseRequested &&
@@ -402,26 +395,24 @@ public sealed class CollectTaskService : ICollectTaskService
                 {
                     currentFile.Status = CollectFileStatus.Pending;
                     currentFile.Progress = 0;
-                    await loopFiles.UpdateAsync(currentFile);
+                    loopClient.Updateable(currentFile).ExecuteCommand();
                 }
             }
 
             task.Status = CollectTaskStatus.Paused;
-            await loopTasks.UpdateAsync(task);
+            loopClient.Updateable(task).ExecuteCommand();
             _controls.TryRemove(taskId, out _);
             return;
         }
 
         // 中断/取消：当前文件异常，未开始文件取消
         var interrupted = control.FinalStatus == CollectTaskStatus.Interrupted;
-        foreach (var file in files)
+        foreach (var file in files.Where(f =>
+                     f.Status is CollectFileStatus.Pending or CollectFileStatus.Copying or CollectFileStatus.Verifying))
         {
-            if (file.Status == CollectFileStatus.Pending || file.Status == CollectFileStatus.Copying || file.Status == CollectFileStatus.Verifying)
-            {
-                file.Status = interrupted ? CollectFileStatus.Abnormal : CollectFileStatus.Canceled;
-                file.ErrorMessage = interrupted ? "设备断开，采集中断" : "任务已取消";
-                await loopFiles.UpdateAsync(file);
-            }
+            file.Status = interrupted ? CollectFileStatus.Abnormal : CollectFileStatus.Canceled;
+            file.ErrorMessage = interrupted ? "设备断开，采集中断" : "任务已取消";
+            loopClient.Updateable(file).ExecuteCommand();
         }
 
         var terminalByRequest = control.FinalStatus is CollectTaskStatus.Interrupted or CollectTaskStatus.Canceled;
@@ -429,14 +420,14 @@ public sealed class CollectTaskService : ICollectTaskService
         task.CompletedAt = DateTime.Now;
         if (task.Status == CollectTaskStatus.Completed && control.FinalStatus != CollectTaskStatus.Canceled)
         {
-            await TryEraseAsync(task);
+            TryErase(task);
         }
 
-        await loopTasks.UpdateAsync(task);
+        loopClient.Updateable(task).ExecuteCommand();
         _controls.TryRemove(taskId, out _);
     }
 
-    private async Task TryEraseAsync(CollectTask task)
+    private void TryErase(CollectTask task)
     {
         if (!_options.EraseAfterComplete)
         {
@@ -446,7 +437,7 @@ public sealed class CollectTaskService : ICollectTaskService
         try
         {
             var device = new CollectDeviceInfo(task.RecorderName, task.RecorderSerial, (Station.Contracts.ProtocolType)task.Protocol);
-            await _source.EraseAsync(device, CancellationToken.None);
+            _source.EraseAsync(device, CancellationToken.None).GetAwaiter().GetResult();
             task.ErrorMessage = task.ErrorMessage is null ? "已擦除记录仪已采集文件" : task.ErrorMessage + "；已擦除记录仪已采集文件";
         }
         catch (Exception ex)
@@ -464,9 +455,10 @@ public sealed class CollectTaskService : ICollectTaskService
         t.Status, t.IsAuto,
         t.TotalFiles, t.CollectedFiles, t.SkippedFiles, t.FailedFiles,
         t.TotalBytes, t.CollectedBytes, t.SpeedBytesPerSecond,
+        t.SyncStatus, t.UploadedFiles, t.UploadedBytes, t.UploadError,
         t.StartedAt, t.CompletedAt, t.ErrorMessage);
 
     private static CollectFileDto ToDto(CollectFile f) => new(
         f.Id, f.TaskId, f.FileName, f.Extension, f.Size,
-        f.Status, f.Progress, f.SpeedBytesPerSecond, f.ErrorMessage, f.CollectedAt);
+        f.Status, f.Progress, f.SpeedBytesPerSecond, f.ErrorMessage, f.CollectedAt, f.RemotePath, f.UploadError);
 }

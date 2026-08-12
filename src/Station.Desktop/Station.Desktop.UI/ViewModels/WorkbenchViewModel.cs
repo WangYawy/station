@@ -4,6 +4,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Station.Application.Authentication;
 using Station.Application.Collecting;
+using Station.Application.Uploading;
 using Station.Desktop.Application.Session;
 using Station.Domain.Enums;
 
@@ -18,6 +19,7 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
     private readonly ISessionManager _sessions;
     private readonly IAuthenticationService _authentication;
     private readonly ICollectTaskService _collectService;
+    private readonly IUploadService _uploadService;
     private readonly DispatcherTimer _timer;
 
     [ObservableProperty]
@@ -44,11 +46,13 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
     public WorkbenchViewModel(
         ISessionManager sessions,
         IAuthenticationService authentication,
-        ICollectTaskService collectService)
+        ICollectTaskService collectService,
+        IUploadService uploadService)
     {
         _sessions = sessions;
         _authentication = authentication;
         _collectService = collectService;
+        _uploadService = uploadService;
         _timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
         _timer.Tick += async (_, _) => await RefreshQueueAsync();
         _timer.Start();
@@ -59,6 +63,7 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
         try
         {
             var tasks = await _collectService.GetActiveTasksAsync();
+            PendingUploadText = (await _uploadService.CountPendingUploadsAsync()).ToString();
             ActiveQueue.Clear();
             foreach (var task in tasks)
             {

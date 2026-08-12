@@ -1,10 +1,13 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using Station.Application.Audit;
 using Station.Application.Authentication;
 using Station.Application.Authorization;
 using Station.Application.Collecting;
+using Station.Application.Uploading;
 using Station.Application.Users;
+using Station.Infrastructure.Storage;
 
 namespace Station.Application;
 
@@ -27,6 +30,26 @@ public static class DependencyInjection
         services.AddSingleton(collectSection.Get<CollectOptions>() ?? new CollectOptions());
         services.AddSingleton<ICollectSource, SimulatedCollectSource>();
         services.AddScoped<ICollectTaskService, CollectTaskService>();
+
+        var storageSection = configuration.GetSection(StorageOptions.SectionName);
+        services.Configure<StorageOptions>(storageSection);
+        services.AddSingleton(storageSection.Get<StorageOptions>() ?? new StorageOptions());
+        services.AddSingleton<IStorageCircuitBreaker>(sp =>
+        {
+            var storage = sp.GetRequiredService<StorageOptions>();
+            return new StorageCircuitBreaker(storage.CircuitBreakerThreshold, storage.CircuitBreakerCooldownSeconds);
+        });
+        services.AddSingleton<IStorageTarget>(sp =>
+        {
+            var storage = sp.GetRequiredService<StorageOptions>();
+            return storage.Target switch
+            {
+                StorageTargetKind.Ftp => new FtpStorageTarget(Options.Create(storage)),
+                StorageTargetKind.Sftp => new SftpStorageTarget(Options.Create(storage)),
+                _ => new LocalDiskStorageTarget(Options.Create(storage))
+            };
+        });
+        services.AddScoped<IUploadService, UploadService>();
 
         services.AddScoped<IAuditLogService, AuditLogService>();
         services.AddScoped<IAuthorizationService, AuthorizationService>();

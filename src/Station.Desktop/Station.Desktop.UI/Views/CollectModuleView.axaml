@@ -14,6 +14,7 @@
       <Button Content="取消" Command="{Binding CancelCommand}" Background="#64748b" Foreground="White" />
       <Button Content="模拟拔出（中断）" Command="{Binding SimulateDisconnectCommand}"
               Background="#ef4444" Foreground="White" />
+      <Button Content="重试上传" Command="{Binding RetryUploadCommand}" Background="#7c3aed" Foreground="White" />
       <TextBlock Text="{Binding Message}" Foreground="#0f766e" VerticalAlignment="Center"
                  Margin="8,0,0,0" />
     </StackPanel>
@@ -29,7 +30,7 @@
                    Background="Transparent" BorderThickness="0">
             <ListBox.ItemTemplate>
               <DataTemplate x:DataType="vm:CollectTaskItemViewModel">
-                <Grid ColumnDefinitions="*,Auto,Auto,Auto" Margin="4,6" RowDefinitions="Auto,Auto">
+                <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto" Margin="4,6" RowDefinitions="Auto,Auto">
                   <StackPanel Spacing="2">
                     <TextBlock Text="{Binding TaskNo}" FontSize="13" FontWeight="SemiBold" Foreground="#1e293b" />
                     <TextBlock Text="{Binding RecorderName}" FontSize="12" Foreground="#64748b" />
@@ -41,6 +42,8 @@
                              VerticalAlignment="Center" Margin="12,0,0,0" />
                   <TextBlock Grid.Column="3" Text="{Binding IsAutoText}" FontSize="12" Foreground="#94a3b8"
                              VerticalAlignment="Center" Margin="10,0,0,0" />
+                  <TextBlock Grid.Column="4" Text="{Binding SyncStatusText}" FontSize="12"
+                             Foreground="{Binding SyncStatusColor}" VerticalAlignment="Center" Margin="10,0,0,0" />
                 </Grid>
               </DataTemplate>
             </ListBox.ItemTemplate>

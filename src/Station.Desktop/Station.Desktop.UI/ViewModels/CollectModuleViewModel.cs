@@ -3,6 +3,7 @@ using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Station.Application.Collecting;
+using Station.Application.Uploading;
 using Station.Contracts;
 using Station.Desktop.Application.Session;
 
@@ -17,6 +18,8 @@ public sealed record CollectTaskItemViewModel(
     string ProgressText,
     string SpeedText,
     string IsAutoText,
+    string SyncStatusText,
+    string SyncStatusColor,
     bool IsActive);
 
 public sealed record CollectFileItemViewModel(
@@ -31,6 +34,7 @@ public sealed record CollectFileItemViewModel(
 public partial class CollectModuleViewModel : ObservableObject, IDisposable
 {
     private readonly ICollectTaskService _service;
+    private readonly IUploadService _uploadService;
     private readonly ISessionManager _sessions;
     private readonly DispatcherTimer _timer;
 
@@ -44,9 +48,10 @@ public partial class CollectModuleViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     private string? _message;
 
-    public CollectModuleViewModel(ICollectTaskService service, ISessionManager sessions)
+    public CollectModuleViewModel(ICollectTaskService service, IUploadService uploadService, ISessionManager sessions)
     {
         _service = service;
+        _uploadService = uploadService;
         _sessions = sessions;
         _timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(500) };
         _timer.Tick += async (_, _) => await RefreshAsync();
@@ -136,6 +141,19 @@ public partial class CollectModuleViewModel : ObservableObject, IDisposable
         await RefreshAsync();
     }
 
+    [RelayCommand]
+    private async Task RetryUploadAsync()
+    {
+        if (SelectedTask is null)
+        {
+            return;
+        }
+
+        var retried = await _uploadService.RetryFailedFilesAsync(SelectedTask.TaskId);
+        Message = retried > 0 ? $"已重试 {retried} 个失败文件的上传" : "没有需要重试的失败文件";
+        await RefreshAsync();
+    }
+
     private async Task RefreshAsync()
     {
         try
@@ -154,6 +172,8 @@ public partial class CollectModuleViewModel : ObservableObject, IDisposable
                     $"{task.CollectedFiles}/{task.TotalFiles}",
                     FormatSpeed(task.SpeedBytesPerSecond),
                     task.IsAuto ? "自动" : "手动",
+                    SyncStatusText(task.SyncStatus),
+                    SyncStatusColor(task.SyncStatus),
                     task.Status is Station.Domain.Enums.CollectTaskStatus.Scanning
                         or Station.Domain.Enums.CollectTaskStatus.Collecting
                         or Station.Domain.Enums.CollectTaskStatus.Paused));
@@ -217,6 +237,23 @@ public partial class CollectModuleViewModel : ObservableObject, IDisposable
         Station.Domain.Enums.CollectFileStatus.Copying or Station.Domain.Enums.CollectFileStatus.Verifying => "#2563eb",
         Station.Domain.Enums.CollectFileStatus.Skipped => "#94a3b8",
         Station.Domain.Enums.CollectFileStatus.Failed or Station.Domain.Enums.CollectFileStatus.Abnormal => "#ef4444",
+        _ => "#94a3b8"
+    };
+
+    private static string SyncStatusText(Station.Domain.Enums.UploadStatus status) => status switch
+    {
+        Station.Domain.Enums.UploadStatus.Pending => "待上传",
+        Station.Domain.Enums.UploadStatus.Uploading => "上传中",
+        Station.Domain.Enums.UploadStatus.Uploaded => "已同步",
+        Station.Domain.Enums.UploadStatus.Failed => "同步失败",
+        _ => status.ToString()
+    };
+
+    private static string SyncStatusColor(Station.Domain.Enums.UploadStatus status) => status switch
+    {
+        Station.Domain.Enums.UploadStatus.Uploaded => "#22c55e",
+        Station.Domain.Enums.UploadStatus.Uploading => "#2563eb",
+        Station.Domain.Enums.UploadStatus.Failed => "#ef4444",
         _ => "#94a3b8"
     };
 

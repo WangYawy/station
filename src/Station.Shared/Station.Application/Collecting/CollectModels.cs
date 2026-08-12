@@ -20,6 +20,10 @@ public sealed record CollectTaskDto(
     long TotalBytes,
     long CollectedBytes,
     double SpeedBytesPerSecond,
+    UploadStatus SyncStatus,
+    int UploadedFiles,
+    long UploadedBytes,
+    string? UploadError,
     DateTime? StartedAt,
     DateTime? CompletedAt,
     string? ErrorMessage);
@@ -34,7 +38,9 @@ public sealed record CollectFileDto(
     double Progress,
     double SpeedBytesPerSecond,
     string? ErrorMessage,
-    DateTime? CollectedAt);
+    DateTime? CollectedAt,
+    string? RemotePath,
+    string? UploadError);
 
 public static class CollectTaskStatusText
 {

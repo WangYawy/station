@@ -4,6 +4,7 @@ using Avalonia.Threading;
 using Microsoft.Extensions.DependencyInjection;
 using Station.Application.Authentication;
 using Station.Application.Collecting;
+using Station.Application.Uploading;
 using Station.Desktop.Application.OperationAccess;
 using Station.Desktop.Application.Session;
 using Station.Desktop.UI.Services;
@@ -119,7 +120,8 @@ public partial class ShellWindow : Window
             var viewModel = new WorkbenchViewModel(
                 _sessions,
                 services.GetRequiredService<IAuthenticationService>(),
-                services.GetRequiredService<ICollectTaskService>());
+                services.GetRequiredService<ICollectTaskService>(),
+                services.GetRequiredService<IUploadService>());
             ModuleContent.Content = new WorkbenchView { DataContext = viewModel };
             _currentViewModel = viewModel;
             return;
@@ -130,6 +132,7 @@ public partial class ShellWindow : Window
             var services = App.Services!;
             var viewModel = new CollectModuleViewModel(
                 services.GetRequiredService<ICollectTaskService>(),
+                services.GetRequiredService<IUploadService>(),
                 _sessions);
             ModuleContent.Content = new CollectModuleView { DataContext = viewModel };
             _currentViewModel = viewModel;

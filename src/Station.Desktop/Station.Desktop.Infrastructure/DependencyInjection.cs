@@ -11,6 +11,7 @@ public static class DependencyInjection
     {
         services.AddStationDatabase(configuration);
         services.AddHostedService<StationDbInitializerHostedService>();
+        services.AddHostedService<UploadWorkerHostedService>();
         return services;
     }
 }
