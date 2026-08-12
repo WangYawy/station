@@ -61,3 +61,45 @@ public enum LicenseStatus
     Activated = 2,
     Locked = 3,
 }
+
+/// <summary>报警类型。</summary>
+public enum AlertType
+{
+    DiskLow = 0,
+    NetworkDown = 1,
+    UsbFault = 2,
+    ChecksumFailed = 3,
+    UnauthorizedAccess = 4,
+    BindingInvalid = 5,
+    StorageUnreachable = 6,
+    LicenseExpired = 7,
+}
+
+/// <summary>远程指令类型（P0 六类）。</summary>
+public enum CommandType
+{
+    RestartService = 0,
+    ClearCache = 1,
+    ReloadConfig = 2,
+    RunSelfCheck = 3,
+    StopCollecting = 4,
+    StartCollecting = 5,
+}
+
+/// <summary>远程指令执行状态。</summary>
+public enum CommandStatus
+{
+    Pending = 0,
+    Pulled = 1,
+    Executing = 2,
+    Succeeded = 3,
+    Failed = 4,
+    Timeout = 5,
+}
+
+/// <summary>配置同步操作类型。</summary>
+public enum SyncOperation
+{
+    Upsert = 0,
+    Delete = 1,
+}
