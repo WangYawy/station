@@ -1,6 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 
-namespace Station.Application;
+namespace Station.Desktop.Application;
 
 /// <summary>注册桌面端应用服务（M3 起按模块填充）。</summary>
 public static class DependencyInjection

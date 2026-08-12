@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 
-namespace Station.WebHost.Controllers;
+namespace Station.Desktop.WebHost.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]

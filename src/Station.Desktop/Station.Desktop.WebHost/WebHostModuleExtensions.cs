@@ -2,7 +2,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
-namespace Station.WebHost;
+namespace Station.Desktop.WebHost;
 
 /// <summary>将单机版内置 Web 宿主挂载到桌面端 Generic Host。</summary>
 public static class WebHostModuleExtensions

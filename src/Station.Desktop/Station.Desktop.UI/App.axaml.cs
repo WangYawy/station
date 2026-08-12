@@ -2,10 +2,10 @@ using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
 using Microsoft.Extensions.Hosting;
-using Station.Bootstrapper;
-using Station.Desktop.Views;
+using Station.Desktop.Bootstrapper;
+using Station.Desktop.UI.Views;
 
-namespace Station.Desktop;
+namespace Station.Desktop.UI;
 
 public partial class App : Avalonia.Application
 {

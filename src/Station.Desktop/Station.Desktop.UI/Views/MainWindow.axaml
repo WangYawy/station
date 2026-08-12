@@ -1,6 +1,6 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        x:Class="Station.Desktop.Views.MainWindow"
+        x:Class="Station.Desktop.UI.Views.MainWindow"
         Width="1200" Height="800"
         WindowStartupLocation="CenterScreen"
         Title="视音频数据采集站 · 桌面端">

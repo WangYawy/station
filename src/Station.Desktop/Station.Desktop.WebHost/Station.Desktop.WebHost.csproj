@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <RootNamespace>Station.WebHost</RootNamespace>
+    <RootNamespace>Station.Desktop.WebHost</RootNamespace>
   </PropertyGroup>
 
   <ItemGroup>
@@ -9,7 +9,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Station.Application\Station.Application.csproj" />
+    <ProjectReference Include="..\Station.Desktop.Application\Station.Desktop.Application.csproj" />
   </ItemGroup>
 
 </Project>

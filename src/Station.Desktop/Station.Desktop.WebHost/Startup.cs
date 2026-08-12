@@ -2,7 +2,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace Station.WebHost;
+namespace Station.Desktop.WebHost;
 
 /// <summary>单机版内置 Web 宿主配置：Controller 分层，业务逻辑下沉 Application。</summary>
 public class Startup

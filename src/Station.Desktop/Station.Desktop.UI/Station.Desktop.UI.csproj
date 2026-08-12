@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <RootNamespace>Station.Desktop</RootNamespace>
+    <RootNamespace>Station.Desktop.UI</RootNamespace>
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
   </PropertyGroup>
 
@@ -15,8 +15,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Station.Bootstrapper\Station.Bootstrapper.csproj" />
-    <ProjectReference Include="..\Station.WebHost\Station.WebHost.csproj" />
+    <ProjectReference Include="..\Station.Desktop.Bootstrapper\Station.Desktop.Bootstrapper.csproj" />
+    <ProjectReference Include="..\Station.Desktop.WebHost\Station.Desktop.WebHost.csproj" />
   </ItemGroup>
 
 </Project>
