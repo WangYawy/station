@@ -3,6 +3,7 @@ using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Station.Application.Collecting;
+using Station.Application.Recorders;
 using Station.Application.Uploading;
 using Station.Contracts;
 using Station.Desktop.Application.Session;
@@ -33,8 +34,13 @@ public sealed record CollectFileItemViewModel(
 
 public partial class CollectModuleViewModel : ObservableObject, IDisposable
 {
+    private const string DemoSerial = "SIM-DEMO";
+
     private readonly ICollectTaskService _service;
     private readonly IUploadService _uploadService;
+    private readonly IRecorderService _recorderService;
+    private readonly IRecorderIdentificationService _identification;
+    private readonly ICollectSource _source;
     private readonly ISessionManager _sessions;
     private readonly DispatcherTimer _timer;
 
@@ -48,10 +54,19 @@ public partial class CollectModuleViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     private string? _message;
 
-    public CollectModuleViewModel(ICollectTaskService service, IUploadService uploadService, ISessionManager sessions)
+    public CollectModuleViewModel(
+        ICollectTaskService service,
+        IUploadService uploadService,
+        IRecorderService recorderService,
+        IRecorderIdentificationService identification,
+        ICollectSource source,
+        ISessionManager sessions)
     {
         _service = service;
         _uploadService = uploadService;
+        _recorderService = recorderService;
+        _identification = identification;
+        _source = source;
         _sessions = sessions;
         _timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(500) };
         _timer.Tick += async (_, _) => await RefreshAsync();
@@ -66,14 +81,46 @@ public partial class CollectModuleViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private async Task SimulateConnectAsync()
     {
-        var now = DateTime.Now;
-        var device = new CollectDeviceInfo(
-            $"记录仪-{now:mmss}",
-            $"SIM-{now:HHmmss}",
-            ProtocolType.Ums);
-        var task = await _service.CreateTaskAsync(device, isAuto: true);
-        Message = $"已模拟接入 {task.RecorderName}，自动采集已启动";
+        var device = new CollectDeviceInfo("记录仪-演示", DemoSerial, ProtocolType.Ums);
+        var root = _source.GetRecorderRoot(device);
+        var result = await _identification.IdentifyAsync(device, root);
+        if (result.Status != RecorderIdentifyStatus.Bound)
+        {
+            Message = $"识别失败：{result.Message}";
+            await RefreshAsync();
+            return;
+        }
+
+        var boundDevice = device with { UserId = result.UserId, DeptId = result.DeptId };
+        var task = await _service.CreateTaskAsync(boundDevice, isAuto: true);
+        Message = $"{result.Message}，自动采集已启动（{task.TaskNo}）";
         await RefreshAsync();
+    }
+
+    [RelayCommand]
+    private async Task RegisterAndBindAsync()
+    {
+        try
+        {
+            await _recorderService.RegisterAsync(DemoSerial, "模拟记录仪", ProtocolType.Ums, true);
+        }
+        catch (InvalidOperationException)
+        {
+            // 已注册，直接更新绑定
+        }
+
+        var session = _sessions.Current;
+        var root = _source.GetRecorderRoot(new CollectDeviceInfo("记录仪-演示", DemoSerial, ProtocolType.Ums));
+        await _recorderService.WriteBindingAsync(DemoSerial, session?.UserId, session?.DeptId, root);
+        Message = $"已写入绑定：{session?.Name ?? session?.UserName}（{session?.DeptId}）";
+    }
+
+    [RelayCommand]
+    private async Task UnbindAsync()
+    {
+        var root = _source.GetRecorderRoot(new CollectDeviceInfo("记录仪-演示", DemoSerial, ProtocolType.Ums));
+        await _recorderService.UnbindAsync(DemoSerial, root);
+        Message = "已解除绑定（删除 ini + 清台账绑定）";
     }
 
     [RelayCommand]

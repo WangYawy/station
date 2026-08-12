@@ -29,6 +29,8 @@ public sealed class SimulatedCollectSource : ICollectSource
 
     public string SourceKey => "simulated";
 
+    public string GetRecorderRoot(CollectDeviceInfo device) => _root;
+
     public Task<IReadOnlyList<SourceFileInfo>> ScanAsync(
         CollectDeviceInfo device,
         CancellationToken cancellationToken)

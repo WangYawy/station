@@ -14,6 +14,9 @@ public interface ICollectSource
 {
     string SourceKey { get; }
 
+    /// <summary>记录仪根目录（UMS=盘符根；模拟源=模拟目录），用于绑定 ini 读写。</summary>
+    string GetRecorderRoot(CollectDeviceInfo device);
+
     Task<IReadOnlyList<SourceFileInfo>> ScanAsync(CollectDeviceInfo device, CancellationToken cancellationToken);
 
     /// <summary>复制文件到目标路径，onProgress 回调 0~1。</summary>

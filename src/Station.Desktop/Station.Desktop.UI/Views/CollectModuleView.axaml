@@ -8,6 +8,10 @@
     <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="8">
       <Button Content="模拟接入记录仪" Command="{Binding SimulateConnectCommand}"
               Background="#0a2f6c" Foreground="White" />
+      <Button Content="注册并绑定（模拟）" Command="{Binding RegisterAndBindCommand}"
+              Background="#065f46" Foreground="White" />
+      <Button Content="解除绑定" Command="{Binding UnbindCommand}"
+              Background="#b45309" Foreground="White" />
       <Button Content="开始采集" Command="{Binding StartCommand}" Background="#2563eb" Foreground="White" />
       <Button Content="暂停" Command="{Binding PauseCommand}" Background="#f59e0b" Foreground="White" />
       <Button Content="恢复" Command="{Binding ResumeCommand}" Background="#06b6d4" Foreground="White" />

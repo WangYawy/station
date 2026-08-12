@@ -4,6 +4,7 @@ using Avalonia.Threading;
 using Microsoft.Extensions.DependencyInjection;
 using Station.Application.Authentication;
 using Station.Application.Collecting;
+using Station.Application.Recorders;
 using Station.Application.Uploading;
 using Station.Desktop.Application.OperationAccess;
 using Station.Desktop.Application.Session;
@@ -133,6 +134,9 @@ public partial class ShellWindow : Window
             var viewModel = new CollectModuleViewModel(
                 services.GetRequiredService<ICollectTaskService>(),
                 services.GetRequiredService<IUploadService>(),
+                services.GetRequiredService<IRecorderService>(),
+                services.GetRequiredService<IRecorderIdentificationService>(),
+                services.GetRequiredService<ICollectSource>(),
                 _sessions);
             ModuleContent.Content = new CollectModuleView { DataContext = viewModel };
             _currentViewModel = viewModel;

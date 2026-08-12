@@ -2,11 +2,14 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Station.Application.Audit;
+using Station.Application.Alerts;
 using Station.Application.Authentication;
 using Station.Application.Authorization;
 using Station.Application.Collecting;
+using Station.Application.Recorders;
 using Station.Application.Uploading;
 using Station.Application.Users;
+using Station.Infrastructure.Recorders;
 using Station.Infrastructure.Storage;
 
 namespace Station.Application;
@@ -30,6 +33,13 @@ public static class DependencyInjection
         services.AddSingleton(collectSection.Get<CollectOptions>() ?? new CollectOptions());
         services.AddSingleton<ICollectSource, SimulatedCollectSource>();
         services.AddScoped<ICollectTaskService, CollectTaskService>();
+
+        var bindingSection = configuration.GetSection(BindingOptions.SectionName);
+        services.Configure<BindingOptions>(bindingSection);
+        services.AddSingleton<RecorderBindingFile>();
+        services.AddScoped<IAlertService, AlertService>();
+        services.AddScoped<IRecorderService, RecorderService>();
+        services.AddScoped<IRecorderIdentificationService, RecorderIdentificationService>();
 
         var storageSection = configuration.GetSection(StorageOptions.SectionName);
         services.Configure<StorageOptions>(storageSection);

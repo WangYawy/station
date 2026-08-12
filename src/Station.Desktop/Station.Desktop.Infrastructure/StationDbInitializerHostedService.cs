@@ -19,7 +19,7 @@ public sealed class StationDbInitializerHostedService : IHostedService
 
     public async Task StartAsync(CancellationToken cancellationToken)
     {
-        _initializer.EnsureCreated(typeof(CollectTask), typeof(CollectFile));
+        _initializer.EnsureCreated(typeof(CollectTask), typeof(CollectFile), typeof(Recorder), typeof(Alert));
         await _authSeeder.EnsureAsync();
     }
 
