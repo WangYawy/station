@@ -5,7 +5,7 @@
         MinWidth="1024" MinHeight="680"
         WindowStartupLocation="CenterScreen"
         Title="视音频数据采集站 · 桌面端">
-  <Grid RowDefinitions="Auto,Auto,*,Auto">
+  <Grid RowDefinitions="Auto,Auto,Auto,*,Auto">
     <!-- 顶部导航 -->
     <Border Grid.Row="0" Background="#0a2f6c" Padding="16,8"
             BorderBrush="#2563eb" BorderThickness="0,0,0,2">
@@ -25,6 +25,8 @@
           <Button x:Name="NavHistory" Tag="history" Content="历史记录" Classes="nav-pill"
                   Click="OnNavClick" />
           <Button x:Name="NavLogs" Tag="logs" Content="日志中心" Classes="nav-pill"
+                  Click="OnNavClick" />
+          <Button x:Name="NavAlerts" Tag="alerts" Content="报警中心" Classes="nav-pill"
                   Click="OnNavClick" />
           <Button x:Name="NavSettings" Tag="settings" Content="设置" Classes="nav-pill"
                   Click="OnNavClick" />
@@ -50,11 +52,18 @@
                  Foreground="#92400e" FontSize="13" Margin="16,6" HorizontalAlignment="Center" />
     </Border>
 
+    <!-- 新报警提示 -->
+    <Border Grid.Row="2" x:Name="AlertBanner" IsVisible="False" Background="#fef2f2"
+            BorderBrush="#ef4444" BorderThickness="0,0,0,1" Tapped="OnAlertBannerTapped">
+      <TextBlock x:Name="AlertBannerText" Foreground="#b91c1c" FontSize="13" Margin="16,6"
+                 HorizontalAlignment="Center" Cursor="Hand" />
+    </Border>
+
     <!-- 模块内容 -->
-    <ContentControl Grid.Row="2" x:Name="ModuleContent" />
+    <ContentControl Grid.Row="3" x:Name="ModuleContent" />
 
     <!-- 底部状态栏 -->
-    <Border Grid.Row="3" Background="#eef2f7" BorderBrush="#dbe3ec" BorderThickness="0,1,0,0"
+    <Border Grid.Row="4" Background="#eef2f7" BorderBrush="#dbe3ec" BorderThickness="0,1,0,0"
             Padding="16,6">
       <Grid ColumnDefinitions="Auto,*,Auto">
         <StackPanel Orientation="Horizontal" Spacing="18">

@@ -22,6 +22,7 @@ public sealed class OperationAccessService : IOperationAccessService
         "collect" => PermissionCodes.FileManage,
         "history" => PermissionCodes.FileView,
         "logs" => PermissionCodes.AuditView,
+        "alerts" => PermissionCodes.AlertView,
         "settings" => PermissionCodes.SettingView,
         _ => null
     };

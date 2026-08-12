@@ -1,0 +1,61 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Station.Desktop.UI.ViewModels"
+             x:Class="Station.Desktop.UI.Views.AlertModuleView"
+             x:DataType="vm:AlertModuleViewModel">
+  <Grid RowDefinitions="Auto,*,Auto" Margin="16" RowSpacing="12">
+    <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="8">
+      <TextBlock Text="级别：" VerticalAlignment="Center" Foreground="#334155" />
+      <Button Content="全部" Command="{Binding SetLevelFilterCommand}" CommandParameter="all"
+              Background="#e2e8f0" Foreground="#334155" />
+      <Button Content="警告" Command="{Binding SetLevelFilterCommand}" CommandParameter="warning"
+              Background="#e2e8f0" Foreground="#334155" />
+      <Button Content="严重" Command="{Binding SetLevelFilterCommand}" CommandParameter="critical"
+              Background="#e2e8f0" Foreground="#334155" />
+      <TextBlock Text="状态：" VerticalAlignment="Center" Foreground="#334155" Margin="16,0,0,0" />
+      <Button Content="全部" Command="{Binding SetStatusFilterCommand}" CommandParameter="all"
+              Background="#e2e8f0" Foreground="#334155" />
+      <Button Content="待处理" Command="{Binding SetStatusFilterCommand}" CommandParameter="pending"
+              Background="#e2e8f0" Foreground="#334155" />
+      <Button Content="已处理" Command="{Binding SetStatusFilterCommand}" CommandParameter="processed"
+              Background="#e2e8f0" Foreground="#334155" />
+      <TextBlock Text="{Binding Message}" Foreground="#0f766e" VerticalAlignment="Center" Margin="12,0,0,0" />
+    </StackPanel>
+
+    <Border Grid.Row="1" Background="White" CornerRadius="12" Padding="12"
+            BoxShadow="0 2 8 0 #14000000">
+      <ListBox ItemsSource="{Binding Items}" SelectedItem="{Binding SelectedItem}"
+               Background="Transparent" BorderThickness="0">
+        <ListBox.ItemTemplate>
+          <DataTemplate x:DataType="vm:AlertItemViewModel">
+            <Grid ColumnDefinitions="Auto,*,Auto,Auto" Margin="4,8">
+              <Border Background="#f1f5f9" CornerRadius="9999" Padding="8,3" VerticalAlignment="Center">
+                <TextBlock Text="{Binding LevelText}" FontSize="12" Foreground="{Binding LevelColor}" />
+              </Border>
+              <StackPanel Grid.Column="1" Spacing="2" Margin="12,0,0,0">
+                <TextBlock Text="{Binding Title}" FontSize="14" FontWeight="SemiBold" Foreground="#1e293b" />
+                <TextBlock Text="{Binding Detail}" FontSize="12" Foreground="#64748b" TextWrapping="Wrap" />
+                <TextBlock Text="{Binding TimeText}" FontSize="11" Foreground="#94a3b8" />
+              </StackPanel>
+              <TextBlock Grid.Column="2" Text="{Binding Source}" FontSize="12" Foreground="#64748b"
+                         VerticalAlignment="Center" Margin="12,0,0,0" />
+              <TextBlock Grid.Column="3" Text="{Binding StatusText}" FontSize="12"
+                         Foreground="{Binding StatusColor}" VerticalAlignment="Center" Margin="12,0,0,0" />
+            </Grid>
+          </DataTemplate>
+        </ListBox.ItemTemplate>
+      </ListBox>
+    </Border>
+
+    <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="8">
+      <TextBlock Text="选中报警：" VerticalAlignment="Center" Foreground="#334155" />
+      <TextBlock Text="{Binding SelectedItem.Title}" VerticalAlignment="Center" Foreground="#64748b" />
+      <Button Content="确认" Command="{Binding ConfirmCommand}" IsVisible="{Binding CanHandle}"
+              Background="#f59e0b" Foreground="White" Margin="16,0,0,0" />
+      <Button Content="处理" Command="{Binding ProcessCommand}" IsVisible="{Binding CanHandle}"
+              Background="#22c55e" Foreground="White" />
+      <Button Content="关闭" Command="{Binding CloseCommand}" IsVisible="{Binding CanHandle}"
+              Background="#94a3b8" Foreground="White" />
+    </StackPanel>
+  </Grid>
+</UserControl>

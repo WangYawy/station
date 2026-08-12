@@ -16,6 +16,7 @@ public sealed class OperationAuthOptions
         "collect",
         "history",
         "logs",
+        "alerts",
         "settings"
     ];
 }

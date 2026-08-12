@@ -1,7 +1,9 @@
 using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
 using Microsoft.Extensions.DependencyInjection;
+using Station.Application.Alerts;
 using Station.Application.Authentication;
 using Station.Application.Collecting;
 using Station.Application.Recorders;
@@ -21,13 +23,16 @@ public partial class ShellWindow : Window
         ("collect", "采集作业"),
         ("history", "历史记录"),
         ("logs", "日志中心"),
+        ("alerts", "报警中心"),
         ("settings", "设置")
     ];
 
     private readonly ISessionManager _sessions;
     private readonly IOperationAccessService _operationAccess;
+    private readonly IAlertService _alertService;
     private readonly SessionIdleTracker _idleTracker;
     private readonly DispatcherTimer _clockTimer;
+    private readonly DispatcherTimer _alertTimer;
     private readonly Dictionary<string, Button> _navButtons;
     private IDisposable? _currentViewModel;
 
@@ -38,6 +43,7 @@ public partial class ShellWindow : Window
         var services = App.Services!;
         _sessions = services.GetRequiredService<ISessionManager>();
         _operationAccess = services.GetRequiredService<IOperationAccessService>();
+        _alertService = services.GetRequiredService<IAlertService>();
         _sessions.SessionChanged += OnSessionChanged;
 
         _navButtons = new Dictionary<string, Button>
@@ -46,6 +52,7 @@ public partial class ShellWindow : Window
             ["collect"] = NavCollect,
             ["history"] = NavHistory,
             ["logs"] = NavLogs,
+            ["alerts"] = NavAlerts,
             ["settings"] = NavSettings
         };
 
@@ -58,6 +65,10 @@ public partial class ShellWindow : Window
         _clockTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
         _clockTimer.Tick += (_, _) => ClockText.Text = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
         _clockTimer.Start();
+
+        _alertTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(5) };
+        _alertTimer.Tick += async (_, _) => await RefreshAlertBannerAsync();
+        _alertTimer.Start();
 
         OnSessionChanged();
         _ = NavigateAsync("workbench");
@@ -143,6 +154,14 @@ public partial class ShellWindow : Window
             return;
         }
 
+        if (moduleKey == "alerts" && overrideTitle is null)
+        {
+            var viewModel = new AlertModuleViewModel(_alertService, _sessions);
+            ModuleContent.Content = new AlertModuleView { DataContext = viewModel };
+            _currentViewModel = viewModel;
+            return;
+        }
+
         var title = overrideTitle ?? ModuleCatalog.First(m => m.Key == moduleKey).Title;
         var message = overrideMessage ?? "该模块正在开发中（M6 界面骨架）";
         ModuleContent.Content = new ModulePlaceholderView
@@ -186,5 +205,25 @@ public partial class ShellWindow : Window
         IdleWarningText.Text = remainingSeconds > 0
             ? $"即将自动退出登录（{remainingSeconds} 秒），请操作以保持会话"
             : "即将自动退出登录，请操作以保持会话";
+    }
+
+    private async Task RefreshAlertBannerAsync()
+    {
+        try
+        {
+            var pending = await _alertService.CountPendingAsync();
+            AlertBanner.IsVisible = pending > 0;
+            AlertBannerText.Text = pending > 0 ? $"⚠ 有 {pending} 条待处理报警（点击查看）" : string.Empty;
+        }
+        catch
+        {
+            // 忽略轮询异常
+        }
+    }
+
+    private async void OnAlertBannerTapped(object? sender, TappedEventArgs e)
+    {
+        AlertBanner.IsVisible = false;
+        await NavigateAsync("alerts");
     }
 }
