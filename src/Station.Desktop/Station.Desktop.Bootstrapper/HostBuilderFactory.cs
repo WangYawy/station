@@ -21,7 +21,7 @@ public static class HostBuilderFactory
             .ConfigureServices((context, services) =>
             {
                 services.AddInfrastructure(context.Configuration);
-                services.AddApplicationServices();
+                services.AddApplicationServices(context.Configuration);
             })
             .UseWebHostModule();
     }

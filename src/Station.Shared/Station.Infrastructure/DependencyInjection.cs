@@ -1,8 +1,12 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using SqlSugar;
 using Station.Infrastructure.Db;
+using Station.Infrastructure.IdGenerators;
+using Station.Infrastructure.Persistence;
 using Station.Infrastructure.Repositories;
+using Station.Infrastructure.Security;
 
 namespace Station.Infrastructure;
 
@@ -29,6 +33,10 @@ public static class DependencyInjection
 
         services.AddSingleton<IDbDialect>(_ => DbDialectFactory.Create(options.Provider));
         services.AddScoped<IDatabaseInitializer, DatabaseInitializer>();
+        services.AddSingleton<IIdGenerator, SnowflakeIdGenerator>();
+        services.AddScoped<IPasswordHasher, Sm3PasswordHasher>();
+        services.Configure<AuthSeedOptions>(configuration.GetSection("Station:Auth"));
+        services.AddScoped<IAuthSeeder, AuthSeeder>();
 
         // UnitOfWork：独立客户端 + 独立事务，与共享作用域隔离
         services.AddScoped<IUnitOfWork>(sp =>

@@ -19,6 +19,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Station.Platform.Domain", "
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Station.Infrastructure", "src\Station.Shared\Station.Infrastructure\Station.Infrastructure.csproj", "{94944DA3-2A4E-4A07-A57D-BD9651AF7AF8}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Station.Application", "src\Station.Shared\Station.Application\Station.Application.csproj", "{CC0E765E-9254-4E24-AABB-1835875EB5DA}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -101,6 +103,18 @@ Global
 		{94944DA3-2A4E-4A07-A57D-BD9651AF7AF8}.Release|x64.Build.0 = Release|Any CPU
 		{94944DA3-2A4E-4A07-A57D-BD9651AF7AF8}.Release|x86.ActiveCfg = Release|Any CPU
 		{94944DA3-2A4E-4A07-A57D-BD9651AF7AF8}.Release|x86.Build.0 = Release|Any CPU
+		{CC0E765E-9254-4E24-AABB-1835875EB5DA}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{CC0E765E-9254-4E24-AABB-1835875EB5DA}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{CC0E765E-9254-4E24-AABB-1835875EB5DA}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{CC0E765E-9254-4E24-AABB-1835875EB5DA}.Debug|x64.Build.0 = Debug|Any CPU
+		{CC0E765E-9254-4E24-AABB-1835875EB5DA}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{CC0E765E-9254-4E24-AABB-1835875EB5DA}.Debug|x86.Build.0 = Debug|Any CPU
+		{CC0E765E-9254-4E24-AABB-1835875EB5DA}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{CC0E765E-9254-4E24-AABB-1835875EB5DA}.Release|Any CPU.Build.0 = Release|Any CPU
+		{CC0E765E-9254-4E24-AABB-1835875EB5DA}.Release|x64.ActiveCfg = Release|Any CPU
+		{CC0E765E-9254-4E24-AABB-1835875EB5DA}.Release|x64.Build.0 = Release|Any CPU
+		{CC0E765E-9254-4E24-AABB-1835875EB5DA}.Release|x86.ActiveCfg = Release|Any CPU
+		{CC0E765E-9254-4E24-AABB-1835875EB5DA}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -113,5 +127,6 @@ Global
 		{FA86D1D1-276D-4AD4-8C31-5C11E37E6C76} = {1785978C-D7A4-9B83-98F4-66F9C2B5473D}
 		{C8C58BEF-FBBB-43B5-8E9D-BB24FE7ECBE9} = {1785978C-D7A4-9B83-98F4-66F9C2B5473D}
 		{94944DA3-2A4E-4A07-A57D-BD9651AF7AF8} = {1785978C-D7A4-9B83-98F4-66F9C2B5473D}
+		{CC0E765E-9254-4E24-AABB-1835875EB5DA} = {1785978C-D7A4-9B83-98F4-66F9C2B5473D}
 	EndGlobalSection
 EndGlobal
