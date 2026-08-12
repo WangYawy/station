@@ -1,0 +1,76 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Station.Desktop.UI.ViewModels"
+             x:Class="Station.Desktop.UI.Views.CollectModuleView"
+             x:DataType="vm:CollectModuleViewModel">
+  <Grid RowDefinitions="Auto,*" Margin="16" RowSpacing="12">
+    <!-- 操作工具条 -->
+    <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="8">
+      <Button Content="模拟接入记录仪" Command="{Binding SimulateConnectCommand}"
+              Background="#0a2f6c" Foreground="White" />
+      <Button Content="开始采集" Command="{Binding StartCommand}" Background="#2563eb" Foreground="White" />
+      <Button Content="暂停" Command="{Binding PauseCommand}" Background="#f59e0b" Foreground="White" />
+      <Button Content="恢复" Command="{Binding ResumeCommand}" Background="#06b6d4" Foreground="White" />
+      <Button Content="取消" Command="{Binding CancelCommand}" Background="#64748b" Foreground="White" />
+      <Button Content="模拟拔出（中断）" Command="{Binding SimulateDisconnectCommand}"
+              Background="#ef4444" Foreground="White" />
+      <TextBlock Text="{Binding Message}" Foreground="#0f766e" VerticalAlignment="Center"
+                 Margin="8,0,0,0" />
+    </StackPanel>
+
+    <!-- 任务列表 + 文件明细 -->
+    <Grid Grid.Row="1" ColumnDefinitions="1.2*,*" ColumnSpacing="12">
+      <Border Background="White" CornerRadius="12" Padding="12"
+              BoxShadow="0 2 8 0 #14000000">
+        <DockPanel>
+          <TextBlock DockPanel.Dock="Top" Text="采集任务" FontSize="15" FontWeight="Bold"
+                     Foreground="#0a2f6c" Margin="0,0,0,8" />
+          <ListBox ItemsSource="{Binding Tasks}" SelectedItem="{Binding SelectedTask}"
+                   Background="Transparent" BorderThickness="0">
+            <ListBox.ItemTemplate>
+              <DataTemplate x:DataType="vm:CollectTaskItemViewModel">
+                <Grid ColumnDefinitions="*,Auto,Auto,Auto" Margin="4,6" RowDefinitions="Auto,Auto">
+                  <StackPanel Spacing="2">
+                    <TextBlock Text="{Binding TaskNo}" FontSize="13" FontWeight="SemiBold" Foreground="#1e293b" />
+                    <TextBlock Text="{Binding RecorderName}" FontSize="12" Foreground="#64748b" />
+                  </StackPanel>
+                  <Border Grid.Column="1" Background="#f1f5f9" CornerRadius="9999" Padding="8,3" VerticalAlignment="Center">
+                    <TextBlock Text="{Binding StatusText}" FontSize="12" Foreground="{Binding StatusColor}" />
+                  </Border>
+                  <TextBlock Grid.Column="2" Text="{Binding ProgressText}" FontSize="12" Foreground="#334155"
+                             VerticalAlignment="Center" Margin="12,0,0,0" />
+                  <TextBlock Grid.Column="3" Text="{Binding IsAutoText}" FontSize="12" Foreground="#94a3b8"
+                             VerticalAlignment="Center" Margin="10,0,0,0" />
+                </Grid>
+              </DataTemplate>
+            </ListBox.ItemTemplate>
+          </ListBox>
+        </DockPanel>
+      </Border>
+
+      <Border Grid.Column="1" Background="White" CornerRadius="12" Padding="12"
+              BoxShadow="0 2 8 0 #14000000">
+        <DockPanel>
+          <TextBlock DockPanel.Dock="Top" Text="任务文件明细" FontSize="15" FontWeight="Bold"
+                     Foreground="#0a2f6c" Margin="0,0,0,8" />
+          <ListBox ItemsSource="{Binding Files}" Background="Transparent" BorderThickness="0">
+            <ListBox.ItemTemplate>
+              <DataTemplate x:DataType="vm:CollectFileItemViewModel">
+                <Grid ColumnDefinitions="*,Auto,Auto" Margin="4,8" RowDefinitions="Auto,Auto">
+                  <StackPanel Spacing="2">
+                    <TextBlock Text="{Binding FileName}" FontSize="13" Foreground="#1e293b" />
+                    <ProgressBar Value="{Binding Progress}" Maximum="100" Height="6" MinHeight="6" />
+                  </StackPanel>
+                  <TextBlock Grid.Column="1" Text="{Binding SizeText}" FontSize="12" Foreground="#64748b"
+                             VerticalAlignment="Center" Margin="12,0,0,0" />
+                  <TextBlock Grid.Column="2" Text="{Binding StatusText}" FontSize="12"
+                             Foreground="{Binding StatusColor}" VerticalAlignment="Center" Margin="10,0,0,0" />
+                </Grid>
+              </DataTemplate>
+            </ListBox.ItemTemplate>
+          </ListBox>
+        </DockPanel>
+      </Border>
+    </Grid>
+  </Grid>
+</UserControl>

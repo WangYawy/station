@@ -76,7 +76,7 @@
               <TextBlock Text="失败" FontSize="12" Foreground="#64748b" />
             </Border>
           </StackPanel>
-          <ListBox ItemsSource="{Binding CollectQueue}" Background="Transparent" BorderThickness="0">
+          <ListBox ItemsSource="{Binding ActiveQueue}" Background="Transparent" BorderThickness="0">
             <ListBox.ItemTemplate>
               <DataTemplate x:DataType="vm:QueueItem">
                 <Grid ColumnDefinitions="*,Auto,Auto" Margin="4,6">

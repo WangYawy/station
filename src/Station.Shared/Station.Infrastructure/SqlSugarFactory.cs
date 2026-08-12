@@ -9,7 +9,7 @@ namespace Station.Infrastructure;
 public interface ISqlSugarFactory
 {
     /// <summary>创建独立客户端（用于 UnitOfWork 事务隔离，非线程共享）。</summary>
-    ISqlSugarClient CreateClient(DbOptions options);
+    ISqlSugarClient CreateClient(DbOptions options, bool autoCloseConnection = true);
 
     /// <summary>创建线程安全共享作用域（用于常规读写路径，单例注册）。</summary>
     ISqlSugarClient CreateScope(DbOptions options);
@@ -17,7 +17,12 @@ public interface ISqlSugarFactory
 
 public sealed class SqlSugarFactory : ISqlSugarFactory
 {
-    public ISqlSugarClient CreateClient(DbOptions options) => new SqlSugarClient(BuildConfig(options));
+    public ISqlSugarClient CreateClient(DbOptions options, bool autoCloseConnection = true)
+    {
+        var config = BuildConfig(options);
+        config.IsAutoCloseConnection = autoCloseConnection;
+        return new SqlSugarClient(config);
+    }
 
     public ISqlSugarClient CreateScope(DbOptions options) => new SqlSugarScope(BuildConfig(options));
 

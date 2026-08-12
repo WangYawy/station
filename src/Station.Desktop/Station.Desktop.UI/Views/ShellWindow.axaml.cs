@@ -3,6 +3,7 @@ using Avalonia.Interactivity;
 using Avalonia.Threading;
 using Microsoft.Extensions.DependencyInjection;
 using Station.Application.Authentication;
+using Station.Application.Collecting;
 using Station.Desktop.Application.OperationAccess;
 using Station.Desktop.Application.Session;
 using Station.Desktop.UI.Services;
@@ -26,6 +27,7 @@ public partial class ShellWindow : Window
     private readonly SessionIdleTracker _idleTracker;
     private readonly DispatcherTimer _clockTimer;
     private readonly Dictionary<string, Button> _navButtons;
+    private IDisposable? _currentViewModel;
 
     public ShellWindow()
     {
@@ -108,14 +110,29 @@ public partial class ShellWindow : Window
     private void ShowModule(string moduleKey, string? overrideTitle, string? overrideMessage)
     {
         UpdateNavSelection(moduleKey);
+        _currentViewModel?.Dispose();
+        _currentViewModel = null;
 
         if (moduleKey == "workbench" && overrideTitle is null)
         {
             var services = App.Services!;
             var viewModel = new WorkbenchViewModel(
                 _sessions,
-                services.GetRequiredService<IAuthenticationService>());
+                services.GetRequiredService<IAuthenticationService>(),
+                services.GetRequiredService<ICollectTaskService>());
             ModuleContent.Content = new WorkbenchView { DataContext = viewModel };
+            _currentViewModel = viewModel;
+            return;
+        }
+
+        if (moduleKey == "collect" && overrideTitle is null)
+        {
+            var services = App.Services!;
+            var viewModel = new CollectModuleViewModel(
+                services.GetRequiredService<ICollectTaskService>(),
+                _sessions);
+            ModuleContent.Content = new CollectModuleView { DataContext = viewModel };
+            _currentViewModel = viewModel;
             return;
         }
 

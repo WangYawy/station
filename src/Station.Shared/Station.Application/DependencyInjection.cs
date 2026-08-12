@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Station.Application.Audit;
 using Station.Application.Authentication;
 using Station.Application.Authorization;
+using Station.Application.Collecting;
 using Station.Application.Users;
 
 namespace Station.Application;
@@ -20,6 +21,12 @@ public static class DependencyInjection
         var authSection = configuration.GetSection(AuthOptions.SectionName);
         services.Configure<AuthOptions>(authSection);
         services.AddSingleton(authSection.Get<AuthOptions>() ?? new AuthOptions());
+
+        var collectSection = configuration.GetSection(CollectOptions.SectionName);
+        services.Configure<CollectOptions>(collectSection);
+        services.AddSingleton(collectSection.Get<CollectOptions>() ?? new CollectOptions());
+        services.AddSingleton<ICollectSource, SimulatedCollectSource>();
+        services.AddScoped<ICollectTaskService, CollectTaskService>();
 
         services.AddScoped<IAuditLogService, AuditLogService>();
         services.AddScoped<IAuthorizationService, AuthorizationService>();

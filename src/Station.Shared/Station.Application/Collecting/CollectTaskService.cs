@@ -1,0 +1,472 @@
+using System.Collections.Concurrent;
+using Microsoft.Extensions.Options;
+using Station.Infrastructure;
+using Station.Infrastructure.Db;
+using Station.Domain.Entities;
+using Station.Domain.Enums;
+using Station.Infrastructure.IdGenerators;
+using Station.Infrastructure.Repositories;
+
+namespace Station.Application.Collecting;
+
+public sealed class CollectTaskService : ICollectTaskService
+{
+    private sealed class TaskControl
+    {
+        public CancellationTokenSource Cts { get; } = new();
+        public volatile bool PauseRequested;
+        public volatile CollectTaskStatus FinalStatus = CollectTaskStatus.Completed;
+        public long CurrentFileId;
+    }
+
+    private readonly IRepository<CollectTask> _tasks;
+    private readonly IRepository<CollectFile> _files;
+    private readonly IIdGenerator _idGenerator;
+    private readonly ICollectSource _source;
+    private readonly CollectOptions _options;
+    private readonly ISqlSugarFactory _sqlSugarFactory;
+    private readonly DbOptions _dbOptions;
+    private readonly ConcurrentDictionary<long, TaskControl> _controls = new();
+
+    public CollectTaskService(
+        IRepository<CollectTask> tasks,
+        IRepository<CollectFile> files,
+        IIdGenerator idGenerator,
+        ICollectSource source,
+        IOptions<CollectOptions> options,
+        ISqlSugarFactory sqlSugarFactory,
+        DbOptions dbOptions)
+    {
+        _tasks = tasks;
+        _files = files;
+        _idGenerator = idGenerator;
+        _source = source;
+        _options = options.Value;
+        _sqlSugarFactory = sqlSugarFactory;
+        _dbOptions = dbOptions;
+    }
+
+    public async Task<CollectTaskDto> CreateTaskAsync(CollectDeviceInfo device, bool isAuto)
+    {
+        var now = DateTime.Now;
+        var id = _idGenerator.NextId();
+        var task = new CollectTask
+        {
+            Id = id,
+            TaskNo = $"CT-{now:yyyyMMddHHmmss}-{id % 1000000:D6}",
+            RecorderName = device.Name,
+            RecorderSerial = device.Serial,
+            Protocol = (int)device.Protocol,
+            Status = CollectTaskStatus.Created,
+            IsAuto = isAuto,
+            CreatedAt = now
+        };
+        await _tasks.InsertAsync(task);
+
+        if (isAuto && _options.AutoCollectOnConnect)
+        {
+            return await StartAsync(task.Id);
+        }
+
+        return ToDto(task);
+    }
+
+    public async Task<CollectTaskDto> StartAsync(long taskId)
+    {
+        var task = await RequireTaskAsync(taskId);
+        if (_controls.ContainsKey(taskId))
+        {
+            throw new InvalidOperationException("任务正在运行中");
+        }
+
+        // 扫描筛选
+        task.Status = CollectTaskStatus.Scanning;
+        task.StartedAt ??= DateTime.Now;
+        task.ErrorMessage = null;
+        await _tasks.UpdateAsync(task);
+
+        var device = new CollectDeviceInfo(task.RecorderName, task.RecorderSerial, (Station.Contracts.ProtocolType)task.Protocol);
+        var sources = await _source.ScanAsync(device, CancellationToken.None);
+        var accepted = sources
+            .Where(f => _options.FileExtensions.Contains(Path.GetExtension(f.FileName), StringComparer.OrdinalIgnoreCase))
+            .OrderBy(f => f.FileName)
+            .ToList();
+
+        var skipped = 0;
+        foreach (var source in accepted)
+        {
+            var alreadyCollected = _options.SkipCollected &&
+                                   await _files.IsAnyAsync(f => f.Fingerprint == source.Fingerprint && f.Status == CollectFileStatus.Completed);
+            await _files.InsertAsync(new CollectFile
+            {
+                Id = _idGenerator.NextId(),
+                TaskId = taskId,
+                FileName = source.FileName,
+                Extension = Path.GetExtension(source.FileName).ToLowerInvariant(),
+                RelativePath = source.RelativePath,
+                Size = source.Size,
+                Fingerprint = source.Fingerprint,
+                Status = alreadyCollected ? CollectFileStatus.Skipped : CollectFileStatus.Pending,
+                OriginalModifiedAt = source.ModifiedAt
+            });
+            if (alreadyCollected)
+            {
+                skipped++;
+            }
+        }
+
+        task.TotalFiles = accepted.Count;
+        task.SkippedFiles = skipped;
+        task.TotalBytes = accepted.Sum(f => f.Size);
+        task.Status = CollectTaskStatus.Collecting;
+        await _tasks.UpdateAsync(task);
+
+        var control = new TaskControl();
+        _controls[taskId] = control;
+        _ = Task.Run(() => RunCollectAsync(taskId, control));
+        return ToDto(task);
+    }
+
+    public Task PauseAsync(long taskId)
+    {
+        if (_controls.TryGetValue(taskId, out var control))
+        {
+            control.PauseRequested = true;
+            control.Cts.Cancel();
+        }
+
+        return Task.CompletedTask;
+    }
+
+    public async Task ResumeAsync(long taskId)
+    {
+        var task = await RequireTaskAsync(taskId);
+        if (_controls.ContainsKey(taskId))
+        {
+            throw new InvalidOperationException("任务正在运行中");
+        }
+
+        if (task.Status != CollectTaskStatus.Paused)
+        {
+            throw new InvalidOperationException("仅暂停中的任务可恢复");
+        }
+
+        task.Status = CollectTaskStatus.Collecting;
+        task.ErrorMessage = null;
+        await _tasks.UpdateAsync(task);
+
+        var control = new TaskControl();
+        _controls[taskId] = control;
+        _ = Task.Run(() => RunCollectAsync(taskId, control));
+    }
+
+    public Task CancelAsync(long taskId) =>
+        SetFinalAsync(taskId, CollectTaskStatus.Canceled);
+
+    public Task InterruptAsync(long taskId, string reason) =>
+        SetFinalAsync(taskId, CollectTaskStatus.Interrupted, reason);
+
+    public async Task<CollectTaskDto?> GetTaskAsync(long taskId)
+    {
+        var task = await _tasks.GetByIdAsync(taskId);
+        return task is null ? null : ToDto(task);
+    }
+
+    public async Task<IReadOnlyList<CollectTaskDto>> GetTasksAsync(int count)
+    {
+        var page = await _tasks.ToPageAsync(1, count, orderBy: t => t.CreatedAt, orderType: SqlSugar.OrderByType.Desc);
+        return page.Items.Select(ToDto).ToList();
+    }
+
+    public async Task<IReadOnlyList<CollectTaskDto>> GetActiveTasksAsync()
+    {
+        var list = await _tasks.GetListAsync(t =>
+            t.Status == CollectTaskStatus.Scanning ||
+            t.Status == CollectTaskStatus.Collecting ||
+            t.Status == CollectTaskStatus.Paused);
+        return list.OrderByDescending(t => t.CreatedAt).Select(ToDto).ToList();
+    }
+
+    public async Task<IReadOnlyList<CollectFileDto>> GetTaskFilesAsync(long taskId)
+    {
+        var list = await _files.GetListAsync(f => f.TaskId == taskId);
+        return list.OrderBy(f => f.Id).Select(ToDto).ToList();
+    }
+
+    // ---------- 内部 ----------
+
+    private async Task SetFinalAsync(long taskId, CollectTaskStatus finalStatus, string? reason = null)
+    {
+        if (_controls.TryGetValue(taskId, out var control))
+        {
+            control.FinalStatus = finalStatus;
+            if (!string.IsNullOrEmpty(reason))
+            {
+                var task = await _tasks.GetByIdAsync(taskId);
+                if (task is not null)
+                {
+                    task.ErrorMessage = reason;
+                    await _tasks.UpdateAsync(task);
+                }
+            }
+
+            control.Cts.Cancel();
+        }
+        else if (await _tasks.GetByIdAsync(taskId) is { } idle)
+        {
+            // 未在运行的任务直接标记
+            idle.Status = finalStatus;
+            idle.CompletedAt = DateTime.Now;
+            idle.ErrorMessage = reason;
+            await _tasks.UpdateAsync(idle);
+            var pending = (await _files.GetListAsync(f => f.TaskId == taskId && f.Status == CollectFileStatus.Pending))
+                .Select(f => { f.Status = CollectFileStatus.Canceled; return f; })
+                .ToList();
+            if (pending.Count > 0)
+            {
+                await _files.UpdateRangeAsync(pending);
+            }
+        }
+    }
+
+    private async Task RunCollectAsync(long taskId, TaskControl control)
+    {
+        // 后台采集使用独立客户端，避免与 UI/查询共享作用域并发冲突
+        // 后台采集使用独立长连接客户端：单连接跑完整任务，避免连接池并发复用冲突
+        using var loopClient = _sqlSugarFactory.CreateClient(_dbOptions, autoCloseConnection: false);
+        var loopTasks = new RepositoryBase<CollectTask>(loopClient);
+        var loopFiles = new RepositoryBase<CollectFile>(loopClient);
+        CollectTask? task = null;
+        try
+        {
+            var ct = control.Cts.Token;
+            task = await loopTasks.GetByIdAsync(taskId);
+            if (task is null)
+            {
+                return;
+            }
+
+            var speedWindow = new Queue<(DateTime Time, long Bytes)>();
+
+            while (!ct.IsCancellationRequested)
+            {
+                var file = (await loopFiles.GetListAsync(f =>
+                        f.TaskId == taskId && f.Status == CollectFileStatus.Pending))
+                    .OrderBy(f => f.Id)
+                    .FirstOrDefault();
+                if (file is null)
+                {
+                    break;
+                }
+
+                control.CurrentFileId = file.Id;
+                file.Status = CollectFileStatus.Copying;
+                file.Progress = 0;
+                await loopFiles.UpdateAsync(file);
+
+                var destination = Path.Combine(_options.CacheDirectory, task.TaskNo, file.RelativePath);
+                double lastPersistedProgress = -1;
+                await _source.CopyAsync(
+                    new SourceFileInfo(file.RelativePath, file.FileName, file.Size, file.OriginalModifiedAt ?? DateTime.UtcNow),
+                    destination,
+                    async progress =>
+                    {
+                        file.Progress = progress;
+                        var now = DateTime.UtcNow;
+                        var bytes = (long)(file.Size * progress);
+                        speedWindow.Enqueue((now, bytes));
+                        while (speedWindow.Count > 2)
+                        {
+                            speedWindow.Dequeue();
+                        }
+
+                        if (speedWindow.Count == 2)
+                        {
+                            var first = speedWindow.Peek();
+                            var last = speedWindow.Last();
+                            var delta = (last.Bytes - first.Bytes) / Math.Max(1e-6, (last.Time - first.Time).TotalSeconds);
+                            file.SpeedBytesPerSecond = delta;
+                            task.SpeedBytesPerSecond = delta;
+                        }
+
+                        // 进度落库节流（≥10% 增量），失败不中断复制，最终状态在完成时持久化
+                        if (progress - lastPersistedProgress >= 0.1)
+                        {
+                            lastPersistedProgress = progress;
+                            try
+                            {
+                                await loopFiles.UpdateAsync(file);
+                            }
+                            catch
+                            {
+                                // 忽略进度落库失败
+                            }
+                        }
+                    },
+                    ct);
+
+                // 校验大小
+                file.Status = CollectFileStatus.Verifying;
+                await loopFiles.UpdateAsync(file);
+                var copied = new FileInfo(destination).Length;
+                if (copied != file.Size)
+                {
+                    throw new IOException($"文件大小校验失败：期望 {file.Size}，实际 {copied}");
+                }
+
+                file.Status = CollectFileStatus.Completed;
+                file.Progress = 1;
+                file.CollectedAt = DateTime.Now;
+                await loopFiles.UpdateAsync(file);
+
+                task.CollectedFiles++;
+                task.CollectedBytes += file.Size;
+                task.Status = CollectTaskStatus.Collecting;
+                await loopTasks.UpdateAsync(task);
+
+                control.CurrentFileId = 0;
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // 中断/取消/暂停
+        }
+        catch (Exception ex)
+        {
+            if (task is not null)
+            {
+                task.FailedFiles++;
+                task.ErrorMessage = ex.Message;
+                var failedFile = await loopFiles.GetByIdAsync(control.CurrentFileId);
+                if (failedFile is not null)
+                {
+                    failedFile.Status = CollectFileStatus.Failed;
+                    failedFile.ErrorMessage = ex.Message;
+                    await loopFiles.UpdateAsync(failedFile);
+                }
+
+                await loopTasks.UpdateAsync(task);
+            }
+        }
+
+        try
+        {
+            await FinalizeAsync(taskId, control, loopTasks, loopFiles);
+        }
+        catch (Exception ex)
+        {
+            // 兜底：收尾失败不产生未观察异常；尝试用共享仓储将任务标记为失败并记录原因
+            _controls.TryRemove(taskId, out _);
+            try
+            {
+                var shared = await _tasks.GetByIdAsync(taskId);
+                if (shared is not null)
+                {
+                    shared.Status = CollectTaskStatus.Failed;
+                    shared.CompletedAt = DateTime.Now;
+                    shared.ErrorMessage = $"收尾异常：{ex.Message}";
+                    await _tasks.UpdateAsync(shared);
+                }
+            }
+            catch
+            {
+                // 忽略二次失败
+            }
+        }
+    }
+
+    private async Task FinalizeAsync(
+        long taskId,
+        TaskControl control,
+        RepositoryBase<CollectTask> loopTasks,
+        RepositoryBase<CollectFile> loopFiles)
+    {
+        var task = await loopTasks.GetByIdAsync(taskId);
+        if (task is null)
+        {
+            _controls.TryRemove(taskId, out _);
+            return;
+        }
+
+        var files = await loopFiles.GetListAsync(f => f.TaskId == taskId);
+        var current = control.CurrentFileId;
+
+        if (control.PauseRequested &&
+            files.Any(f => f.Status is CollectFileStatus.Pending or CollectFileStatus.Copying or CollectFileStatus.Verifying))
+        {
+            // 暂停：当前文件回到待采集，其余保持待采集
+            if (current != 0)
+            {
+                var currentFile = files.FirstOrDefault(f => f.Id == current);
+                if (currentFile is { Status: CollectFileStatus.Copying or CollectFileStatus.Verifying })
+                {
+                    currentFile.Status = CollectFileStatus.Pending;
+                    currentFile.Progress = 0;
+                    await loopFiles.UpdateAsync(currentFile);
+                }
+            }
+
+            task.Status = CollectTaskStatus.Paused;
+            await loopTasks.UpdateAsync(task);
+            _controls.TryRemove(taskId, out _);
+            return;
+        }
+
+        // 中断/取消：当前文件异常，未开始文件取消
+        var interrupted = control.FinalStatus == CollectTaskStatus.Interrupted;
+        foreach (var file in files)
+        {
+            if (file.Status == CollectFileStatus.Pending || file.Status == CollectFileStatus.Copying || file.Status == CollectFileStatus.Verifying)
+            {
+                file.Status = interrupted ? CollectFileStatus.Abnormal : CollectFileStatus.Canceled;
+                file.ErrorMessage = interrupted ? "设备断开，采集中断" : "任务已取消";
+                await loopFiles.UpdateAsync(file);
+            }
+        }
+
+        var terminalByRequest = control.FinalStatus is CollectTaskStatus.Interrupted or CollectTaskStatus.Canceled;
+        task.Status = terminalByRequest ? control.FinalStatus : CollectTaskStatus.Completed;
+        task.CompletedAt = DateTime.Now;
+        if (task.Status == CollectTaskStatus.Completed && control.FinalStatus != CollectTaskStatus.Canceled)
+        {
+            await TryEraseAsync(task);
+        }
+
+        await loopTasks.UpdateAsync(task);
+        _controls.TryRemove(taskId, out _);
+    }
+
+    private async Task TryEraseAsync(CollectTask task)
+    {
+        if (!_options.EraseAfterComplete)
+        {
+            return;
+        }
+
+        try
+        {
+            var device = new CollectDeviceInfo(task.RecorderName, task.RecorderSerial, (Station.Contracts.ProtocolType)task.Protocol);
+            await _source.EraseAsync(device, CancellationToken.None);
+            task.ErrorMessage = task.ErrorMessage is null ? "已擦除记录仪已采集文件" : task.ErrorMessage + "；已擦除记录仪已采集文件";
+        }
+        catch (Exception ex)
+        {
+            // 擦除失败：重试交给 P1 报警，不阻塞任务
+            task.ErrorMessage = task.ErrorMessage is null ? $"擦除失败：{ex.Message}" : task.ErrorMessage + $"；擦除失败：{ex.Message}";
+        }
+    }
+
+    private async Task<CollectTask> RequireTaskAsync(long taskId) =>
+        await _tasks.GetByIdAsync(taskId) ?? throw new InvalidOperationException($"任务 {taskId} 不存在");
+
+    private static CollectTaskDto ToDto(CollectTask t) => new(
+        t.Id, t.TaskNo, t.RecorderName, t.RecorderSerial,
+        t.Status, t.IsAuto,
+        t.TotalFiles, t.CollectedFiles, t.SkippedFiles, t.FailedFiles,
+        t.TotalBytes, t.CollectedBytes, t.SpeedBytesPerSecond,
+        t.StartedAt, t.CompletedAt, t.ErrorMessage);
+
+    private static CollectFileDto ToDto(CollectFile f) => new(
+        f.Id, f.TaskId, f.FileName, f.Extension, f.Size,
+        f.Status, f.Progress, f.SpeedBytesPerSecond, f.ErrorMessage, f.CollectedAt);
+}
