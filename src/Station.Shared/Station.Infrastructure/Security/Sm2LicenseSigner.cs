@@ -61,6 +61,15 @@ public static class Sm2LicenseSigner
         }
     }
 
+    /// <summary>从私钥推导对应公钥（PEM），用于平台侧对自身指令做读取时实时验签。</summary>
+    public static string DerivePublicKey(string privateKeyPem)
+    {
+        var privateKey = ReadPrivateKey(privateKeyPem);
+        var q = privateKey.Parameters.G.Multiply(privateKey.D).Normalize();
+        var publicKey = new ECPublicKeyParameters(q, privateKey.Parameters);
+        return ToPem(publicKey);
+    }
+
     private static ECPrivateKeyParameters ReadPrivateKey(string pem)
     {
         if (!pem.StartsWith(PrivatePrefix, StringComparison.Ordinal))

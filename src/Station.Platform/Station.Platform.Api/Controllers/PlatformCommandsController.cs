@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Configuration;
 using Station.Contracts;
 using Station.Contracts.Api;
@@ -12,6 +13,7 @@ namespace Station.Platform.Api.Controllers;
 
 /// <summary>平台指令下发与执行状态查询。</summary>
 [ApiController]
+[Authorize]
 [Route("api/v1/stations/{stationId:long}/commands")]
 public class PlatformCommandsController : ControllerBase
 {
@@ -45,13 +47,7 @@ public class PlatformCommandsController : ControllerBase
             TimeoutSeconds = request.TimeoutSeconds,
             Signature = string.Empty
         };
-        var privateKey = _configuration["Platform:Command:PrivateKeyPem"];
-        if (string.IsNullOrWhiteSpace(privateKey) &&
-            _configuration["Platform:Command:PrivateKeyPemFile"] is { } pemFile &&
-            System.IO.File.Exists(pemFile))
-        {
-            privateKey = System.IO.File.ReadAllText(pemFile).Trim();
-        }
+        var privateKey = PlatformCommandKeys.ReadPrivateKey(_configuration);
         var command = new PlatformCommand
         {
             Id = remote.CommandId,

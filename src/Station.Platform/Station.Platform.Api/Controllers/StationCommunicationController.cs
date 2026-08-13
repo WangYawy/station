@@ -205,32 +205,44 @@ public class StationCommunicationController : ControllerBase
     public async Task<ActionResult<ApiResponse<List<RemoteCommand>>>> PollCommands(long stationId)
     {
         await TouchHeartbeatAsync(stationId);
+        var publicKey = PlatformCommandKeys.ReadPublicKey(_configuration);
         var pending = (await _commands.GetListAsync(c =>
-                c.StationId == stationId && c.Status == CommandStatus.Pending))
+            c.StationId == stationId && c.Status == CommandStatus.Pending))
             .OrderBy(c => c.Id)
             .Take(20)
             .ToList();
+
+        var accepted = new List<PlatformCommand>();
+        var acceptedRemotes = new List<RemoteCommand>();
+        var rejected = new List<PlatformCommand>();
         foreach (var command in pending)
         {
+            var remote = ToRemoteCommand(command);
+            if (VerifyCommandAtRead(publicKey, remote) is { } reason)
+            {
+                command.Status = CommandStatus.Failed;
+                command.ExecutedAt = DateTime.Now;
+                command.ResultMessage = reason;
+                rejected.Add(command);
+                continue;
+            }
+
             command.Status = CommandStatus.Pulled;
+            accepted.Add(command);
+            acceptedRemotes.Add(remote);
         }
 
-        if (pending.Count > 0)
+        if (accepted.Count > 0)
         {
-            await _commands.UpdateRangeAsync(pending);
+            await _commands.UpdateRangeAsync(accepted);
         }
 
-        var result = pending.Select(c => new RemoteCommand
+        if (rejected.Count > 0)
         {
-            CommandId = c.Id,
-            StationId = c.StationId,
-            Type = c.Type,
-            PayloadJson = c.PayloadJson,
-            IssuedAt = c.IssuedAt,
-            TimeoutSeconds = c.TimeoutSeconds,
-            Signature = c.Signature
-        }).ToList();
-        return Ok(ApiResponse<List<RemoteCommand>>.Ok(result));
+            await _commands.UpdateRangeAsync(rejected);
+        }
+
+        return Ok(ApiResponse<List<RemoteCommand>>.Ok(acceptedRemotes));
     }
 
     [HttpPost("stations/{stationId:long}/commands/{commandId:long}/result")]
@@ -273,4 +285,36 @@ public class StationCommunicationController : ControllerBase
         station.LastHeartbeatAt = DateTime.Now;
         await _stations.UpdateAsync(station);
     }
+
+    /// <summary>读取时实时验签：未配置公钥（开发模式）跳过；未签名或验签失败返回拒绝原因。</summary>
+    private static string? VerifyCommandAtRead(string? publicKey, RemoteCommand remote)
+    {
+        if (publicKey is null)
+        {
+            return null;
+        }
+
+        if (remote.Signature == "unsigned")
+        {
+            return "未签名指令（未配置签名或已被篡改），拒绝下发";
+        }
+
+        return Sm2LicenseSigner.Verify(
+            publicKey,
+            RemoteCommandSignature.Canonical(remote),
+            remote.Signature)
+            ? null
+            : "指令签名校验失败（疑似被篡改），拒绝下发";
+    }
+
+    private static RemoteCommand ToRemoteCommand(PlatformCommand c) => new()
+    {
+        CommandId = c.Id,
+        StationId = c.StationId,
+        Type = c.Type,
+        PayloadJson = c.PayloadJson,
+        IssuedAt = c.IssuedAt,
+        TimeoutSeconds = c.TimeoutSeconds,
+        Signature = c.Signature
+    };
 }
