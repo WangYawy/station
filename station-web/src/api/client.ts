@@ -34,6 +34,23 @@ export async function apiRaw(path: string, options: RequestInit = {}): Promise<R
   })
 }
 
+export async function apiText<T>(path: string, body: string): Promise<T> {
+  const resp = await fetch(API_BASE + path, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+    body
+  })
+  if (resp.status === 401) {
+    location.hash = '#/login'
+    throw new ApiError(401, '未登录或会话已过期')
+  }
+  const json = (await resp.json().catch(() => null)) as ApiResponse<T> | null
+  if (!resp.ok || !json?.success) {
+    throw new ApiError(resp.status, json?.message || `导入失败（${resp.status}）`)
+  }
+  return json.data
+}
+
 export async function login(userName: string, password: string): Promise<AuthSession> {
   const resp = await apiRaw('/auth/login', {
     method: 'POST',

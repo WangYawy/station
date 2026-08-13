@@ -22,7 +22,8 @@ var testRoot = Path.Combine(Path.GetTempPath(), "station-m37-" + Guid.NewGuid().
 Directory.CreateDirectory(testRoot);
 var dbFile = Path.Combine(testRoot, "station.db");
 
-Environment.SetEnvironmentVariable("ASPNETCORE_URLS", $"http://127.0.0.1:{WebPort}");
+Environment.SetEnvironmentVariable("STATION__WEB__PORT", WebPort.ToString());
+Environment.SetEnvironmentVariable("STATION__WEB__ENABLELAN", "false");
 Environment.SetEnvironmentVariable("STATION__DB__PROVIDER", "Sqlite");
 Environment.SetEnvironmentVariable("STATION__DB__CONNECTIONSTRING", $"Data Source={dbFile}");
 Environment.SetEnvironmentVariable("STATION__COLLECT__CACHEDIRECTORY", Path.Combine(testRoot, "cache"));

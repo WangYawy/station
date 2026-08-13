@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Station.Application.Audit;
 using Station.Application.Alerts;
 using Station.Application.Authorization;
 using Station.Application.Collecting;
@@ -24,6 +25,7 @@ public class StandaloneAdminController : ControllerBase
     private readonly IAlertService _alerts;
     private readonly ICollectSource _source;
     private readonly IRepository<Account> _accounts;
+    private readonly IAuditLogService _audit;
     private readonly AuthService _authorization;
     private readonly IDataScopeProvider _dataScope;
 
@@ -33,6 +35,7 @@ public class StandaloneAdminController : ControllerBase
         IAlertService alerts,
         ICollectSource source,
         IRepository<Account> accounts,
+        IAuditLogService audit,
         AuthService authorization,
         IDataScopeProvider dataScope)
     {
@@ -41,6 +44,7 @@ public class StandaloneAdminController : ControllerBase
         _alerts = alerts;
         _source = source;
         _accounts = accounts;
+        _audit = audit;
         _authorization = authorization;
         _dataScope = dataScope;
     }
@@ -123,7 +127,7 @@ public class StandaloneAdminController : ControllerBase
         }
 
         var dto = new UserDto(null, request.UserNo, request.Name, request.DeptId);
-        var result = await _users.CreateUserAsync(dto, null, request.Password);
+        var result = await _users.CreateUserAsync(dto, request.UserNo, request.Password ?? "Station@123");
         return result.Success ? Ok(ApiOk(true)) : BadRequest(new { message = result.Message });
     }
 
@@ -261,6 +265,15 @@ public class StandaloneAdminController : ControllerBase
             var root = _source.GetRecorderRoot(
                 new CollectDeviceInfo(recorder.SerialNumber, recorder.SerialNumber, recorder.Protocol));
             await _recorders.WriteBindingAsync(recorder.SerialNumber, request.UserId, request.DeptId, root);
+            await _audit.WriteAsync(new AuditLog
+            {
+                OperatorAccount = User.Identity?.Name,
+                OperationType = "recorder.bind",
+                Target = recorder.SerialNumber,
+                Detail = $"写入绑定 userId={request.UserId}, deptId={request.DeptId}",
+                SourceIp = HttpContext.Connection.RemoteIpAddress?.ToString(),
+                Result = 1
+            });
             return Ok(ApiOk(true));
         }
         catch (Exception ex)

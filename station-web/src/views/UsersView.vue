@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
-import { api, ApiError } from '../api/client'
-import type { DeptItem, RoleItem, UserItem } from '../api/types'
+import { computed, onMounted, reactive, ref } from 'vue'
+import { api, ApiError, apiText } from '../api/client'
+import type { DeptItem, ImportResult, RoleItem, UserItem } from '../api/types'
+import { downloadText } from '../utils/export'
 import { useAuthStore } from '../stores/auth'
 
 const auth = useAuthStore()
@@ -12,6 +13,13 @@ const loading = ref(false)
 const dialogVisible = ref(false)
 const editingId = ref<number | null>(null)
 const form = reactive({ userNo: '', name: '', deptId: undefined as number | undefined, password: '', roleIds: [] as number[] })
+const importResult = ref<ImportResult | null>(null)
+const showImportResult = computed({
+  get: () => importResult.value !== null,
+  set: (v: boolean) => {
+    if (!v) importResult.value = null
+  }
+})
 
 async function loadAll() {
   loading.value = true
@@ -80,6 +88,21 @@ async function resetPassword(row: UserItem) {
   }
 }
 
+function downloadTemplate() {
+  downloadText('用户导入模板.csv', '工号,姓名,部门编码,角色编码,初始密码\nuser01,用户一,TEAM9,operator,\nuser02,用户二,GRP9,,\n')
+}
+
+async function handleFile(file: { raw?: File }) {
+  if (!file.raw) return
+  try {
+    importResult.value = await apiText<ImportResult>('/imports/users', await file.raw.text())
+    ElMessage.success(`导入完成：成功 ${importResult.value.success}，失败 ${importResult.value.failed}`)
+    loadAll()
+  } catch (e) {
+    ElMessage.error(e instanceof ApiError ? e.message : '导入失败')
+  }
+}
+
 onMounted(loadAll)
 </script>
 
@@ -91,6 +114,10 @@ onMounted(loadAll)
       </el-form-item>
       <el-form-item v-if="auth.hasPermission('user:manage')">
         <el-button type="success" @click="openCreate()">新增用户</el-button>
+        <el-upload :auto-upload="false" :show-file-list="false" accept=".csv" :on-change="handleFile" style="display: inline-block; margin-left: 8px">
+          <el-button type="primary">导入</el-button>
+        </el-upload>
+        <el-button @click="downloadTemplate()">下载模板</el-button>
       </el-form-item>
     </el-form>
 
@@ -133,6 +160,17 @@ onMounted(loadAll)
       <template #footer>
         <el-button @click="dialogVisible = false">取消</el-button>
         <el-button type="primary" @click="save()">保存</el-button>
+      </template>
+    </el-dialog>
+
+    <el-dialog v-model="showImportResult" title="导入结果" width="520px">
+      <p>共 {{ importResult?.total }} 行：成功 <b style="color:#16a34a">{{ importResult?.success }}</b>，失败 <b style="color:#dc2626">{{ importResult?.failed }}</b></p>
+      <el-table v-if="importResult?.errors.length" :data="importResult.errors" border size="small">
+        <el-table-column prop="line" label="行号" width="80" />
+        <el-table-column prop="message" label="原因" min-width="280" />
+      </el-table>
+      <template #footer>
+        <el-button type="primary" @click="importResult = null">关闭</el-button>
       </template>
     </el-dialog>
   </div>

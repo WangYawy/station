@@ -13,16 +13,21 @@ public static class HostBuilderFactory
 {
     public static IHostBuilder Create(string[]? args = null)
     {
+        var configuration = new ConfigurationBuilder()
+            .AddJsonFile("appsettings.json", optional: true, reloadOnChange: true)
+            .AddEnvironmentVariables()
+            .Build();
         return Host.CreateDefaultBuilder(args)
             .ConfigureAppConfiguration((_, configuration) =>
             {
                 configuration.AddJsonFile("appsettings.json", optional: true, reloadOnChange: true);
+                configuration.AddEnvironmentVariables();
             })
             .ConfigureServices((context, services) =>
             {
                 services.AddInfrastructure(context.Configuration);
                 services.AddApplicationServices(context.Configuration);
             })
-            .UseWebHostModule();
+            .UseWebHostModule(configuration);
     }
 }
