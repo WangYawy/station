@@ -70,5 +70,9 @@ public sealed class CollectTask
     [SugarColumn(IsNullable = true, Length = 512)]
     public string? UploadError { get; set; }
 
+    /// <summary>台账/元数据上报处理时间（空=未处理）。</summary>
+    [SugarColumn(IsNullable = true)]
+    public DateTime? LedgeredAt { get; set; }
+
     public DateTime CreatedAt { get; set; }
 }

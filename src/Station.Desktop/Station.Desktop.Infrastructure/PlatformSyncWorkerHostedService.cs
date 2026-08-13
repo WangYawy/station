@@ -15,14 +15,16 @@ public sealed class PlatformSyncWorkerHostedService : BackgroundService
 {
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly PlatformOptions _options;
-    private long? _stationId;
+    private readonly IStationContext _stationContext;
     private DateTime _lastCommandPoll = DateTime.MinValue;
 
     public PlatformSyncWorkerHostedService(
         IServiceScopeFactory scopeFactory,
+        IStationContext stationContext,
         IOptions<PlatformOptions> options)
     {
         _scopeFactory = scopeFactory;
+        _stationContext = stationContext;
         _options = options.Value;
     }
 
@@ -53,7 +55,7 @@ public sealed class PlatformSyncWorkerHostedService : BackgroundService
         var outbox = scope.ServiceProvider.GetRequiredService<ISyncOutboxService>();
         var commands = scope.ServiceProvider.GetRequiredService<ICommandService>();
 
-        if (_stationId is null)
+        if (_stationContext.StationId is null)
         {
             var registration = new StationRegistrationRequest
             {
@@ -73,11 +75,11 @@ public sealed class PlatformSyncWorkerHostedService : BackgroundService
             var response = await client.RegisterAsync(registration, ct);
             if (response is not null)
             {
-                _stationId = response.StationId;
+                _stationContext.Set(response.StationId);
             }
         }
 
-        if (_stationId is { } stationId)
+        if (_stationContext.StationId is { } stationId)
         {
             await outbox.DrainAsync();
 

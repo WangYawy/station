@@ -5,8 +5,8 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="SqlSugarCore" Version="5.1.4.216" />
     <ProjectReference Include="..\..\Station.Shared\Station.Contracts\Station.Contracts.csproj" />
-    <ProjectReference Include="..\..\Station.Shared\Station.Domain\Station.Domain.csproj" />
   </ItemGroup>
 
 </Project>

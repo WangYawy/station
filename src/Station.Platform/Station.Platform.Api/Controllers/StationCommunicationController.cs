@@ -6,99 +6,179 @@ using Station.Contracts.Commands;
 using Station.Contracts.Registration;
 using Station.Contracts.Reporting;
 using Station.Contracts.Sync;
-using Station.Platform.Api.Data;
+using Station.Infrastructure.IdGenerators;
+using Station.Infrastructure.Repositories;
+using Station.Platform.Domain.Entities;
 
 namespace Station.Platform.Api.Controllers;
 
-/// <summary>站↔平台通信 API（M1 契约落地，内存存储）。</summary>
+/// <summary>站↔平台通信 API（M1 契约落地，三库持久化：MySQL/PostgreSQL/Kingbase 配置切换）。</summary>
 [ApiController]
 [Route(ApiRoutes.Base)]
 public class StationCommunicationController : ControllerBase
 {
-    private readonly InMemoryPlatformStore _store;
+    private readonly IRepository<PlatformStation> _stations;
+    private readonly IRepository<PlatformFileMetadata> _files;
+    private readonly IRepository<PlatformAlertReport> _alerts;
+    private readonly IRepository<PlatformCommand> _commands;
+    private readonly IIdGenerator _idGenerator;
 
-    public StationCommunicationController(InMemoryPlatformStore store)
+    public StationCommunicationController(
+        IRepository<PlatformStation> stations,
+        IRepository<PlatformFileMetadata> files,
+        IRepository<PlatformAlertReport> alerts,
+        IRepository<PlatformCommand> commands,
+        IIdGenerator idGenerator)
     {
-        _store = store;
+        _stations = stations;
+        _files = files;
+        _alerts = alerts;
+        _commands = commands;
+        _idGenerator = idGenerator;
     }
 
     [HttpPost("stations/register")]
-    public ActionResult<ApiResponse<StationRegistrationResponse>> Register(StationRegistrationRequest request)
+    public async Task<ActionResult<ApiResponse<StationRegistrationResponse>>> Register(
+        StationRegistrationRequest request)
     {
-        var stationId = _store.Register(request);
-        return Ok(ApiResponse<StationRegistrationResponse>.Ok(new StationRegistrationResponse
+        var existing = await _stations.FirstAsync(s => s.StationCode == request.StationCode);
+        if (existing is not null)
         {
-            StationId = stationId,
+            return Ok(ApiResponse<StationRegistrationResponse>.Ok(ToResponse(existing)));
+        }
+
+        var station = new PlatformStation
+        {
+            Id = _idGenerator.NextId(),
             StationCode = request.StationCode,
-            LicenseStatus = LicenseStatus.Trial,
-            IsRegistered = true,
-            ConfigVersion = 0
-        }));
+            CpuSerial = request.MachineFingerprint.CpuSerial,
+            MotherboardSerial = request.MachineFingerprint.MotherboardSerial,
+            DiskSerial = request.MachineFingerprint.DiskSerial,
+            MacAddress = request.MachineFingerprint.MacAddress,
+            OsVersion = request.OsVersion,
+            CpuArch = request.CpuArch,
+            SoftwareVersion = request.SoftwareVersion,
+            UsbPortCount = request.UsbPortCount,
+            RegisteredAt = DateTime.Now
+        };
+        await _stations.InsertAsync(station);
+        return Ok(ApiResponse<StationRegistrationResponse>.Ok(ToResponse(station)));
     }
 
     [HttpPost("stations/{stationId:long}/config-sync")]
-    public ActionResult<ApiResponse<ConfigSyncResponse>> SyncConfig(long stationId, ConfigSyncRequest request)
-    {
-        if (!_store.Stations.ContainsKey(stationId))
-        {
-            return NotFound(ApiResponse<ConfigSyncResponse>.Fail(404, "采集站未注册"));
-        }
-
-        var version = _store.ConfigVersions[stationId];
-        var changes = _store.ConfigChanges[stationId];
-        return Ok(ApiResponse<ConfigSyncResponse>.Ok(new ConfigSyncResponse
-        {
-            Version = version,
-            Changes = changes
-        }));
-    }
+    public ActionResult<ApiResponse<ConfigSyncResponse>> SyncConfig(long stationId, ConfigSyncRequest request) =>
+        Ok(ApiResponse<ConfigSyncResponse>.Ok(new ConfigSyncResponse { Version = 0, Changes = [] }));
 
     [HttpPost("stations/{stationId:long}/files/metadata")]
-    public ActionResult<ApiResponse<ReportResult>> ReportMetadata(long stationId, FileMetadataReport report)
+    public async Task<ActionResult<ApiResponse<ReportResult>>> ReportMetadata(
+        long stationId,
+        FileMetadataReport report)
     {
         if (report.StationId != stationId)
         {
             return BadRequest(ApiResponse<ReportResult>.Fail(400, "StationId 不一致"));
         }
 
-        var duplicate = _store.MetadataReports.Any(m => m.StationId == stationId && m.LocalFileId == report.LocalFileId);
+        var duplicate = await _files.IsAnyAsync(m =>
+            m.StationId == stationId && m.LocalFileId == report.LocalFileId);
         if (!duplicate)
         {
-            _store.MetadataReports.Add(report);
+            await _files.InsertAsync(new PlatformFileMetadata
+            {
+                Id = _idGenerator.NextId(),
+                StationId = stationId,
+                LocalFileId = report.LocalFileId,
+                FileNo = report.FileNo,
+                FileName = report.FileName,
+                Size = report.Size,
+                Kind = report.Kind,
+                Sm3 = report.Sm3,
+                CollectedAt = report.CollectedAt,
+                RecorderSerial = report.RecorderSerial,
+                UserNo = report.UserNo,
+                DeptCode = report.DeptCode,
+                StorageLocation = report.StorageLocation,
+                ReceivedAt = DateTime.Now
+            });
         }
 
         return Ok(ApiResponse<ReportResult>.Ok(new ReportResult(true, duplicate)));
     }
 
     [HttpPost("stations/{stationId:long}/alerts")]
-    public ActionResult<ApiResponse<bool>> ReportAlert(long stationId, AlertReport report)
+    public async Task<ActionResult<ApiResponse<bool>>> ReportAlert(long stationId, AlertReport report)
     {
-        _store.AlertReports.Add(report);
+        await _alerts.InsertAsync(new PlatformAlertReport
+        {
+            Id = _idGenerator.NextId(),
+            StationId = stationId,
+            LocalAlertId = report.LocalAlertId,
+            Type = report.Type,
+            Level = report.Level,
+            Source = report.Source,
+            Message = report.Message,
+            OccurredAt = report.OccurredAt,
+            ReceivedAt = DateTime.Now
+        });
         return Ok(ApiResponse<bool>.Ok(true));
     }
 
     [HttpGet("stations/{stationId:long}/commands/poll")]
-    public ActionResult<ApiResponse<List<RemoteCommand>>> PollCommands(long stationId)
+    public async Task<ActionResult<ApiResponse<List<RemoteCommand>>>> PollCommands(long stationId)
     {
-        if (!_store.CommandQueue.TryGetValue(stationId, out var queue))
+        var pending = (await _commands.GetListAsync(c =>
+                c.StationId == stationId && c.Status == CommandStatus.Pending))
+            .OrderBy(c => c.Id)
+            .Take(20)
+            .ToList();
+        foreach (var command in pending)
         {
-            return NotFound(ApiResponse<List<RemoteCommand>>.Fail(404, "采集站未注册"));
+            command.Status = CommandStatus.Pulled;
         }
 
-        var commands = new List<RemoteCommand>(queue);
-        queue.Clear();
-        return Ok(ApiResponse<List<RemoteCommand>>.Ok(commands));
+        if (pending.Count > 0)
+        {
+            await _commands.UpdateRangeAsync(pending);
+        }
+
+        var result = pending.Select(c => new RemoteCommand
+        {
+            CommandId = c.Id,
+            StationId = c.StationId,
+            Type = c.Type,
+            PayloadJson = c.PayloadJson,
+            IssuedAt = c.IssuedAt,
+            TimeoutSeconds = c.TimeoutSeconds,
+            Signature = c.Signature
+        }).ToList();
+        return Ok(ApiResponse<List<RemoteCommand>>.Ok(result));
     }
 
     [HttpPost("stations/{stationId:long}/commands/{commandId:long}/result")]
-    public ActionResult<ApiResponse<bool>> ReportCommandResult(long stationId, long commandId, CommandExecutionResult result)
+    public async Task<ActionResult<ApiResponse<bool>>> ReportCommandResult(
+        long stationId,
+        long commandId,
+        CommandExecutionResult result)
     {
-        if (!_store.CommandResults.TryGetValue(stationId, out var results))
+        var command = await _commands.FirstAsync(c => c.Id == commandId && c.StationId == stationId);
+        if (command is null)
         {
-            return NotFound(ApiResponse<bool>.Fail(404, "采集站未注册"));
+            return NotFound(ApiResponse<bool>.Fail(404, "指令不存在"));
         }
 
-        results.Add(result);
+        command.Status = result.Status;
+        command.ExecutedAt = result.FinishedAt ?? DateTime.Now;
+        command.ResultMessage = result.Message;
+        await _commands.UpdateAsync(command);
         return Ok(ApiResponse<bool>.Ok(true));
     }
+
+    private static StationRegistrationResponse ToResponse(PlatformStation station) => new()
+    {
+        StationId = station.Id,
+        StationCode = station.StationCode,
+        LicenseStatus = station.LicenseStatus,
+        IsRegistered = station.IsRegistered,
+        ConfigVersion = station.ConfigVersion
+    };
 }

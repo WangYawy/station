@@ -13,6 +13,7 @@ public static class DependencyInjection
         services.AddHostedService<StationDbInitializerHostedService>();
         services.AddHostedService<UploadWorkerHostedService>();
         services.AddHostedService<PlatformSyncWorkerHostedService>();
+        services.AddHostedService<LedgerAndReportWorkerHostedService>();
         return services;
     }
 }

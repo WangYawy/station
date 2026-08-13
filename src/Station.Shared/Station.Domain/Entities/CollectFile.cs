@@ -59,4 +59,12 @@ public sealed class CollectFile
 
     [SugarColumn(IsNullable = true, Length = 512)]
     public string? RemotePath { get; set; }
+
+    /// <summary>采集后本地缓存文件 SM3（"采集即校验"元数据）。</summary>
+    [SugarColumn(IsNullable = true, Length = 64)]
+    public string? Sm3 { get; set; }
+
+    /// <summary>文件业务编号 = {采集站编号}-{本地文件ID}。</summary>
+    [SugarColumn(IsNullable = true, Length = 64)]
+    public string? FileNo { get; set; }
 }

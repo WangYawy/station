@@ -66,9 +66,11 @@ public static class DependencyInjection
         services.Configure<PlatformOptions>(platformSection);
         services.AddSingleton(platformSection.Get<PlatformOptions>() ?? new PlatformOptions());
         services.AddHttpClient<IPlatformClient, HttpPlatformClient>();
+        services.AddSingleton<IStationContext, StationContext>();
         services.AddScoped<ISyncOutboxService, SyncOutboxService>();
         services.AddScoped<ICommandExecutor, CommandExecutor>();
         services.AddScoped<ICommandService, CommandService>();
+        services.AddScoped<IFileLedgerService, FileLedgerService>();
 
         services.AddScoped<IAuditLogService, AuditLogService>();
         services.AddScoped<IAuthorizationService, AuthorizationService>();
