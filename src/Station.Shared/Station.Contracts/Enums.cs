@@ -62,6 +62,14 @@ public enum LicenseStatus
     Locked = 3,
 }
 
+/// <summary>采集站运行状态（P1：维修/报废）。</summary>
+public enum StationOperationalStatus
+{
+    Normal = 0,
+    Maintenance = 1,
+    Scrapped = 2,
+}
+
 /// <summary>报警类型。</summary>
 public enum AlertType
 {

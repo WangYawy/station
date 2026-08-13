@@ -55,6 +55,7 @@ using (var scope = app.Services.CreateScope())
         typeof(Account), typeof(User), typeof(Dept), typeof(Role),
         typeof(Permission), typeof(RolePermission), typeof(UserRole), typeof(AuditLog));
     initializer.EnsureColumn("platform_station", "LastHeartbeatAt");
+    initializer.EnsureColumn("platform_station", "OperationalStatus", "int");
     await scope.ServiceProvider.GetRequiredService<IAuthSeeder>().EnsureAsync();
 }
 

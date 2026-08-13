@@ -11,7 +11,7 @@ public interface IDatabaseInitializer
     void EnsureCreated(params Type[] entityTypes);
 
     /// <summary>跨库幂等补列：表已存在且缺列时追加（如新增字段的演进）。</summary>
-    void EnsureColumn(string tableName, string columnName);
+    void EnsureColumn(string tableName, string columnName, string? dataType = null);
 
     Task<string> GetVersionAsync();
 
@@ -62,7 +62,7 @@ public sealed class DatabaseInitializer : IDatabaseInitializer
         }
     }
 
-    public void EnsureColumn(string tableName, string columnName)
+    public void EnsureColumn(string tableName, string columnName, string? dataType = null)
     {
         var columns = _db.DbMaintenance.GetColumnInfosByTableName(tableName);
         if (columns.Any(c => string.Equals(c.DbColumnName, columnName, StringComparison.OrdinalIgnoreCase)))
@@ -73,7 +73,7 @@ public sealed class DatabaseInitializer : IDatabaseInitializer
         _db.DbMaintenance.AddColumn(tableName, new DbColumnInfo
         {
             DbColumnName = columnName,
-            DataType = _dialect.GetTimestampColumnType(),
+            DataType = dataType ?? _dialect.GetTimestampColumnType(),
             IsNullable = true
         });
     }

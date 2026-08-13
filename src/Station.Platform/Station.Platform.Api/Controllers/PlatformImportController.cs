@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Station.Application.Audit;
 using Station.Application.Authorization;
+using Station.Contracts;
 using Station.Contracts.Api;
 using Station.Domain.Entities;
 using Station.Infrastructure;
@@ -9,6 +10,7 @@ using Station.Infrastructure.IdGenerators;
 using Station.Infrastructure.Persistence;
 using Station.Infrastructure.Repositories;
 using Station.Infrastructure.Security;
+using Station.Platform.Domain.Entities;
 using AuthService = Station.Application.Authorization.IAuthorizationService;
 
 namespace Station.Platform.Api.Controllers;
@@ -27,6 +29,8 @@ public class PlatformImportController : ControllerBase
     private readonly IRepository<Account> _accounts;
     private readonly IRepository<Role> _roles;
     private readonly IRepository<UserRole> _userRoles;
+    private readonly IRepository<PlatformRecorder> _recorders;
+    private readonly IRepository<PlatformStation> _stations;
     private readonly IIdGenerator _idGenerator;
     private readonly IPasswordHasher _passwordHasher;
     private readonly AuthService _authorization;
@@ -40,6 +44,8 @@ public class PlatformImportController : ControllerBase
         IRepository<Account> accounts,
         IRepository<Role> roles,
         IRepository<UserRole> userRoles,
+        IRepository<PlatformRecorder> recorders,
+        IRepository<PlatformStation> stations,
         IIdGenerator idGenerator,
         IPasswordHasher passwordHasher,
         AuthService authorization,
@@ -52,6 +58,8 @@ public class PlatformImportController : ControllerBase
         _accounts = accounts;
         _roles = roles;
         _userRoles = userRoles;
+        _recorders = recorders;
+        _stations = stations;
         _idGenerator = idGenerator;
         _passwordHasher = passwordHasher;
         _authorization = authorization;
@@ -253,6 +261,149 @@ public class PlatformImportController : ControllerBase
             new ImportResultView(rows.Count - 1, success, errors.Count, errors)));
     }
 
+    /// <summary>记录仪台账导入：序列号,型号,协议,白名单（是/否）。</summary>
+    [HttpPost("recorders")]
+    public async Task<IActionResult> ImportRecorders([FromBody] string csv)
+    {
+        if (!await RequirePermissionAsync(PermissionCodes.RecorderManage))
+        {
+            return StatusCode(403, new { message = "无记录仪管理权限" });
+        }
+
+        var rows = ParseCsv(csv);
+        if (rows.Count < 2)
+        {
+            return BadRequest(new { message = "CSV 至少需要表头与一行数据" });
+        }
+
+        var header = HeaderIndex(rows[0]);
+        if (!header.ContainsKey("序列号"))
+        {
+            return BadRequest(new { message = "缺少 序列号 列（模板：序列号,型号,协议,白名单）" });
+        }
+
+        var errors = new List<ImportErrorView>();
+        var success = 0;
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        for (var i = 1; i < rows.Count; i++)
+        {
+            var line = i + 1;
+            var row = rows[i];
+            var serial = Get(row, header, "序列号");
+            if (string.IsNullOrWhiteSpace(serial))
+            {
+                errors.Add(new ImportErrorView(line, "序列号不能为空"));
+                continue;
+            }
+
+            if (!seen.Add(serial) || await _recorders.IsAnyAsync(r => r.RecorderSerial == serial))
+            {
+                errors.Add(new ImportErrorView(line, $"序列号 {serial} 已存在"));
+                continue;
+            }
+
+            var protocolText = Get(row, header, "协议");
+            var protocol = protocolText.ToLowerInvariant() switch
+            {
+                "mtp" or "1" => ProtocolType.Mtp,
+                "privatesdk" or "私有sdk" or "2" => ProtocolType.PrivateSdk,
+                _ => ProtocolType.Ums
+            };
+            var whitelist = Get(row, header, "白名单");
+            await _recorders.InsertAsync(new PlatformRecorder
+            {
+                Id = _idGenerator.NextId(),
+                RecorderSerial = serial,
+                Protocol = protocol,
+                FirstSeenAt = DateTime.Now,
+                LastSeenAt = DateTime.Now,
+                IsWhitelisted = whitelist == "是" || whitelist == "true" || whitelist == "1",
+                IsActive = true,
+                UpdatedAt = DateTime.Now
+            });
+            success++;
+        }
+
+        var result = new ImportResultView(rows.Count - 1, success, errors.Count, errors);
+        await WriteAuditAsync("import.recorders", $"{result.Success}/{result.Total}",
+            $"记录仪导入：成功 {result.Success}，失败 {result.Failed}");
+        return Ok(ApiResponse<ImportResultView>.Ok(result));
+    }
+
+    /// <summary>采集站台账导入：站编号,系统,架构,版本,部门编码。</summary>
+    [HttpPost("stations")]
+    public async Task<IActionResult> ImportStations([FromBody] string csv)
+    {
+        if (!await RequirePermissionAsync(PermissionCodes.StationManage))
+        {
+            return StatusCode(403, new { message = "无采集站管理权限" });
+        }
+
+        var rows = ParseCsv(csv);
+        if (rows.Count < 2)
+        {
+            return BadRequest(new { message = "CSV 至少需要表头与一行数据" });
+        }
+
+        var header = HeaderIndex(rows[0]);
+        if (!header.ContainsKey("站编号"))
+        {
+            return BadRequest(new { message = "缺少 站编号 列（模板：站编号,系统,架构,版本,部门编码）" });
+        }
+
+        var errors = new List<ImportErrorView>();
+        var success = 0;
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        for (var i = 1; i < rows.Count; i++)
+        {
+            var line = i + 1;
+            var row = rows[i];
+            var code = Get(row, header, "站编号");
+            if (string.IsNullOrWhiteSpace(code))
+            {
+                errors.Add(new ImportErrorView(line, "站编号不能为空"));
+                continue;
+            }
+
+            if (!seen.Add(code) || await _stations.IsAnyAsync(s => s.StationCode == code))
+            {
+                errors.Add(new ImportErrorView(line, $"站编号 {code} 已存在"));
+                continue;
+            }
+
+            long? deptId = null;
+            var deptCode = Get(row, header, "部门编码");
+            if (!string.IsNullOrWhiteSpace(deptCode))
+            {
+                var dept = await _depts.FirstAsync(d => d.Code == deptCode && d.IsActive);
+                if (dept is null)
+                {
+                    errors.Add(new ImportErrorView(line, $"部门 {deptCode} 不存在或已停用"));
+                    continue;
+                }
+
+                deptId = dept.Id;
+            }
+
+            await _stations.InsertAsync(new PlatformStation
+            {
+                Id = _idGenerator.NextId(),
+                StationCode = code,
+                OsVersion = Get(row, header, "系统"),
+                CpuArch = Get(row, header, "架构"),
+                SoftwareVersion = Get(row, header, "版本"),
+                DeptId = deptId,
+                RegisteredAt = DateTime.Now
+            });
+            success++;
+        }
+
+        var result = new ImportResultView(rows.Count - 1, success, errors.Count, errors);
+        await WriteAuditAsync("import.stations", $"{result.Success}/{result.Total}",
+            $"采集站导入：成功 {result.Success}，失败 {result.Failed}");
+        return Ok(ApiResponse<ImportResultView>.Ok(result));
+    }
+
     private async Task<bool> RequirePermissionAsync(string code)
     {
         if (User.FindFirst("accountId") is not { } accountClaim ||
@@ -264,28 +415,21 @@ public class PlatformImportController : ControllerBase
         return await _authorization.HasPermissionAsync(accountId, code);
     }
 
-    private Task<DataScopeResult> GetScopeAsync() =>
-        DataScopeHelper.GetScopeAsync(User, _authorization, _dataScope);
-
-    private async Task WriteAuditAsync(string operationType, string target, string? detail)
+    private async Task WriteAuditAsync(string operationType, string? target, string? detail)
     {
-        var session = User.FindFirst("accountId") is { } accountClaim &&
-                      long.TryParse(accountClaim.Value, out var accountId)
-            ? await _authorization.GetSessionAsync(accountId)
-            : null;
         await _audit.WriteAsync(new AuditLog
         {
-            OperatorAccount = session?.UserName,
-            OperatorName = session?.Name,
-            OperatorUserId = session?.UserId,
-            DeptId = session?.DeptId,
-            SourceIp = HttpContext.Connection.RemoteIpAddress?.ToString(),
+            OperatorAccount = User.Identity?.Name,
             OperationType = operationType,
             Target = target,
             Detail = detail,
+            SourceIp = HttpContext.Connection.RemoteIpAddress?.ToString(),
             Result = 1
         });
     }
+
+    private Task<DataScopeResult> GetScopeAsync() =>
+        DataScopeHelper.GetScopeAsync(User, _authorization, _dataScope);
 
     private static List<string[]> ParseCsv(string csv)
     {

@@ -1,13 +1,13 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, reactive, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import * as echarts from 'echarts/core'
 import { BarChart } from 'echarts/charts'
 import { GridComponent, TooltipComponent } from 'echarts/components'
 import { CanvasRenderer } from 'echarts/renderers'
-import { api, ApiError } from '../api/client'
-import type { DeptItem, PagedResult, RecorderItem, RecorderTrail } from '../api/types'
+import { api, ApiError, apiText } from '../api/client'
+import type { DeptItem, ImportResult, PagedResult, RecorderItem, RecorderTrail } from '../api/types'
 import { fmtSize, fmtTime } from '../utils/format'
-import { downloadCsv } from '../utils/export'
+import { downloadCsv, downloadText } from '../utils/export'
 import { useAuthStore } from '../stores/auth'
 
 echarts.use([BarChart, GridComponent, TooltipComponent, CanvasRenderer])
@@ -28,6 +28,13 @@ const trailVisible = ref(false)
 const trail = ref<RecorderTrail | null>(null)
 const trailChartEl = ref<HTMLDivElement | null>(null)
 let trailChart: echarts.ECharts | null = null
+const importResult = ref<ImportResult | null>(null)
+const showImportResult = computed({
+  get: () => importResult.value !== null,
+  set: (v: boolean) => {
+    if (!v) importResult.value = null
+  }
+})
 
 async function loadDepts() {
   if (!auth.hasPermission('dept:view')) return
@@ -117,6 +124,21 @@ async function doExport() {
   }
 }
 
+function downloadTemplate() {
+  downloadText('记录仪导入模板.csv', '序列号,型号,协议,白名单\nR-1001,DSJ-A8,UMS,是\nR-1002,DSJ-B6,UMS,否\n')
+}
+
+async function handleFile(file: { raw?: File }) {
+  if (!file.raw) return
+  try {
+    importResult.value = await apiText<ImportResult>('/imports/recorders', await file.raw.text())
+    ElMessage.success(`导入完成：成功 ${importResult.value.success}，失败 ${importResult.value.failed}`)
+    loadRecorders()
+  } catch (e) {
+    ElMessage.error(e instanceof ApiError ? e.message : '导入失败')
+  }
+}
+
 const WARNING_LABELS: Record<string, { text: string; type: 'warning' | 'danger' }> = {
   no_binding: { text: '未绑定', type: 'warning' },
   not_whitelisted: { text: '非白名单', type: 'warning' },
@@ -199,6 +221,12 @@ onMounted(() => {
       </el-form-item>
       <el-form-item>
         <el-button @click="doExport()">导出</el-button>
+      </el-form-item>
+      <el-form-item v-if="auth.hasPermission('recorder:manage')">
+        <el-upload :auto-upload="false" :show-file-list="false" accept=".csv" :on-change="handleFile" style="display: inline-block">
+          <el-button type="primary">导入</el-button>
+        </el-upload>
+        <el-button @click="downloadTemplate()">下载模板</el-button>
       </el-form-item>
     </el-form>
 
@@ -293,6 +321,17 @@ onMounted(() => {
           <template #default="{ row }">{{ fmtTime(row.lastSeenAt) }}</template>
         </el-table-column>
       </el-table>
+    </el-dialog>
+
+    <el-dialog v-model="showImportResult" title="导入结果" width="520px">
+      <p>共 {{ importResult?.total }} 行：成功 <b style="color:#16a34a">{{ importResult?.success }}</b>，失败 <b style="color:#dc2626">{{ importResult?.failed }}</b></p>
+      <el-table v-if="importResult?.errors.length" :data="importResult.errors" border size="small">
+        <el-table-column prop="line" label="行号" width="80" />
+        <el-table-column prop="message" label="原因" min-width="280" />
+      </el-table>
+      <template #footer>
+        <el-button type="primary" @click="importResult = null">关闭</el-button>
+      </template>
     </el-dialog>
   </div>
 </template>

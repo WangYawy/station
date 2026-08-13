@@ -39,6 +39,9 @@ public sealed class PlatformStation
 
     public LicenseStatus LicenseStatus { get; set; } = LicenseStatus.Trial;
 
+    /// <summary>运行状态：正常/维修/报废。</summary>
+    public StationOperationalStatus OperationalStatus { get; set; } = StationOperationalStatus.Normal;
+
     public bool IsRegistered { get; set; } = true;
 
     public long ConfigVersion { get; set; }

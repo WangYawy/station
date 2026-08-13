@@ -71,6 +71,7 @@ export interface StationItem {
   licenseDaysLeft: number
   deptId: number | null
   registeredAt: string
+  operationalStatus: number
 }
 
 export interface CommandItem {

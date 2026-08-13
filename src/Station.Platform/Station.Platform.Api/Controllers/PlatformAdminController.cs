@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using SqlSugar;
 using Station.Contracts;
 using Station.Contracts.Api;
+using Station.Application.Audit;
 using AppAuthorization = Station.Application.Authorization.IAuthorizationService;
 using Station.Application.Authorization;
 using Station.Domain.Entities;
@@ -22,6 +23,7 @@ public class PlatformAdminController : ControllerBase
     private readonly IRepository<PlatformAlertReport> _alerts;
     private readonly IRepository<PlatformStation> _stations;
     private readonly IRepository<Dept> _depts;
+    private readonly IAuditLogService _audit;
     private readonly AppAuthorization _authorization;
     private readonly IDataScopeProvider _dataScope;
 
@@ -29,12 +31,14 @@ public class PlatformAdminController : ControllerBase
         IRepository<PlatformAlertReport> alerts,
         IRepository<PlatformStation> stations,
         IRepository<Dept> depts,
+        IAuditLogService audit,
         AppAuthorization authorization,
         IDataScopeProvider dataScope)
     {
         _alerts = alerts;
         _stations = stations;
         _depts = depts;
+        _audit = audit;
         _authorization = authorization;
         _dataScope = dataScope;
     }
@@ -84,7 +88,35 @@ public class PlatformAdminController : ControllerBase
         return Ok(ApiResponse<PagedResult<StationView>>.Ok(new PagedResult<StationView>(
             page, size, total, items.Select(s => new StationView(
                 s.Id, s.StationCode, s.OsVersion, s.CpuArch, s.SoftwareVersion,
-                s.LicenseStatus, s.LicenseExpiresAt, s.LicenseDaysLeft, s.DeptId, s.RegisteredAt)).ToList())));
+                s.OperationalStatus, s.LicenseStatus, s.LicenseExpiresAt, s.LicenseDaysLeft, s.DeptId, s.RegisteredAt)).ToList())));
+    }
+
+    /// <summary>采集站运行状态（正常/维修/报废），station:manage + 数据范围。</summary>
+    [HttpPut("stations/{stationId:long}/status")]
+    public async Task<IActionResult> SetStationStatus(long stationId, [FromBody] SetStationStatusRequest request)
+    {
+        if (User.FindFirst("accountId") is not { } accountClaim ||
+            !await _authorization.HasPermissionAsync(long.Parse(accountClaim.Value), PermissionCodes.StationManage))
+        {
+            return StatusCode(403, new { message = "无采集站管理权限" });
+        }
+
+        var station = await _stations.GetByIdAsync(stationId);
+        if (station is null)
+        {
+            return NotFound(new { message = "采集站不存在" });
+        }
+
+        var scope = await GetScopeAsync();
+        if (!scope.IsAll && (station.DeptId is null || !scope.AllowedDeptIds.Contains(station.DeptId.Value)))
+        {
+            return StatusCode(403, new { message = "无权管理该采集站" });
+        }
+
+        station.OperationalStatus = request.Status;
+        await _stations.UpdateAsync(station);
+        await WriteAuditAsync("station.status", station.StationCode, $"设置运行状态 {request.Status}");
+        return Ok(ApiResponse<bool>.Ok(true));
     }
 
     /// <summary>报警处置：确认/处理/关闭（需要 alert:handle 权限）。</summary>
@@ -171,9 +203,24 @@ public class PlatformAdminController : ControllerBase
     {
         return await DataScopeHelper.GetScopeAsync(User, _authorization, _dataScope);
     }
+
+    private async Task WriteAuditAsync(string operationType, string? target, string? detail)
+    {
+        await _audit.WriteAsync(new AuditLog
+        {
+            OperatorAccount = User.Identity?.Name,
+            OperationType = operationType,
+            Target = target,
+            Detail = detail,
+            SourceIp = HttpContext.Connection.RemoteIpAddress?.ToString(),
+            Result = 1
+        });
+    }
 }
 
     public sealed record SetAlertStatusRequest(AlertStatus Status);
+
+    public sealed record SetStationStatusRequest(StationOperationalStatus Status);
 
     public sealed record UpdateStationDeptRequest(long? DeptId);
 
@@ -195,6 +242,7 @@ public sealed record StationView(
     string OsVersion,
     string CpuArch,
     string SoftwareVersion,
+    StationOperationalStatus OperationalStatus,
     LicenseStatus LicenseStatus,
     DateTime? LicenseExpiresAt,
     int LicenseDaysLeft,
