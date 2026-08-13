@@ -1,5 +1,7 @@
 using System.Text;
 using Org.BouncyCastle.Crypto.Digests;
+using Org.BouncyCastle.Crypto.Macs;
+using Org.BouncyCastle.Crypto.Parameters;
 
 namespace Station.Infrastructure.Security;
 
@@ -26,6 +28,18 @@ public static class Sm3Checksum
         var bytes = Encoding.UTF8.GetBytes(text);
         digest.BlockUpdate(bytes, 0, bytes.Length);
         return ToHex(digest);
+    }
+
+    /// <summary>HMAC-SM3（授权文件/敏感载荷签名）。</summary>
+    public static string ComputeHmac(string key, string text)
+    {
+        var hmac = new HMac(new SM3Digest());
+        hmac.Init(new KeyParameter(Encoding.UTF8.GetBytes(key)));
+        var data = Encoding.UTF8.GetBytes(text);
+        hmac.BlockUpdate(data, 0, data.Length);
+        var output = new byte[hmac.GetMacSize()];
+        hmac.DoFinal(output, 0);
+        return Convert.ToHexString(output).ToLowerInvariant();
     }
 
     private static string ToHex(SM3Digest digest)

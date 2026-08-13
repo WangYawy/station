@@ -6,6 +6,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Station.Application.Alerts;
 using Station.Application.Authentication;
 using Station.Application.Collecting;
+using Station.Application.Licensing;
 using Station.Application.Recorders;
 using Station.Application.Uploading;
 using Station.Desktop.Application.OperationAccess;
@@ -30,9 +31,11 @@ public partial class ShellWindow : Window
     private readonly ISessionManager _sessions;
     private readonly IOperationAccessService _operationAccess;
     private readonly IAlertService _alertService;
+    private readonly ILicenseService _licenseService;
     private readonly SessionIdleTracker _idleTracker;
     private readonly DispatcherTimer _clockTimer;
     private readonly DispatcherTimer _alertTimer;
+    private int _clockTicks;
     private readonly Dictionary<string, Button> _navButtons;
     private IDisposable? _currentViewModel;
 
@@ -44,6 +47,7 @@ public partial class ShellWindow : Window
         _sessions = services.GetRequiredService<ISessionManager>();
         _operationAccess = services.GetRequiredService<IOperationAccessService>();
         _alertService = services.GetRequiredService<IAlertService>();
+        _licenseService = services.GetRequiredService<ILicenseService>();
         _sessions.SessionChanged += OnSessionChanged;
 
         _navButtons = new Dictionary<string, Button>
@@ -63,7 +67,14 @@ public partial class ShellWindow : Window
         _idleTracker.Attach(this);
 
         _clockTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
-        _clockTimer.Tick += (_, _) => ClockText.Text = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
+        _clockTimer.Tick += async (_, _) =>
+        {
+            ClockText.Text = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
+            if (++_clockTicks % 60 == 0)
+            {
+                await RefreshLicenseAsync();
+            }
+        };
         _clockTimer.Start();
 
         _alertTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(5) };
@@ -72,6 +83,7 @@ public partial class ShellWindow : Window
 
         OnSessionChanged();
         _ = NavigateAsync("workbench");
+        _ = RefreshLicenseAsync();
     }
 
     private void OnSessionChanged()
@@ -225,5 +237,24 @@ public partial class ShellWindow : Window
     {
         AlertBanner.IsVisible = false;
         await NavigateAsync("alerts");
+    }
+
+    private async Task RefreshLicenseAsync()
+    {
+        try
+        {
+            var check = await _licenseService.CheckAsync();
+            (LicenseBadgeText.Text, LicenseBadge.Background) = check.Status switch
+            {
+                Station.Contracts.LicenseStatus.Activated => ($"正式版·剩余{check.DaysLeft}天", new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#14532d"))),
+                Station.Contracts.LicenseStatus.Locked => ("授权已到期", new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#7f1d1d"))),
+                _ => ($"试用·剩余{check.DaysLeft}天", new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#92400e")))
+            };
+            LicenseBadgeText.Foreground = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#fef3c7"));
+        }
+        catch
+        {
+            // 忽略授权刷新异常
+        }
     }
 }

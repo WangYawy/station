@@ -6,6 +6,7 @@ using Station.Application.Alerts;
 using Station.Application.Authentication;
 using Station.Application.Authorization;
 using Station.Application.Collecting;
+using Station.Application.Licensing;
 using Station.Application.PlatformSync;
 using Station.Application.Recorders;
 using Station.Application.Uploading;
@@ -74,6 +75,12 @@ public static class DependencyInjection
         services.AddScoped<ICommandService, CommandService>();
         services.AddScoped<IFileLedgerService, FileLedgerService>();
         services.AddScoped<IConfigApplyService, ConfigApplyService>();
+
+        var licenseSection = configuration.GetSection(LicenseOptions.SectionName);
+        services.Configure<LicenseOptions>(licenseSection);
+        services.AddSingleton(licenseSection.Get<LicenseOptions>() ?? new LicenseOptions());
+        services.AddScoped<ILicenseService, LicenseService>();
+        services.AddScoped<LicenseGenerator>();
 
         services.AddScoped<IAuditLogService, AuditLogService>();
         services.AddScoped<IAuthorizationService, AuthorizationService>();

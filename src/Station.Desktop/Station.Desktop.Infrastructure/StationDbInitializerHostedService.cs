@@ -21,7 +21,7 @@ public sealed class StationDbInitializerHostedService : IHostedService
     {
         _initializer.EnsureCreated(
             typeof(CollectTask), typeof(CollectFile), typeof(Recorder), typeof(Alert),
-            typeof(SyncOutbox), typeof(VideoFile));
+            typeof(SyncOutbox), typeof(VideoFile), typeof(LicenseInfo));
         await _authSeeder.EnsureAsync();
     }
 

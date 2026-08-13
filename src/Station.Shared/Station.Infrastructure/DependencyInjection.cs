@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using SqlSugar;
 using Station.Infrastructure.Db;
+using Station.Infrastructure.Licensing;
 using Station.Infrastructure.IdGenerators;
 using Station.Infrastructure.Persistence;
 using Station.Infrastructure.Repositories;
@@ -37,6 +38,7 @@ public static class DependencyInjection
         services.AddScoped<IPasswordHasher, Sm3PasswordHasher>();
         services.Configure<AuthSeedOptions>(configuration.GetSection("Station:Auth"));
         services.AddScoped<IAuthSeeder, AuthSeeder>();
+        services.AddSingleton<IMachineFingerprintProvider, WindowsMachineFingerprintProvider>();
 
         // UnitOfWork：独立客户端 + 独立事务，与共享作用域隔离
         services.AddScoped<IUnitOfWork>(sp =>

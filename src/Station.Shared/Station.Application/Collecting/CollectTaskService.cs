@@ -7,6 +7,7 @@ using Station.Infrastructure;
 using Station.Infrastructure.Db;
 using Station.Infrastructure.IdGenerators;
 using Station.Infrastructure.Repositories;
+using Station.Application.Licensing;
 using Station.Application.PlatformSync;
 
 namespace Station.Application.Collecting;
@@ -27,6 +28,7 @@ public sealed class CollectTaskService : ICollectTaskService
     private readonly ICollectSource _source;
     private readonly CollectOptions _options;
     private readonly ICollectControl _collectControl;
+    private readonly ILicenseService _licenseService;
     private readonly ISqlSugarFactory _sqlSugarFactory;
     private readonly DbOptions _dbOptions;
     private readonly ConcurrentDictionary<long, TaskControl> _controls = new();
@@ -38,6 +40,7 @@ public sealed class CollectTaskService : ICollectTaskService
         ICollectSource source,
         CollectOptions options,
         ICollectControl collectControl,
+        ILicenseService licenseService,
         ISqlSugarFactory sqlSugarFactory,
         DbOptions dbOptions)
     {
@@ -47,6 +50,7 @@ public sealed class CollectTaskService : ICollectTaskService
         _source = source;
         _options = options;
         _collectControl = collectControl;
+        _licenseService = licenseService;
         _sqlSugarFactory = sqlSugarFactory;
         _dbOptions = dbOptions;
     }
@@ -80,6 +84,11 @@ public sealed class CollectTaskService : ICollectTaskService
 
     public async Task<CollectTaskDto> StartAsync(long taskId)
     {
+        if (!await _licenseService.IsValidNowAsync())
+        {
+            throw new InvalidOperationException("授权不可用，无法采集");
+        }
+
         if (!_collectControl.CollectingEnabled)
         {
             throw new InvalidOperationException($"采集已停止：{_collectControl.StoppedReason ?? "远程指令"}");
@@ -257,6 +266,13 @@ public sealed class CollectTaskService : ICollectTaskService
 
             while (!ct.IsCancellationRequested)
             {
+                if (!await _licenseService.IsValidNowAsync())
+                {
+                    // 授权到期：正在进行的采集立即中断（任务 Interrupted，未完成文件异常/取消）
+                    control.FinalStatus = CollectTaskStatus.Interrupted;
+                    break;
+                }
+
                 var file = loopClient.Queryable<CollectFile>()
                     .Where(f => f.TaskId == taskId && f.Status == CollectFileStatus.Pending)
                     .OrderBy(f => f.Id)
@@ -418,6 +434,8 @@ public sealed class CollectTaskService : ICollectTaskService
 
         // 中断/取消：当前文件异常，未开始文件取消
         var interrupted = control.FinalStatus == CollectTaskStatus.Interrupted;
+        var hasUnfinished = files.Any(f =>
+            f.Status is CollectFileStatus.Pending or CollectFileStatus.Copying or CollectFileStatus.Verifying);
         foreach (var file in files.Where(f =>
                      f.Status is CollectFileStatus.Pending or CollectFileStatus.Copying or CollectFileStatus.Verifying))
         {
@@ -427,7 +445,8 @@ public sealed class CollectTaskService : ICollectTaskService
         }
 
         var terminalByRequest = control.FinalStatus is CollectTaskStatus.Interrupted or CollectTaskStatus.Canceled;
-        task.Status = terminalByRequest ? control.FinalStatus : CollectTaskStatus.Completed;
+        // 到期/取消时若文件已全部完成，保持 Completed，避免误报中断
+        task.Status = terminalByRequest && hasUnfinished ? control.FinalStatus : CollectTaskStatus.Completed;
         task.CompletedAt = DateTime.Now;
         if (task.Status == CollectTaskStatus.Completed && control.FinalStatus != CollectTaskStatus.Canceled)
         {
