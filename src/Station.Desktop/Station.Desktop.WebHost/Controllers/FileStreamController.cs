@@ -2,6 +2,8 @@ using Microsoft.AspNetCore.Mvc;
 using Station.Application.Collecting;
 using Station.Domain.Entities;
 using Station.Infrastructure.Repositories;
+using Station.Infrastructure.Security;
+using System.Text.RegularExpressions;
 
 namespace Station.Desktop.WebHost.Controllers;
 
@@ -46,6 +48,31 @@ public class FileStreamController : ControllerBase
         if (!System.IO.File.Exists(path))
         {
             return NotFound(new { message = "本地缓存文件缺失" });
+        }
+
+        if (_collectOptions.EncryptCache)
+        {
+            long start = 0;
+            var range = Request.Headers.Range.ToString();
+            var match = Regex.Match(range, @"bytes=(\d*)-");
+            if (match.Success && long.TryParse(match.Groups[1].Value, out var parsed))
+            {
+                start = parsed;
+            }
+
+            Response.StatusCode = start > 0 ? 206 : 200;
+            Response.ContentType = ContentTypeFor(file.FileName);
+            Response.Headers["Accept-Ranges"] = "bytes";
+            var remaining = Math.Max(0, file.Size - start);
+            if (start > 0)
+            {
+                Response.Headers["Content-Range"] = $"bytes {start}-{file.Size - 1}/{file.Size}";
+            }
+
+            Response.ContentLength = remaining;
+            await using var stream = Sm4Crypto.CreateDecryptReader(path, Sm4KeyProvider.Default.GetKey(), start);
+            await stream.CopyToAsync(Response.Body);
+            return new EmptyResult();
         }
 
         return PhysicalFile(path, ContentTypeFor(file.FileName), enableRangeProcessing: true);

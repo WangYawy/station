@@ -22,7 +22,7 @@ public sealed class LocalDiskStorageTarget : IStorageTarget
         var destination = Path.Combine(_options.LocalRoot, file.RemotePath.Replace('/', Path.DirectorySeparatorChar));
         Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
 
-        await using var input = File.OpenRead(file.LocalPath);
+        await using var input = file.LocalStreamFactory?.Invoke() ?? File.OpenRead(file.LocalPath);
         await using var output = new FileStream(destination, FileMode.Create, FileAccess.Write, FileShare.None);
         var buffer = new byte[_options.ChunkBytes];
         long total = 0;

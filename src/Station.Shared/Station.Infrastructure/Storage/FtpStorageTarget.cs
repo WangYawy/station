@@ -1,6 +1,7 @@
 using FluentFTP;
 using Microsoft.Extensions.Options;
 using System.Net;
+using Station.Infrastructure.Security;
 
 namespace Station.Infrastructure.Storage;
 
@@ -21,12 +22,13 @@ public sealed class FtpStorageTarget : IStorageTarget
         Func<double, Task>? onProgress,
         CancellationToken cancellationToken)
     {
+        var password = Sm4SecretProtector.TryUnprotect(_options.FtpPassword) ?? string.Empty;
         using var ftp = new AsyncFtpClient(_options.FtpHost, _options.FtpPort)
         {
-            Credentials = new NetworkCredential(_options.FtpUser ?? string.Empty, _options.FtpPassword ?? string.Empty)
+            Credentials = new NetworkCredential(_options.FtpUser ?? string.Empty, password)
         };
         await ftp.Connect(cancellationToken);
-        await using var stream = File.OpenRead(file.LocalPath);
+        await using var stream = file.LocalStreamFactory?.Invoke() ?? File.OpenRead(file.LocalPath);
         var progress = new Progress<FtpProgress>(p => _ = onProgress?.Invoke(p.Progress / 100d));
         await ftp.UploadStream(
             stream,
@@ -40,9 +42,10 @@ public sealed class FtpStorageTarget : IStorageTarget
 
     public async Task<long> GetRemoteSizeAsync(string remotePath, CancellationToken cancellationToken)
     {
+        var password = Sm4SecretProtector.TryUnprotect(_options.FtpPassword) ?? string.Empty;
         using var ftp = new AsyncFtpClient(_options.FtpHost, _options.FtpPort)
         {
-            Credentials = new NetworkCredential(_options.FtpUser ?? string.Empty, _options.FtpPassword ?? string.Empty)
+            Credentials = new NetworkCredential(_options.FtpUser ?? string.Empty, password)
         };
         await ftp.Connect(cancellationToken);
         var size = await ftp.GetFileSize(remotePath, 0, cancellationToken);

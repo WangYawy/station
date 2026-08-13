@@ -1,6 +1,7 @@
 using System.Text;
 using Microsoft.Extensions.Options;
 using Org.BouncyCastle.Crypto.Digests;
+using Station.Infrastructure.Security;
 
 namespace Station.Infrastructure.Recorders;
 
@@ -16,7 +17,7 @@ public sealed class RecorderBindingFile
 
     public RecorderBindingFile(IOptions<BindingOptions> options)
     {
-        _secret = options.Value.Secret;
+        _secret = Sm4SecretProtector.TryUnprotect(options.Value.Secret) ?? options.Value.Secret;
     }
 
     public void Write(string recorderRootPath, BindingInfo binding)

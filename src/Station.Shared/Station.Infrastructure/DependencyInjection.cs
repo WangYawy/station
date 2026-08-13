@@ -42,6 +42,7 @@ public static class DependencyInjection
             OperatingSystem.IsWindows()
                 ? new WindowsMachineFingerprintProvider()
                 : new LinuxMachineFingerprintProvider());
+        services.AddSingleton<ISm4KeyProvider>(_ => new Sm4KeyProvider());
 
         // UnitOfWork：独立客户端 + 独立事务，与共享作用域隔离
         services.AddScoped<IUnitOfWork>(sp =>

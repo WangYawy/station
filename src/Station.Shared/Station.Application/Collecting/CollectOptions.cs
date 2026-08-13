@@ -22,6 +22,9 @@ public sealed class CollectOptions
     /// <summary>UMS 根目录覆盖（开发/测试用；为空时自动枚举可移动磁盘）。</summary>
     public string? UmsRootOverride { get; set; }
 
+    /// <summary>本地缓存文件 SM4 加密（需求：文件缓存使用 SM4 加密；默认开启）。</summary>
+    public bool EncryptCache { get; set; } = true;
+
     /// <summary>记录仪接入后是否自动开始采集（需求：默认自动）。</summary>
     public bool AutoCollectOnConnect { get; set; } = true;
 

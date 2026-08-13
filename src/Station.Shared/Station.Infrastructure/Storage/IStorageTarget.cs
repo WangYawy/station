@@ -1,7 +1,11 @@
 namespace Station.Infrastructure.Storage;
 
 /// <summary>待上传文件：本地缓存路径 → 远端相对路径。</summary>
-public sealed record UploadTargetFile(string LocalPath, string RemotePath, long Size);
+public sealed record UploadTargetFile(
+    string LocalPath,
+    string RemotePath,
+    long Size,
+    Func<Stream>? LocalStreamFactory = null);
 
 /// <summary>
 /// 存储目标抽象：本地磁盘 / FTP / SFTP。

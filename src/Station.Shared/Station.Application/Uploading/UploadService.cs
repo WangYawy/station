@@ -7,6 +7,7 @@ using Station.Infrastructure;
 using Station.Infrastructure.Db;
 using Station.Infrastructure.Repositories;
 using Station.Infrastructure.Storage;
+using Station.Infrastructure.Security;
 
 namespace Station.Application.Uploading;
 
@@ -114,7 +115,13 @@ public sealed class UploadService : IUploadService
                 {
                     double lastPersisted = -1;
                     await _target.UploadAsync(
-                        new UploadTargetFile(localPath, remotePath, file.Size),
+                        new UploadTargetFile(
+                            localPath,
+                            remotePath,
+                            file.Size,
+                            _collectOptions.EncryptCache
+                                ? () => Sm4Crypto.CreateDecryptReader(localPath, Sm4KeyProvider.Default.GetKey())
+                                : null),
                         async progress =>
                         {
                             file.UploadProgress = progress;

@@ -10,8 +10,13 @@ public static class Sm3Checksum
 {
     public static string ComputeFile(string path)
     {
-        var digest = new SM3Digest();
         using var stream = File.OpenRead(path);
+        return Compute(stream);
+    }
+
+    public static string Compute(Stream stream)
+    {
+        var digest = new SM3Digest();
         var buffer = new byte[1024 * 1024];
         int read;
         while ((read = stream.Read(buffer, 0, buffer.Length)) > 0)

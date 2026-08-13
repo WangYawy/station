@@ -24,6 +24,10 @@ public sealed class LicenseInfo
     [SugarColumn(Length = 64)]
     public string Fingerprint { get; set; } = string.Empty;
 
+    /// <summary>授权文件原文（SM4 加密存储，`sm4:` 前缀），敏感信息不明文落库。</summary>
+    [SugarColumn(IsNullable = true, Length = 8192)]
+    public string? PayloadEnc { get; set; }
+
     public DateTime IssuedAt { get; set; }
 
     public DateTime ExpiresAt { get; set; }

@@ -3,6 +3,7 @@ using Station.Domain.Entities;
 using Station.Infrastructure.IdGenerators;
 using Station.Infrastructure.Licensing;
 using Station.Infrastructure.Repositories;
+using Station.Infrastructure.Security;
 
 namespace Station.Application.Licensing;
 
@@ -97,6 +98,7 @@ public sealed class LicenseService : ILicenseService
             ProductCode = file.ProductCode,
             StationCode = file.StationCode,
             Fingerprint = file.Fingerprint,
+            PayloadEnc = Sm4SecretProtector.Protect(licenseFileText),
             IssuedAt = file.IssuedAt,
             ExpiresAt = file.ExpiresAt,
             Status = LicenseStatus.Activated,

@@ -74,6 +74,7 @@ var config = new ConfigurationBuilder()
         ["Station:Collect:SimulatedSourceDirectory"] = simDir,
         ["Station:Collect:AutoCollectOnConnect"] = "true",
         ["Station:Collect:SimulatedFileCount"] = "5",
+        ["Station:Collect:EncryptCache"] = "false",
         ["Station:Storage:Target"] = storageTarget.ToString(),
         ["Station:Storage:LocalRoot"] = localRoot,
         ["Station:Storage:StationNo"] = "ST0001",

@@ -7,6 +7,7 @@ using Station.Infrastructure;
 using Station.Infrastructure.Db;
 using Station.Infrastructure.IdGenerators;
 using Station.Infrastructure.Repositories;
+using Station.Infrastructure.Security;
 using Station.Application.Licensing;
 using Station.Application.PlatformSync;
 
@@ -336,6 +337,11 @@ public sealed class CollectTaskService : ICollectTaskService
                 if (copied != file.Size)
                 {
                     throw new IOException($"文件大小校验失败：期望 {file.Size}，实际 {copied}");
+                }
+
+                if (_options.EncryptCache)
+                {
+                    Sm4Crypto.EncryptInPlace(destination, Sm4KeyProvider.Default.GetKey());
                 }
 
                 file.Status = CollectFileStatus.Completed;

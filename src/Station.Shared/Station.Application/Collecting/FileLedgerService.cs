@@ -72,8 +72,10 @@ public sealed class FileLedgerService : IFileLedgerService
 
         foreach (var file in files)
         {
-            file.Sm3 ??= Sm3Checksum.ComputeFile(
-                Path.Combine(_collectOptions.CacheDirectory, task.TaskNo, file.RelativePath));
+            var cachePath = Path.Combine(_collectOptions.CacheDirectory, task.TaskNo, file.RelativePath);
+            file.Sm3 ??= _collectOptions.EncryptCache
+                ? Sm3Checksum.Compute(Sm4Crypto.CreateDecryptReader(cachePath, Sm4KeyProvider.Default.GetKey()))
+                : Sm3Checksum.ComputeFile(cachePath);
             file.FileNo = FileNo.Create(_platformOptions.StationCode, file.Id);
             client.Updateable(file).ExecuteCommand();
 

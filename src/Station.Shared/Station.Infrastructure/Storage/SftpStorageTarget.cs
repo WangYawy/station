@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Options;
 using Renci.SshNet;
+using Station.Infrastructure.Security;
 
 namespace Station.Infrastructure.Storage;
 
@@ -29,7 +30,7 @@ public sealed class SftpStorageTarget : IStorageTarget
         EnsureRemoteDirectories(sftp, RemoteDirectory(remotePath));
 
         using var remoteStream = sftp.Open(remotePath, FileMode.Append, FileAccess.Write);
-        await using var localStream = File.OpenRead(file.LocalPath);
+        await using var localStream = file.LocalStreamFactory?.Invoke() ?? File.OpenRead(file.LocalPath);
         var buffer = new byte[_options.ChunkBytes];
         long total = 0;
         int read;
@@ -78,7 +79,7 @@ public sealed class SftpStorageTarget : IStorageTarget
     private SftpClient CreateClient()
     {
         var user = _options.SftpUser ?? string.Empty;
-        var password = _options.SftpPassword ?? string.Empty;
+        var password = Sm4SecretProtector.TryUnprotect(_options.SftpPassword) ?? string.Empty;
         var passwordAuth = new Renci.SshNet.PasswordAuthenticationMethod(user, password);
         var keyboardAuth = new Renci.SshNet.KeyboardInteractiveAuthenticationMethod(user);
         keyboardAuth.AuthenticationPrompt += (_, e) =>
