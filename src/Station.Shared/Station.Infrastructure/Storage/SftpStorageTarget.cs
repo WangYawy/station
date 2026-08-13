@@ -62,6 +62,16 @@ public sealed class SftpStorageTarget : IStorageTarget
         return Task.FromResult(length);
     }
 
+    public Task<string> ComputeRemoteSm3Async(string remotePath, CancellationToken cancellationToken)
+    {
+        using var sftp = CreateClient();
+        sftp.Connect();
+        using var stream = sftp.OpenRead(AbsolutePath(ResolveRoot(sftp), remotePath));
+        var sm3 = Sm3Checksum.Compute(stream);
+        sftp.Disconnect();
+        return Task.FromResult(sm3);
+    }
+
     private string ResolveRoot(SftpClient sftp) =>
         string.IsNullOrWhiteSpace(_options.SftpRoot)
             ? sftp.WorkingDirectory.TrimEnd('/')

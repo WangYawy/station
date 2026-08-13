@@ -33,9 +33,32 @@ public sealed class DatabaseInitializer : IDatabaseInitializer
 
     public void EnsureCreated(params Type[] entityTypes)
     {
+        if (_dialect.Provider == DbProvider.Sqlite)
+        {
+            TryEnableSqliteWal();
+        }
+
         if (entityTypes.Length > 0)
         {
             _db.CodeFirst.InitTables(entityTypes);
+        }
+    }
+
+    /// <summary>SQLite 并发优化：WAL 模式 + busy_timeout，避免采集后台与查询并发时锁竞争/连接关闭。</summary>
+    private void TryEnableSqliteWal()
+    {
+        try
+        {
+            using var connection = new Microsoft.Data.Sqlite.SqliteConnection(
+                _db.CurrentConnectionConfig.ConnectionString);
+            connection.Open();
+            using var command = connection.CreateCommand();
+            command.CommandText = "PRAGMA journal_mode=WAL; PRAGMA busy_timeout=10000; PRAGMA synchronous=NORMAL;";
+            command.ExecuteNonQuery();
+        }
+        catch
+        {
+            // WAL 不可用时保持默认日志模式，不影响功能
         }
     }
 

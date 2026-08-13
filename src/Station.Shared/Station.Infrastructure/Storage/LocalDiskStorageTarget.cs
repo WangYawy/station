@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Options;
+using Station.Infrastructure.Security;
 
 namespace Station.Infrastructure.Storage;
 
@@ -47,5 +48,11 @@ public sealed class LocalDiskStorageTarget : IStorageTarget
     {
         var path = Path.Combine(_options.LocalRoot, remotePath.Replace('/', Path.DirectorySeparatorChar));
         return Task.FromResult(new FileInfo(path).Length);
+    }
+
+    public Task<string> ComputeRemoteSm3Async(string remotePath, CancellationToken cancellationToken)
+    {
+        var path = Path.Combine(_options.LocalRoot, remotePath.Replace('/', Path.DirectorySeparatorChar));
+        return Task.FromResult(Sm3Checksum.ComputeFile(path));
     }
 }

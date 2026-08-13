@@ -101,7 +101,7 @@ services.AddStationApplication(config);
 await using var sp = services.BuildServiceProvider();
 
 sp.GetRequiredService<IDatabaseInitializer>().EnsureCreated(
-    typeof(CollectTask), typeof(CollectFile), typeof(LicenseInfo), typeof(Alert), typeof(AuditLog));
+    typeof(CollectTask), typeof(CollectFile), typeof(LicenseInfo), typeof(Alert), typeof(AuditLog), typeof(ClockState));
 var collect = sp.GetRequiredService<ICollectTaskService>();
 var upload = sp.GetRequiredService<IUploadService>();
 var sim = (SimulatedCollectSource)sp.GetRequiredService<ICollectSource>();
@@ -346,6 +346,9 @@ internal sealed class FailingStorageTarget : IStorageTarget
 
     public Task<long> GetRemoteSizeAsync(string remotePath, CancellationToken cancellationToken) =>
         _inner.GetRemoteSizeAsync(remotePath, cancellationToken);
+
+    public Task<string> ComputeRemoteSm3Async(string remotePath, CancellationToken cancellationToken) =>
+        _inner.ComputeRemoteSm3Async(remotePath, cancellationToken);
 
     public void SetHealthy() => _remainingFailures = 0;
 }

@@ -18,4 +18,7 @@ public interface IStorageTarget
     Task UploadAsync(UploadTargetFile file, Func<double, Task>? onProgress, CancellationToken cancellationToken);
 
     Task<long> GetRemoteSizeAsync(string remotePath, CancellationToken cancellationToken);
+
+    /// <summary>计算远端文件 SM3（上传后二次校验）。</summary>
+    Task<string> ComputeRemoteSm3Async(string remotePath, CancellationToken cancellationToken);
 }

@@ -185,7 +185,7 @@ try
         DbType = DbType.Sqlite,
         IsAutoCloseConnection = true
     });
-    db.CodeFirst.InitTables(typeof(LicenseInfo));
+    db.CodeFirst.InitTables(typeof(LicenseInfo), typeof(ClockState));
     var (privatePem, publicPem) = Sm2LicenseSigner.CreateKeyPair();
     var options = new LicenseOptions
     {
@@ -199,6 +199,7 @@ try
     var licenseText = new LicenseGenerator(options).GenerateFileText("ST001", fingerprint, DateTime.Now.AddDays(365));
     var service = new LicenseService(
         new RepositoryBase<LicenseInfo>(db),
+        new RepositoryBase<ClockState>(db),
         options,
         fingerprintProvider,
         new SnowflakeIdGenerator());

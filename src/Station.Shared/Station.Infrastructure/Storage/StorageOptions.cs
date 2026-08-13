@@ -54,6 +54,9 @@ public sealed class StorageOptions
     public int CircuitBreakerCooldownSeconds { get; set; } = 60;
 
     public int ChunkBytes { get; set; } = 1024 * 1024;
+
+    /// <summary>上传完成后对远端文件计算 SM3 二次校验（"存储成功"判定，需求 10.4）。</summary>
+    public bool VerifyRemoteSm3 { get; set; } = true;
 }
 
 public enum StorageTargetKind

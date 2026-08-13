@@ -52,4 +52,16 @@ public sealed class FtpStorageTarget : IStorageTarget
         await ftp.Disconnect(cancellationToken);
         return size;
     }
+
+    public async Task<string> ComputeRemoteSm3Async(string remotePath, CancellationToken cancellationToken)
+    {
+        var password = Sm4SecretProtector.TryUnprotect(_options.FtpPassword) ?? string.Empty;
+        using var ftp = new AsyncFtpClient(_options.FtpHost, _options.FtpPort)
+        {
+            Credentials = new NetworkCredential(_options.FtpUser ?? string.Empty, password)
+        };
+        await ftp.Connect(cancellationToken);
+        await using var stream = await ftp.OpenRead(remotePath, FtpDataType.Binary, 0, true, cancellationToken);
+        return Sm3Checksum.Compute(stream);
+    }
 }

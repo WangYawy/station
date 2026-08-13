@@ -24,7 +24,13 @@ public sealed class SqlSugarFactory : ISqlSugarFactory
         return new SqlSugarClient(config);
     }
 
-    public ISqlSugarClient CreateScope(DbOptions options) => new SqlSugarScope(BuildConfig(options));
+    public ISqlSugarClient CreateScope(DbOptions options)
+    {
+        var config = BuildConfig(options);
+        // SQLite 下保持连接常驻，避免异步查询中 auto-close 导致 "reader is closed"
+        config.IsAutoCloseConnection = false;
+        return new SqlSugarScope(config);
+    }
 
     private static ConnectionConfig BuildConfig(DbOptions options) => new()
     {

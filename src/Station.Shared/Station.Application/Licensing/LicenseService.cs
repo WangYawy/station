@@ -10,17 +10,20 @@ namespace Station.Application.Licensing;
 public sealed class LicenseService : ILicenseService
 {
     private readonly IRepository<LicenseInfo> _licenses;
+    private readonly IRepository<ClockState> _clockStates;
     private readonly LicenseOptions _options;
     private readonly IMachineFingerprintProvider _fingerprint;
     private readonly IIdGenerator _idGenerator;
 
     public LicenseService(
         IRepository<LicenseInfo> licenses,
+        IRepository<ClockState> clockStates,
         LicenseOptions options,
         IMachineFingerprintProvider fingerprint,
         IIdGenerator idGenerator)
     {
         _licenses = licenses;
+        _clockStates = clockStates;
         _options = options;
         _fingerprint = fingerprint;
         _idGenerator = idGenerator;
@@ -28,6 +31,12 @@ public sealed class LicenseService : ILicenseService
 
     public async Task<LicenseCheckResult> CheckAsync()
     {
+        var rollback = await DetectClockRollbackAsync();
+        if (rollback)
+        {
+            return new LicenseCheckResult(LicenseStatus.Locked, null, 0, false, "检测到时钟回拨，已锁定");
+        }
+
         var active = await _licenses.FirstAsync(l => l.IsActive);
         if (active is null)
         {
@@ -45,6 +54,30 @@ public sealed class LicenseService : ILicenseService
 
         return new LicenseCheckResult(LicenseStatus.Activated, active.ExpiresAt, daysLeft, true,
             $"正式版（剩余 {daysLeft} 天）");
+    }
+
+    /// <summary>时钟回拨检测：最近一次检查时间晚于当前时间（容差 2 分钟）视为回拨。</summary>
+    private async Task<bool> DetectClockRollbackAsync()
+    {
+        var now = DateTime.Now;
+        var state = await _clockStates.FirstAsync(c => c.Id == 1);
+        if (state is not null && state.LastCheckAt > now.AddMinutes(2))
+        {
+            return true;
+        }
+
+        if (state is null)
+        {
+            await _clockStates.InsertAsync(new ClockState { Id = 1, LastCheckAt = now, UpdatedAt = now });
+        }
+        else
+        {
+            state.LastCheckAt = now;
+            state.UpdatedAt = now;
+            await _clockStates.UpdateAsync(state);
+        }
+
+        return false;
     }
 
     public async Task<(bool Ok, string Message)> ActivateAsync(string licenseFileText)

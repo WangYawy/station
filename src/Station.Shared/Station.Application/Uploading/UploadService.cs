@@ -146,6 +146,16 @@ public sealed class UploadService : IUploadService
                         throw new IOException($"远端大小不一致：期望 {file.Size}，实际 {remoteSize}");
                     }
 
+                    if (_options.VerifyRemoteSm3)
+                    {
+                        var localSm3 = file.Sm3 ?? ComputeLocalSm3(localPath);
+                        var remoteSm3 = await _target.ComputeRemoteSm3Async(remotePath, CancellationToken.None);
+                        if (!string.Equals(localSm3, remoteSm3, StringComparison.OrdinalIgnoreCase))
+                        {
+                            throw new IOException($"远端 SM3 不一致：本地 {localSm3}，远端 {remoteSm3}");
+                        }
+                    }
+
                     success = true;
                     break;
                 }
@@ -191,6 +201,14 @@ public sealed class UploadService : IUploadService
         loopClient.Updateable(task).ExecuteCommand();
 
         return new UploadSummary(taskId, uploaded, failed, pending, circuitOpened || _breaker.IsOpen);
+    }
+
+    private string ComputeLocalSm3(string localPath)
+    {
+        using Stream stream = _collectOptions.EncryptCache
+            ? (Stream)Sm4Crypto.CreateDecryptReader(localPath, Sm4KeyProvider.Default.GetKey())
+            : File.OpenRead(localPath);
+        return Sm3Checksum.Compute(stream);
     }
 
     public async Task<int> RetryFailedFilesAsync(long taskId)

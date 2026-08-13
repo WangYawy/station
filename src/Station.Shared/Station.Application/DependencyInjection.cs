@@ -40,6 +40,7 @@ public static class DependencyInjection
                 ? new UmsCollectSource(collect)
                 : new SimulatedCollectSource(collect);
         });
+        services.AddScoped<ICacheCleanupService, CacheCleanupService>();
         services.AddScoped<ICollectTaskService, CollectTaskService>();
 
         var bindingSection = configuration.GetSection(BindingOptions.SectionName);

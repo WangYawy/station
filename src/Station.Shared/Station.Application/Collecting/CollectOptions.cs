@@ -25,6 +25,20 @@ public sealed class CollectOptions
     /// <summary>本地缓存文件 SM4 加密（需求：文件缓存使用 SM4 加密；默认开启）。</summary>
     public bool EncryptCache { get; set; } = true;
 
+    /// <summary>本地加密缓存保留天数（需求默认 30 天），超期自动清理并留审计。</summary>
+    public int CacheRetentionDays { get; set; } = 30;
+
+    /// <summary>定时采集：启用后在每日指定时间自动开始采集（需记录仪已连接）。</summary>
+    public bool ScheduledCollectEnabled { get; set; }
+
+    public int ScheduleHour { get; set; } = 2;
+
+    public int ScheduleMinute { get; set; } = 0;
+
+    public int CacheCleanupHour { get; set; } = 4;
+
+    public int CacheCleanupMinute { get; set; } = 0;
+
     /// <summary>记录仪接入后是否自动开始采集（需求：默认自动）。</summary>
     public bool AutoCollectOnConnect { get; set; } = true;
 
