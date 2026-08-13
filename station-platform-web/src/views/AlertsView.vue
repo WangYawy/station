@@ -3,6 +3,7 @@ import { onMounted, reactive, ref } from 'vue'
 import { api, ApiError } from '../api/client'
 import type { AlertItem, PagedResult } from '../api/types'
 import { ALERT_LEVELS, ALERT_STATUS, ALERT_TYPES, fmtTime, levelTagType } from '../utils/format'
+import { downloadCsv } from '../utils/export'
 import { useAuthStore } from '../stores/auth'
 
 const auth = useAuthStore()
@@ -47,6 +48,17 @@ function onPageChange(p: number) {
   loadAlerts()
 }
 
+async function doExport() {
+  const params = new URLSearchParams()
+  if (query.stationId) params.set('stationId', query.stationId)
+  if (query.level !== '') params.set('level', query.level)
+  try {
+    await downloadCsv(`/exports/alerts?${params.toString()}`)
+  } catch (e) {
+    ElMessage.error(e instanceof ApiError ? e.message : '导出失败')
+  }
+}
+
 onMounted(loadAlerts)
 </script>
 
@@ -63,6 +75,9 @@ onMounted(loadAlerts)
       </el-form-item>
       <el-form-item>
         <el-button type="primary" @click="page = 1; loadAlerts()">查询</el-button>
+      </el-form-item>
+      <el-form-item>
+        <el-button @click="doExport()">导出</el-button>
       </el-form-item>
     </el-form>
 

@@ -3,6 +3,7 @@ import { onMounted, ref } from 'vue'
 import { api, ApiError } from '../api/client'
 import type { DeptItem, PagedResult, StationItem } from '../api/types'
 import { LICENSE_STATUS, fmtTime } from '../utils/format'
+import { downloadCsv } from '../utils/export'
 import { useAuthStore } from '../stores/auth'
 
 const auth = useAuthStore()
@@ -57,6 +58,14 @@ async function assignDept(row: StationItem) {
   }
 }
 
+async function doExport() {
+  try {
+    await downloadCsv('/exports/stations')
+  } catch (e) {
+    ElMessage.error(e instanceof ApiError ? e.message : '导出失败')
+  }
+}
+
 onMounted(() => {
   if (auth.hasPermission('dept:view') || auth.hasPermission('station:manage')) {
     loadDepts()
@@ -70,6 +79,9 @@ onMounted(() => {
     <el-form inline>
       <el-form-item>
         <el-button type="primary" @click="loadStations()">刷新</el-button>
+      </el-form-item>
+      <el-form-item>
+        <el-button @click="doExport()">导出</el-button>
       </el-form-item>
       <el-form-item>
         <span style="color: #64748b">共 {{ total }} 个采集站</span>

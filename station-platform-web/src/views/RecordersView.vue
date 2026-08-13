@@ -3,6 +3,7 @@ import { onMounted, reactive, ref } from 'vue'
 import { api, ApiError } from '../api/client'
 import type { DeptItem, PagedResult, RecorderItem } from '../api/types'
 import { fmtSize, fmtTime } from '../utils/format'
+import { downloadCsv } from '../utils/export'
 import { useAuthStore } from '../stores/auth'
 
 const auth = useAuthStore()
@@ -91,6 +92,19 @@ function onPageChange(p: number) {
   loadRecorders()
 }
 
+async function doExport() {
+  const params = new URLSearchParams()
+  if (query.keyword) params.set('keyword', query.keyword)
+  if (query.whitelisted !== '') params.set('whitelisted', query.whitelisted)
+  if (query.bound === '1') params.set('bound', 'true')
+  if (query.bound === '0') params.set('bound', 'false')
+  try {
+    await downloadCsv(`/exports/recorders?${params.toString()}`)
+  } catch (e) {
+    ElMessage.error(e instanceof ApiError ? e.message : '导出失败')
+  }
+}
+
 onMounted(() => {
   loadDepts()
   loadRecorders()
@@ -117,6 +131,9 @@ onMounted(() => {
       </el-form-item>
       <el-form-item>
         <el-button type="primary" @click="page = 1; loadRecorders()">查询</el-button>
+      </el-form-item>
+      <el-form-item>
+        <el-button @click="doExport()">导出</el-button>
       </el-form-item>
     </el-form>
 

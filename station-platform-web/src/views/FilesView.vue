@@ -3,6 +3,7 @@ import { onMounted, reactive, ref } from 'vue'
 import { api, ApiError } from '../api/client'
 import type { DeptItem, FileItem, PagedResult } from '../api/types'
 import { FILE_KINDS, fmtSize, fmtTime } from '../utils/format'
+import { downloadCsv } from '../utils/export'
 import { useAuthStore } from '../stores/auth'
 
 const auth = useAuthStore()
@@ -54,6 +55,18 @@ function onPageChange(p: number) {
   loadFiles()
 }
 
+async function doExport() {
+  const params = new URLSearchParams()
+  if (query.keyword) params.set('keyword', query.keyword)
+  if (query.kind !== '') params.set('kind', query.kind)
+  if (query.deptId !== '') params.set('deptId', query.deptId)
+  try {
+    await downloadCsv(`/exports/files?${params.toString()}`)
+  } catch (e) {
+    ElMessage.error(e instanceof ApiError ? e.message : '导出失败')
+  }
+}
+
 onMounted(() => {
   loadDepts()
   loadFiles()
@@ -78,6 +91,9 @@ onMounted(() => {
       </el-form-item>
       <el-form-item>
         <el-button type="primary" @click="page = 1; loadFiles()">查询</el-button>
+      </el-form-item>
+      <el-form-item>
+        <el-button @click="doExport()">导出</el-button>
       </el-form-item>
     </el-form>
 

@@ -3,6 +3,7 @@ import { onMounted, ref } from 'vue'
 import { api, ApiError } from '../../api/client'
 import type { AuditLogItem, PagedResult } from '../../api/types'
 import { fmtTime } from '../../utils/format'
+import { downloadCsv } from '../../utils/export'
 
 const loading = ref(false)
 const items = ref<AuditLogItem[]>([])
@@ -34,6 +35,18 @@ function onPageChange(p: number) {
   loadLogs()
 }
 
+async function doExport() {
+  const params = new URLSearchParams()
+  if (keyword.value) params.set('keyword', keyword.value)
+  if (range.value?.[0]) params.set('from', range.value[0] + ' 00:00:00')
+  if (range.value?.[1]) params.set('to', range.value[1] + ' 23:59:59')
+  try {
+    await downloadCsv(`/exports/audit-logs?${params.toString()}`)
+  } catch (e) {
+    ElMessage.error(e instanceof ApiError ? e.message : '导出失败')
+  }
+}
+
 onMounted(loadLogs)
 </script>
 
@@ -48,6 +61,9 @@ onMounted(loadLogs)
       </el-form-item>
       <el-form-item>
         <el-button type="primary" @click="page = 1; loadLogs()">查询</el-button>
+      </el-form-item>
+      <el-form-item>
+        <el-button @click="doExport()">导出</el-button>
       </el-form-item>
     </el-form>
 

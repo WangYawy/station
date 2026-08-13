@@ -1,0 +1,23 @@
+import { ApiError } from '../api/client'
+
+/** 下载 CSV（UTF-8 BOM，Excel 可直接打开），文件名取自 Content-Disposition。 */
+export async function downloadCsv(path: string): Promise<void> {
+  const resp = await fetch('/api/v1' + path)
+  if (resp.status === 401) {
+    location.hash = '#/login'
+    throw new ApiError(401, '未登录或会话已过期')
+  }
+  if (!resp.ok) {
+    throw new ApiError(resp.status, '导出失败（无权限或数据异常）')
+  }
+  const blob = await resp.blob()
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  const cd = resp.headers.get('Content-Disposition') || ''
+  const star = cd.match(/filename\*=UTF-8''([^;]+)/i)
+  const plain = cd.match(/filename="?([^";]+)"?/i)
+  a.download = star ? decodeURIComponent(star[1]) : plain ? plain[1] : 'export.csv'
+  a.click()
+  URL.revokeObjectURL(url)
+}

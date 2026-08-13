@@ -7,6 +7,7 @@ import { CanvasRenderer } from 'echarts/renderers'
 import { api, ApiError } from '../api/client'
 import type { AlertStats, CountItem, OverviewStats, PagedResult, StationStat, TrendPoint } from '../api/types'
 import { ALERT_LEVELS, ALERT_STATUS, ALERT_TYPES, fmtSize, fmtTime } from '../utils/format'
+import { downloadCsv } from '../utils/export'
 
 echarts.use([BarChart, GridComponent, TooltipComponent, CanvasRenderer])
 
@@ -58,6 +59,14 @@ function countOf(list: CountItem[], key: string): number {
 
 function onResize() {
   chart?.resize()
+}
+
+async function doExport(kind: 'trend' | 'stations') {
+  try {
+    await downloadCsv(kind === 'trend' ? '/exports/stats-trend?days=14' : '/exports/stats-stations')
+  } catch (e) {
+    ElMessage.error(e instanceof ApiError ? e.message : '导出失败')
+  }
 }
 
 onMounted(() => {
@@ -115,14 +124,20 @@ onBeforeUnmount(() => {
     </el-row>
 
     <el-card shadow="never" class="block">
-      <template #header>采集趋势（近 14 天）</template>
+      <template #header>
+        <span>采集趋势（近 14 天）</span>
+        <el-button link type="primary" style="float: right" @click="doExport('trend')">导出趋势</el-button>
+      </template>
       <div ref="chartEl" style="height: 300px" />
     </el-card>
 
     <el-row :gutter="12" class="block">
       <el-col :span="14">
         <el-card shadow="never">
-          <template #header>采集排行</template>
+          <template #header>
+            <span>采集排行</span>
+            <el-button link type="primary" style="float: right" @click="doExport('stations')">导出排行</el-button>
+          </template>
           <el-table :data="ranking" border stripe size="small">
             <el-table-column prop="stationCode" label="站" width="120" />
             <el-table-column prop="deptName" label="部门" width="110" />
