@@ -111,6 +111,7 @@ public class StationCommunicationController : ControllerBase
             {
                 Id = _idGenerator.NextId(),
                 StationId = stationId,
+                DeptId = (await _stations.GetByIdAsync(stationId))?.DeptId,
                 LocalFileId = report.LocalFileId,
                 FileNo = report.FileNo,
                 FileName = report.FileName,
@@ -143,6 +144,7 @@ public class StationCommunicationController : ControllerBase
         {
             Id = _idGenerator.NextId(),
             StationId = stationId,
+            DeptId = (await _stations.GetByIdAsync(stationId))?.DeptId,
             LocalAlertId = report.LocalAlertId,
             Type = report.Type,
             Level = report.Level,

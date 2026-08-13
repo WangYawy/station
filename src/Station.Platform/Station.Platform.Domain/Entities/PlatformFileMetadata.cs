@@ -44,4 +44,8 @@ public sealed class PlatformFileMetadata
     public string? StorageLocation { get; set; }
 
     public DateTime ReceivedAt { get; set; }
+
+    /// <summary>来源采集站归属部门（数据权限过滤）。</summary>
+    [SugarColumn(IsNullable = true)]
+    public long? DeptId { get; set; }
 }

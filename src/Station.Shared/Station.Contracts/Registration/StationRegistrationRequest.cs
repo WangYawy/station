@@ -18,4 +18,7 @@ public sealed record StationRegistrationRequest
 
     /// <summary>采集站内置 Web 地址（平台预览代理用，可空）。</summary>
     public string? StationBaseUrl { get; init; }
+
+    /// <summary>采集站归属部门（平台组织，可空；平台侧可后续调整）。</summary>
+    public long? DeptId { get; init; }
 }

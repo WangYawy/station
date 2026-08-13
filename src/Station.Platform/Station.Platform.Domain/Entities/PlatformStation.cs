@@ -48,6 +48,10 @@ public sealed class PlatformStation
 
     public int LicenseDaysLeft { get; set; }
 
+    /// <summary>采集站归属部门（平台组织树节点），数据权限按部门过滤。</summary>
+    [SugarColumn(IsNullable = true)]
+    public long? DeptId { get; set; }
+
     [SugarColumn(IsNullable = true, Length = 256)]
     public string? StationBaseUrl { get; set; }
 
