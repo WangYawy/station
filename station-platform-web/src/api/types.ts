@@ -163,3 +163,24 @@ export interface AuditLogItem {
   result: number
   createdAt: string
 }
+
+export interface RecorderItem {
+  id: number
+  recorderSerial: string
+  lastStationId: number | null
+  deptId: number | null
+  protocol: number | null
+  firstSeenAt: string
+  lastSeenAt: string
+  fileCount: number
+  totalSize: number
+  lastFileAt: string | null
+  boundUserNo: string | null
+  boundUserName: string | null
+  boundDeptCode: string | null
+  boundDeptName: string | null
+  boundAt: string | null
+  isWhitelisted: boolean
+  isActive: boolean
+  updatedAt: string
+}

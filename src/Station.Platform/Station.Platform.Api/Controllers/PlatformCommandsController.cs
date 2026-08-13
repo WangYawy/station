@@ -47,7 +47,6 @@ public class PlatformCommandsController : ControllerBase
             TimeoutSeconds = request.TimeoutSeconds,
             Signature = string.Empty
         };
-        var privateKey = PlatformCommandKeys.ReadPrivateKey(_configuration);
         var command = new PlatformCommand
         {
             Id = remote.CommandId,
@@ -57,9 +56,7 @@ public class PlatformCommandsController : ControllerBase
             Status = CommandStatus.Pending,
             IssuedAt = remote.IssuedAt,
             TimeoutSeconds = request.TimeoutSeconds,
-            Signature = string.IsNullOrWhiteSpace(privateKey)
-                ? "unsigned"
-                : Sm2LicenseSigner.Sign(privateKey, RemoteCommandSignature.Canonical(remote))
+            Signature = PlatformCommandKeys.Sign(remote, _configuration)
         };
         await _commands.InsertAsync(command);
         return Ok(ApiResponse<CommandExecutionResult>.Ok(new CommandExecutionResult

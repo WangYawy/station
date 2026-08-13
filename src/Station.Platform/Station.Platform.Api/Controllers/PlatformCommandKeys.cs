@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Configuration;
+using Station.Contracts.Commands;
 using Station.Infrastructure.Security;
 
 namespace Station.Platform.Api.Controllers;
@@ -35,5 +36,14 @@ public static class PlatformCommandKeys
         }
 
         return string.IsNullOrWhiteSpace(publicKey) ? null : publicKey;
+    }
+
+    /// <summary>按指令规范化串签名；未配置私钥时返回 "unsigned"（开发模式）。</summary>
+    public static string Sign(RemoteCommand command, IConfiguration configuration)
+    {
+        var privateKey = ReadPrivateKey(configuration);
+        return string.IsNullOrWhiteSpace(privateKey)
+            ? "unsigned"
+            : Sm2LicenseSigner.Sign(privateKey, RemoteCommandSignature.Canonical(command));
     }
 }

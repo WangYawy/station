@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { Bell, FolderOpened, Monitor, Odometer, Promotion, Setting, User } from '@element-plus/icons-vue'
+import { Bell, Cpu, FolderOpened, Monitor, Odometer, Promotion, Setting, User } from '@element-plus/icons-vue'
 import { useAuthStore } from '../stores/auth'
 
 const route = useRoute()
@@ -15,9 +15,12 @@ const menus = [
   { path: '/files', title: '文件检索', icon: FolderOpened },
   { path: '/alerts', title: '报警中心', icon: Bell },
   { path: '/stations', title: '采集站管理', icon: Monitor },
+  { path: '/recorders', title: '记录仪管理', icon: Cpu, perm: 'recorder:view' },
   { path: '/commands', title: '远程指令', icon: Promotion },
   { path: '/system', title: '系统管理', icon: Setting }
 ]
+
+const visibleMenus = computed(() => menus.filter((m) => !m.perm || auth.hasPermission(m.perm)))
 
 async function onLogout() {
   try {
@@ -35,7 +38,7 @@ async function onLogout() {
     <el-aside width="212px" class="aside">
       <div class="logo">监控管理平台</div>
       <el-menu :default-active="activeMenu" router background-color="#0a2f6c" text-color="#cfd8e6" active-text-color="#ffffff">
-        <el-menu-item v-for="m in menus" :key="m.path" :index="m.path">
+        <el-menu-item v-for="m in visibleMenus" :key="m.path" :index="m.path">
           <el-icon><component :is="m.icon" /></el-icon>
           <span>{{ m.title }}</span>
         </el-menu-item>

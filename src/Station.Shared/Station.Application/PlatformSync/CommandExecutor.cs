@@ -1,8 +1,11 @@
 using Station.Application.Collecting;
 using Station.Contracts;
 using Station.Contracts.Commands;
+using Station.Domain.Entities;
 using Station.Infrastructure;
 using Station.Infrastructure.Db;
+using Station.Infrastructure.IdGenerators;
+using System.Text.Json;
 
 namespace Station.Application.PlatformSync;
 
@@ -16,17 +19,20 @@ public sealed class CommandExecutor : ICommandExecutor
     private readonly ISqlSugarFactory _sqlSugarFactory;
     private readonly DbOptions _dbOptions;
     private readonly CollectOptions _collectOptions;
+    private readonly IIdGenerator _idGenerator;
 
     public CommandExecutor(
         ICollectControl collectControl,
         ISqlSugarFactory sqlSugarFactory,
         DbOptions dbOptions,
-        CollectOptions collectOptions)
+        CollectOptions collectOptions,
+        IIdGenerator idGenerator)
     {
         _collectControl = collectControl;
         _sqlSugarFactory = sqlSugarFactory;
         _dbOptions = dbOptions;
         _collectOptions = collectOptions;
+        _idGenerator = idGenerator;
     }
 
     public Task<CommandExecutionResult> ExecuteAsync(RemoteCommand command)
@@ -40,6 +46,7 @@ public sealed class CommandExecutor : ICommandExecutor
             CommandType.RunSelfCheck => RunSelfCheck(),
             CommandType.StopCollecting => StopCollecting(command.CommandId),
             CommandType.StartCollecting => StartCollecting(),
+            CommandType.WriteBinding => WriteBinding(command.PayloadJson),
             _ => "未知指令"
         };
 
@@ -109,5 +116,60 @@ public sealed class CommandExecutor : ICommandExecutor
         }
 
         return $"自检完成：{string.Join("；", checks)}";
+    }
+
+    /// <summary>写入记录仪绑定：更新本机台账，记录仪下次接入时由识别流程自动重写 ini。</summary>
+    private string WriteBinding(string? payloadJson)
+    {
+        try
+        {
+            var payload = JsonSerializer.Deserialize<WriteBindingPayload>(
+                payloadJson ?? "{}",
+                new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+            if (payload is null || string.IsNullOrWhiteSpace(payload.RecorderSerial))
+            {
+                return "绑定指令缺少记录仪编号";
+            }
+
+            using var db = _sqlSugarFactory.CreateClient(_dbOptions);
+            var user = payload.UserNo is null
+                ? null
+                : db.Queryable<User>().Where(u => u.UserNo == payload.UserNo && u.IsActive).First();
+            if (user is null)
+            {
+                return $"用户 {payload.UserNo} 未同步到本机，绑定未生效";
+            }
+
+            var recorder = db.Queryable<Recorder>().Where(r => r.SerialNumber == payload.RecorderSerial).First();
+            if (recorder is null)
+            {
+                recorder = new Recorder
+                {
+                    Id = _idGenerator.NextId(),
+                    SerialNumber = payload.RecorderSerial,
+                    Model = payload.Model ?? string.Empty,
+                    Protocol = payload.Protocol is { } protocol ? (ProtocolType)protocol : ProtocolType.Ums,
+                    BoundUserId = user.Id,
+                    DeptId = payload.DeptId ?? user.DeptId,
+                    IsAuthorized = true,
+                    IsActive = true
+                };
+                db.Insertable(recorder).ExecuteCommand();
+            }
+            else
+            {
+                recorder.Model = payload.Model ?? recorder.Model;
+                recorder.BoundUserId = user.Id;
+                recorder.DeptId = payload.DeptId ?? user.DeptId;
+                recorder.IsAuthorized = true;
+                db.Updateable(recorder).ExecuteCommand();
+            }
+
+            return "绑定已更新，记录仪下次接入时自动写入绑定文件";
+        }
+        catch (Exception ex)
+        {
+            return $"绑定指令执行失败：{ex.Message}";
+        }
     }
 }

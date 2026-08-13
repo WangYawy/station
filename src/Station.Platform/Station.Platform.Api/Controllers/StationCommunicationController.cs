@@ -21,6 +21,7 @@ public class StationCommunicationController : ControllerBase
 {
     private readonly IRepository<PlatformStation> _stations;
     private readonly IRepository<PlatformFileMetadata> _files;
+    private readonly IRepository<PlatformRecorder> _recorders;
     private readonly IRepository<PlatformAlertReport> _alerts;
     private readonly IRepository<PlatformCommand> _commands;
     private readonly IRepository<PlatformConfigChange> _configChanges;
@@ -30,6 +31,7 @@ public class StationCommunicationController : ControllerBase
     public StationCommunicationController(
         IRepository<PlatformStation> stations,
         IRepository<PlatformFileMetadata> files,
+        IRepository<PlatformRecorder> recorders,
         IRepository<PlatformAlertReport> alerts,
         IRepository<PlatformCommand> commands,
         IRepository<PlatformConfigChange> configChanges,
@@ -38,6 +40,7 @@ public class StationCommunicationController : ControllerBase
     {
         _stations = stations;
         _files = files;
+        _recorders = recorders;
         _alerts = alerts;
         _commands = commands;
         _configChanges = configChanges;
@@ -132,7 +135,47 @@ public class StationCommunicationController : ControllerBase
             });
         }
 
+        await UpsertRecorderAsync(stationId, report, duplicate);
+
         return Ok(ApiResponse<ReportResult>.Ok(new ReportResult(true, duplicate)));
+    }
+
+    /// <summary>记录仪台账归集：按序列号 upsert，重复上报不重复累计。</summary>
+    private async Task UpsertRecorderAsync(long stationId, FileMetadataReport report, bool duplicate)
+    {
+        var station = await _stations.GetByIdAsync(stationId);
+        var recorder = await _recorders.FirstAsync(r => r.RecorderSerial == report.RecorderSerial);
+        var now = DateTime.Now;
+        if (recorder is null)
+        {
+            await _recorders.InsertAsync(new PlatformRecorder
+            {
+                Id = _idGenerator.NextId(),
+                RecorderSerial = report.RecorderSerial,
+                LastStationId = stationId,
+                DeptId = station?.DeptId,
+                FirstSeenAt = now,
+                LastSeenAt = now,
+                FileCount = duplicate ? 0 : 1,
+                TotalSize = duplicate ? 0 : report.Size,
+                LastFileAt = report.CollectedAt,
+                UpdatedAt = now
+            });
+            return;
+        }
+
+        recorder.LastStationId = stationId;
+        recorder.DeptId = station?.DeptId;
+        recorder.LastSeenAt = now;
+        if (!duplicate)
+        {
+            recorder.FileCount++;
+            recorder.TotalSize += report.Size;
+        }
+
+        recorder.LastFileAt = report.CollectedAt;
+        recorder.UpdatedAt = now;
+        await _recorders.UpdateAsync(recorder);
     }
 
     [HttpPost("stations/{stationId:long}/alerts")]

@@ -44,6 +44,7 @@ using (var scope = app.Services.CreateScope())
         typeof(PlatformStation),
         typeof(PlatformFileMetadata),
         typeof(PlatformAlertReport),
+        typeof(PlatformRecorder),
         typeof(PlatformCommand),
         typeof(PlatformConfigChange),
         typeof(Account), typeof(User), typeof(Dept), typeof(Role),

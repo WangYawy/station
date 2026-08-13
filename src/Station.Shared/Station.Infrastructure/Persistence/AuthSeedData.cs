@@ -24,6 +24,8 @@ public static class PermissionCodes
     public const string SettingManage = "setting:manage";
     public const string StationView = "station:view";
     public const string StationManage = "station:manage";
+    public const string RecorderView = "recorder:view";
+    public const string RecorderManage = "recorder:manage";
 
     public static readonly IReadOnlyList<(string Code, string Name, string Module)> Catalog =
     [
@@ -43,7 +45,9 @@ public static class PermissionCodes
         (SettingView, "查看设置", "setting"),
         (SettingManage, "管理设置", "setting"),
         (StationView, "查看采集站", "station"),
-        (StationManage, "管理采集站", "station")
+        (StationManage, "管理采集站", "station"),
+        (RecorderView, "查看记录仪", "recorder"),
+        (RecorderManage, "管理记录仪", "recorder")
     ];
 }
 
@@ -67,14 +71,15 @@ public static class AuthSeedData
         new(AdminRoleCode, "管理员", DataScope.All,
             PermissionCodes.Catalog.Select(p => p.Code).ToArray()),
         new(ManagerRoleCode, "部门负责人", DataScope.DeptAndChildren,
-            [PermissionCodes.UserView, PermissionCodes.DeptView, PermissionCodes.RoleView, PermissionCodes.StationView,
+            [PermissionCodes.UserView, PermissionCodes.DeptView, PermissionCodes.RoleView, PermissionCodes.StationView, PermissionCodes.RecorderView,
              PermissionCodes.FileView, PermissionCodes.FileManage,
              PermissionCodes.AlertView, PermissionCodes.AlertHandle,
              PermissionCodes.AuditView, PermissionCodes.SettingView]),
         new(OperatorRoleCode, "操作员", DataScope.Self,
             [PermissionCodes.FileView, PermissionCodes.FileManage, PermissionCodes.AlertView]),
         new(AuditorRoleCode, "审计员", DataScope.All,
-            [PermissionCodes.FileView, PermissionCodes.AlertView, PermissionCodes.AuditView, PermissionCodes.AuditExport])
+            [PermissionCodes.FileView, PermissionCodes.AlertView, PermissionCodes.AuditView, PermissionCodes.AuditExport,
+             PermissionCodes.RecorderView])
     ];
 
     public static readonly Type[] EntityTypes =

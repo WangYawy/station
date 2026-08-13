@@ -84,6 +84,9 @@ public enum CommandType
     RunSelfCheck = 3,
     StopCollecting = 4,
     StartCollecting = 5,
+
+    /// <summary>写入记录仪绑定信息（平台台账重新绑定 → 采集站更新本地台账，接入时自动写 ini）。</summary>
+    WriteBinding = 6,
 }
 
 /// <summary>远程指令执行状态。</summary>
