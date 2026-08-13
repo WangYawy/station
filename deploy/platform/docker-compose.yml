@@ -1,0 +1,41 @@
+name: station-platform
+
+services:
+  api:
+    build:
+      context: ../..
+      dockerfile: deploy/platform/Dockerfile
+    image: station-platform-api:0.1.0
+    restart: unless-stopped
+    ports:
+      - "${PLATFORM_HTTP_PORT:-5100}:8080"
+    environment:
+      ASPNETCORE_URLS: http://+:8080
+      STATION__DB__PROVIDER: MySql
+      STATION__DB__CONNECTIONSTRING: "Server=mysql;Port=3306;Database=station_platform;Uid=station;Pwd=${MYSQL_PASSWORD:-Station@123};Charset=utf8mb4;AllowPublicKeyRetrieval=true;SslMode=None"
+      STATION__AUTH__DEFAULTADMINUSERNAME: "${ADMIN_USERNAME:-admin}"
+      STATION__AUTH__DEFAULTADMINPASSWORD: "${ADMIN_PASSWORD:-Admin@123}"
+      PLATFORM__COMMAND__PRIVATEKEYPEM: "${PLATFORM_COMMAND_PRIVATE_KEY:-}"
+      PLATFORM__REPORTING__PUBLICKEYPEM: "${PLATFORM_REPORTING_PUBLIC_KEY:-}"
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+  mysql:
+    image: mysql:8.0
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: "${MYSQL_ROOT_PASSWORD:-Root@123}"
+      MYSQL_DATABASE: station_platform
+      MYSQL_USER: station
+      MYSQL_PASSWORD: "${MYSQL_PASSWORD:-Station@123}"
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -ustation -p$${MYSQL_PASSWORD} --silent"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  mysql-data:

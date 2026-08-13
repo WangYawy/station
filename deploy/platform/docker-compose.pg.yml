@@ -1,0 +1,40 @@
+name: station-platform-pg
+
+services:
+  api:
+    build:
+      context: ../..
+      dockerfile: deploy/platform/Dockerfile
+    image: station-platform-api:0.1.0
+    restart: unless-stopped
+    ports:
+      - "${PLATFORM_HTTP_PORT:-5100}:8080"
+    environment:
+      ASPNETCORE_URLS: http://+:8080
+      STATION__DB__PROVIDER: PostgreSQL
+      STATION__DB__CONNECTIONSTRING: "Host=postgres;Port=5432;Database=station_platform;Username=station;Password=${PG_PASSWORD:-Station@123}"
+      STATION__AUTH__DEFAULTADMINUSERNAME: "${ADMIN_USERNAME:-admin}"
+      STATION__AUTH__DEFAULTADMINPASSWORD: "${ADMIN_PASSWORD:-Admin@123}"
+      PLATFORM__COMMAND__PRIVATEKEYPEM: "${PLATFORM_COMMAND_PRIVATE_KEY:-}"
+      PLATFORM__REPORTING__PUBLICKEYPEM: "${PLATFORM_REPORTING_PUBLIC_KEY:-}"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  postgres:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: station_platform
+      POSTGRES_USER: station
+      POSTGRES_PASSWORD: "${PG_PASSWORD:-Station@123}"
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U station -d station_platform"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  pg-data:
