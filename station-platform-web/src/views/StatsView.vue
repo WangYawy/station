@@ -8,6 +8,7 @@ import { api, ApiError } from '../api/client'
 import type { AlertStats, CountItem, OverviewStats, PagedResult, StationStat, TrendPoint } from '../api/types'
 import { ALERT_LEVELS, ALERT_STATUS, ALERT_TYPES, fmtSize, fmtTime } from '../utils/format'
 import { downloadFile } from '../utils/export'
+import { onRealtimeEvent } from '../utils/realtime'
 
 echarts.use([BarChart, GridComponent, TooltipComponent, CanvasRenderer])
 
@@ -70,16 +71,20 @@ async function doExport(kind: 'trend' | 'stations', format: string) {
   }
 }
 
+let offRealtime: (() => void) | null = null
 onMounted(() => {
   chart = echarts.init(chartEl.value!)
   window.addEventListener('resize', onResize)
   loadStats()
+  const offs = ['file.reported', 'alert.created'].map((t) => onRealtimeEvent(t, loadStats))
+  offRealtime = () => offs.forEach((off) => off())
 })
 
 onBeforeUnmount(() => {
   window.removeEventListener('resize', onResize)
   chart?.dispose()
   chart = null
+  offRealtime?.()
 })
 </script>
 

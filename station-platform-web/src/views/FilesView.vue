@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
+import { onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { api, ApiError } from '../api/client'
 import type { DeptItem, FileItem, PagedResult } from '../api/types'
 import { FILE_KINDS, fmtSize, fmtTime } from '../utils/format'
 import { downloadFile } from '../utils/export'
+import { onRealtimeEvent } from '../utils/realtime'
 import { useAuthStore } from '../stores/auth'
 
 const auth = useAuthStore()
@@ -93,10 +94,13 @@ async function doExport(format: string) {
   }
 }
 
+let offRealtime: (() => void) | null = null
 onMounted(() => {
   loadDepts()
   loadFiles()
+  offRealtime = onRealtimeEvent('file.reported', loadFiles)
 })
+onBeforeUnmount(() => offRealtime?.())
 </script>
 
 <template>

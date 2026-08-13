@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { api, ApiError } from '../api/client'
 import type { CommandItem } from '../api/types'
 import { CMD_STATUS, CMD_TYPES, fmtTime } from '../utils/format'
+import { onRealtimeEvent } from '../utils/realtime'
 
 const loading = ref(false)
 const stationId = ref('')
@@ -45,7 +46,12 @@ async function dispatch() {
   }
 }
 
-onMounted(loadCommands)
+let offRealtime: (() => void) | null = null
+onMounted(() => {
+  loadCommands()
+  offRealtime = onRealtimeEvent('command.result', loadCommands)
+})
+onBeforeUnmount(() => offRealtime?.())
 </script>
 
 <template>

@@ -8,6 +8,7 @@ import { api, ApiError, apiText } from '../api/client'
 import type { DeptItem, ImportResult, PagedResult, RecorderItem, RecorderTrail } from '../api/types'
 import { fmtSize, fmtTime } from '../utils/format'
 import { downloadFile, downloadText } from '../utils/export'
+import { onRealtimeEvent } from '../utils/realtime'
 import { useAuthStore } from '../stores/auth'
 
 echarts.use([BarChart, GridComponent, TooltipComponent, CanvasRenderer])
@@ -188,10 +189,13 @@ onBeforeUnmount(() => {
   trailChart = null
 })
 
+let offRealtime: (() => void) | null = null
 onMounted(() => {
   loadDepts()
   loadRecorders()
+  offRealtime = onRealtimeEvent('recorder.whitelist', loadRecorders)
 })
+onBeforeUnmount(() => offRealtime?.())
 </script>
 
 <template>

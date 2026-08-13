@@ -20,6 +20,7 @@ public sealed class ScheduledCollectWorkerHostedService : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        var protocol = _options.SourceMode == "mtp" ? ProtocolType.Mtp : ProtocolType.Ums;
         while (!stoppingToken.IsCancellationRequested)
         {
             var next = NextRun();
@@ -39,7 +40,7 @@ public sealed class ScheduledCollectWorkerHostedService : BackgroundService
             try
             {
                 await collect.CreateTaskAsync(
-                    new CollectDeviceInfo("定时采集", "SCHEDULED", ProtocolType.Ums),
+                    new CollectDeviceInfo("定时采集", "SCHEDULED", protocol),
                     isAuto: true);
             }
             catch

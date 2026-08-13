@@ -14,10 +14,14 @@ public sealed class RecorderBindingFile
     public const string FileName = "station_bind.ini";
 
     private readonly string _secret;
+    private readonly IRecorderRootFileStore _rootStore;
 
-    public RecorderBindingFile(IOptions<BindingOptions> options)
+    public RecorderBindingFile(
+        IOptions<BindingOptions> options,
+        IRecorderRootFileStore? rootStore = null)
     {
         _secret = Sm4SecretProtector.TryUnprotect(options.Value.Secret) ?? options.Value.Secret;
+        _rootStore = rootStore ?? new FileSystemRecorderRootFileStore();
     }
 
     public void Write(string recorderRootPath, BindingInfo binding)
@@ -32,19 +36,19 @@ public sealed class RecorderBindingFile
             $"dept_name={binding.DeptName}",
             $"bound_at={binding.BoundAt:O}",
             $"sm3={binding.Signature}");
-        File.WriteAllText(Path.Combine(recorderRootPath, FileName), content, Encoding.UTF8);
+        _rootStore.WriteFile(recorderRootPath, FileName, content);
     }
 
     public BindingInfo? Read(string recorderRootPath)
     {
-        var path = Path.Combine(recorderRootPath, FileName);
-        if (!File.Exists(path))
+        var text = _rootStore.ReadFile(recorderRootPath, FileName);
+        if (text is null)
         {
             return null;
         }
 
         var values = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var line in File.ReadAllLines(path))
+        foreach (var line in text.Replace("\r\n", "\n").Split('\n'))
         {
             var trimmed = line.Trim();
             if (trimmed.StartsWith('[') || trimmed.StartsWith('#') || !trimmed.Contains('='))
@@ -87,11 +91,7 @@ public sealed class RecorderBindingFile
 
     public void Delete(string recorderRootPath)
     {
-        var path = Path.Combine(recorderRootPath, FileName);
-        if (File.Exists(path))
-        {
-            File.Delete(path);
-        }
+        _rootStore.DeleteFile(recorderRootPath, FileName);
     }
 
     private static string Sm3Hex(string text)

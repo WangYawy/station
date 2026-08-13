@@ -10,6 +10,7 @@ using Station.Domain.Entities;
 using Station.Domain.Enums;
 using Station.Infrastructure.Repositories;
 using Station.Platform.Domain.Entities;
+using Station.Platform.Api.Realtime;
 using Station.Infrastructure.Persistence;
 
 namespace Station.Platform.Api.Controllers;
@@ -26,6 +27,7 @@ public class PlatformAdminController : ControllerBase
     private readonly IAuditLogService _audit;
     private readonly AppAuthorization _authorization;
     private readonly IDataScopeProvider _dataScope;
+    private readonly IRealtimeEventBus _realtime;
 
     public PlatformAdminController(
         IRepository<PlatformAlertReport> alerts,
@@ -33,7 +35,8 @@ public class PlatformAdminController : ControllerBase
         IRepository<Dept> depts,
         IAuditLogService audit,
         AppAuthorization authorization,
-        IDataScopeProvider dataScope)
+        IDataScopeProvider dataScope,
+        IRealtimeEventBus realtime)
     {
         _alerts = alerts;
         _stations = stations;
@@ -41,6 +44,7 @@ public class PlatformAdminController : ControllerBase
         _audit = audit;
         _authorization = authorization;
         _dataScope = dataScope;
+        _realtime = realtime;
     }
 
     [HttpGet("alerts")]
@@ -116,6 +120,8 @@ public class PlatformAdminController : ControllerBase
         station.OperationalStatus = request.Status;
         await _stations.UpdateAsync(station);
         await WriteAuditAsync("station.status", station.StationCode, $"设置运行状态 {request.Status}");
+        await _realtime.PublishAsync(new StationRealtimeEvent(
+            RealtimeEventTypes.StationStatus, station.Id, station.DeptId, DateTime.Now));
         return Ok(ApiResponse<bool>.Ok(true));
     }
 

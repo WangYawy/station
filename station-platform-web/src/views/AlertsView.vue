@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
+import { onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { api, ApiError } from '../api/client'
 import type { AlertItem, PagedResult } from '../api/types'
 import { ALERT_LEVELS, ALERT_STATUS, ALERT_TYPES, fmtTime, levelTagType } from '../utils/format'
 import { downloadFile } from '../utils/export'
+import { onRealtimeEvent } from '../utils/realtime'
 import { useAuthStore } from '../stores/auth'
 
 const auth = useAuthStore()
@@ -60,7 +61,12 @@ async function doExport(format: string) {
   }
 }
 
-onMounted(loadAlerts)
+let offRealtime: (() => void) | null = null
+onMounted(() => {
+  loadAlerts()
+  offRealtime = onRealtimeEvent('alert.created', loadAlerts)
+})
+onBeforeUnmount(() => offRealtime?.())
 </script>
 
 <template>

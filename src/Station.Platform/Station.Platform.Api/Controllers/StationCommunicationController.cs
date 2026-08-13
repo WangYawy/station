@@ -11,6 +11,7 @@ using Station.Infrastructure.IdGenerators;
 using Station.Infrastructure.Repositories;
 using Station.Infrastructure.Security;
 using Station.Platform.Domain.Entities;
+using Station.Platform.Api.Realtime;
 
 namespace Station.Platform.Api.Controllers;
 
@@ -27,6 +28,7 @@ public class StationCommunicationController : ControllerBase
     private readonly IRepository<PlatformConfigChange> _configChanges;
     private readonly IConfiguration _configuration;
     private readonly IIdGenerator _idGenerator;
+    private readonly IRealtimeEventBus _realtime;
 
     public StationCommunicationController(
         IRepository<PlatformStation> stations,
@@ -36,7 +38,8 @@ public class StationCommunicationController : ControllerBase
         IRepository<PlatformCommand> commands,
         IRepository<PlatformConfigChange> configChanges,
         IIdGenerator idGenerator,
-        IConfiguration configuration)
+        IConfiguration configuration,
+        IRealtimeEventBus realtime)
     {
         _stations = stations;
         _files = files;
@@ -46,6 +49,7 @@ public class StationCommunicationController : ControllerBase
         _configChanges = configChanges;
         _idGenerator = idGenerator;
         _configuration = configuration;
+        _realtime = realtime;
     }
 
     [HttpPost("stations/register")]
@@ -57,6 +61,8 @@ public class StationCommunicationController : ControllerBase
         {
             existing.LastHeartbeatAt = DateTime.Now;
             await _stations.UpdateAsync(existing);
+            await _realtime.PublishAsync(new StationRealtimeEvent(
+                RealtimeEventTypes.StationRegistered, existing.Id, existing.DeptId, DateTime.Now));
             return Ok(ApiResponse<StationRegistrationResponse>.Ok(ToResponse(existing)));
         }
 
@@ -77,6 +83,8 @@ public class StationCommunicationController : ControllerBase
             RegisteredAt = DateTime.Now
         };
         await _stations.InsertAsync(station);
+        await _realtime.PublishAsync(new StationRealtimeEvent(
+            RealtimeEventTypes.StationRegistered, station.Id, station.DeptId, DateTime.Now));
         return Ok(ApiResponse<StationRegistrationResponse>.Ok(ToResponse(station)));
     }
 
@@ -136,6 +144,11 @@ public class StationCommunicationController : ControllerBase
         }
 
         await UpsertRecorderAsync(stationId, report, duplicate);
+        await _realtime.PublishAsync(new StationRealtimeEvent(
+            RealtimeEventTypes.FileReported,
+            stationId,
+            (await _stations.GetByIdAsync(stationId))?.DeptId,
+            DateTime.Now));
 
         return Ok(ApiResponse<ReportResult>.Ok(new ReportResult(true, duplicate)));
     }
@@ -202,6 +215,8 @@ public class StationCommunicationController : ControllerBase
             OccurredAt = report.OccurredAt,
             ReceivedAt = DateTime.Now
         });
+        await _realtime.PublishAsync(new StationRealtimeEvent(
+            RealtimeEventTypes.AlertCreated, stationId, (await _stations.GetByIdAsync(stationId))?.DeptId, DateTime.Now));
         return Ok(ApiResponse<bool>.Ok(true));
     }
 
@@ -228,6 +243,8 @@ public class StationCommunicationController : ControllerBase
         station.LicenseDaysLeft = report.DaysLeft;
         station.LastHeartbeatAt = DateTime.Now;
         await _stations.UpdateAsync(station);
+        await _realtime.PublishAsync(new StationRealtimeEvent(
+            RealtimeEventTypes.LicenseStatus, station.Id, station.DeptId, DateTime.Now));
         return Ok(ApiResponse<bool>.Ok(true));
     }
 
@@ -305,6 +322,8 @@ public class StationCommunicationController : ControllerBase
         command.ExecutedAt = result.FinishedAt ?? DateTime.Now;
         command.ResultMessage = result.Message;
         await _commands.UpdateAsync(command);
+        await _realtime.PublishAsync(new StationRealtimeEvent(
+            RealtimeEventTypes.CommandResult, stationId, (await _stations.GetByIdAsync(stationId))?.DeptId, DateTime.Now));
         return Ok(ApiResponse<bool>.Ok(true));
     }
 

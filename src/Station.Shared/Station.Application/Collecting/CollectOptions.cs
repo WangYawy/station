@@ -16,11 +16,14 @@ public sealed class CollectOptions
     /// <summary>模拟记录仪根目录（开发用；空则默认 CacheDirectory/sim-recorder）。</summary>
     public string? SimulatedSourceDirectory { get; set; }
 
-    /// <summary>采集源模式：simulated（开发默认）/ ums（真实U盘/记录仪，UMS 协议）。</summary>
+    /// <summary>采集源模式：simulated（开发默认）/ ums（U 盘模式）/ mtp（Windows MTP 设备，仅 Windows）。</summary>
     public string SourceMode { get; set; } = "simulated";
 
     /// <summary>UMS 根目录覆盖（开发/测试用；为空时自动枚举可移动磁盘）。</summary>
     public string? UmsRootOverride { get; set; }
+
+    /// <summary>MTP 设备过滤（友好名称或 PnP ID 包含该串；为空时取第一个 MTP 设备）。</summary>
+    public string? MtpDeviceFilter { get; set; }
 
     /// <summary>本地缓存文件 SM4 加密（需求：文件缓存使用 SM4 加密；默认开启）。</summary>
     public bool EncryptCache { get; set; } = true;

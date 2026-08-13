@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onBeforeUnmount, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Bell, Cpu, FolderOpened, Monitor, Odometer, Promotion, Setting, User } from '@element-plus/icons-vue'
 import { useAuthStore } from '../stores/auth'
+import { connectRealtime, disconnectRealtime } from '../utils/realtime'
 
 const route = useRoute()
 const router = useRouter()
@@ -21,6 +22,9 @@ const menus = [
 ]
 
 const visibleMenus = computed(() => menus.filter((m) => !m.perm || auth.hasPermission(m.perm)))
+
+onMounted(() => connectRealtime())
+onBeforeUnmount(() => disconnectRealtime())
 
 async function onLogout() {
   try {

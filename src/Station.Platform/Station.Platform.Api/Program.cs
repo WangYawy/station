@@ -9,6 +9,7 @@ using Station.Platform.Domain.Entities;
 using Station.Domain.Entities;
 using Station.Infrastructure.Persistence;
 using SqlSugar;
+using Station.Platform.Api.Realtime;
 
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
@@ -27,6 +28,8 @@ builder.Services.AddStationApplication(builder.Configuration);
 builder.Services.AddScoped<ISqlSugarClient>(sp =>
     sp.GetRequiredService<ISqlSugarFactory>().CreateClient(sp.GetRequiredService<DbOptions>()));
 builder.Services.AddScoped<IDatabaseBackupService, DatabaseBackupService>();
+builder.Services.AddSignalR();
+builder.Services.AddSingleton<IRealtimeEventBus, RealtimeEventBus>();
 builder.Services.AddHostedService<PlatformBackupWorker>();
 builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
     .AddCookie(options =>
@@ -48,6 +51,7 @@ app.UseRouting();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
+app.MapHub<StationHub>("/hubs/stations");
 
 using (var scope = app.Services.CreateScope())
 {

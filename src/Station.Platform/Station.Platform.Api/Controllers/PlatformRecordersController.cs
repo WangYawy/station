@@ -12,6 +12,7 @@ using Station.Infrastructure.IdGenerators;
 using Station.Infrastructure.Persistence;
 using Station.Infrastructure.Repositories;
 using Station.Platform.Domain.Entities;
+using Station.Platform.Api.Realtime;
 using AuthService = Station.Application.Authorization.IAuthorizationService;
 
 namespace Station.Platform.Api.Controllers;
@@ -33,6 +34,7 @@ public class PlatformRecordersController : ControllerBase
     private readonly AuthService _authorization;
     private readonly IDataScopeProvider _dataScope;
     private readonly IAuditLogService _audit;
+    private readonly IRealtimeEventBus _realtime;
 
     public PlatformRecordersController(
         IRepository<PlatformRecorder> recorders,
@@ -45,7 +47,8 @@ public class PlatformRecordersController : ControllerBase
         IConfiguration configuration,
         AuthService authorization,
         IDataScopeProvider dataScope,
-        IAuditLogService audit)
+        IAuditLogService audit,
+        IRealtimeEventBus realtime)
     {
         _recorders = recorders;
         _files = files;
@@ -58,6 +61,7 @@ public class PlatformRecordersController : ControllerBase
         _authorization = authorization;
         _dataScope = dataScope;
         _audit = audit;
+        _realtime = realtime;
     }
 
     [HttpGet]
@@ -181,6 +185,8 @@ public class PlatformRecordersController : ControllerBase
         await _recorders.UpdateAsync(recorder);
         await WriteAuditAsync("recorder.whitelist", recorder.RecorderSerial,
             $"{(request.IsWhitelisted ? "加入" : "移出")}白名单");
+        await _realtime.PublishAsync(new StationRealtimeEvent(
+            RealtimeEventTypes.RecorderWhitelist, recorder.LastStationId, recorder.DeptId, DateTime.Now));
         return Ok(ApiResponse<bool>.Ok(true));
     }
 

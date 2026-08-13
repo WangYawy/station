@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { api, ApiError, apiText } from '../api/client'
 import type { DeptItem, ImportResult, PagedResult, StationItem } from '../api/types'
 import { LICENSE_STATUS, fmtTime } from '../utils/format'
 import { downloadFile, downloadText } from '../utils/export'
+import { onRealtimeEvent } from '../utils/realtime'
 import { useAuthStore } from '../stores/auth'
 
 const auth = useAuthStore()
@@ -105,12 +106,17 @@ async function doExport(format: string) {
   }
 }
 
+let offRealtime: (() => void) | null = null
 onMounted(() => {
   if (auth.hasPermission('dept:view') || auth.hasPermission('station:manage')) {
     loadDepts()
   }
   loadStations()
+  const offs = ['station.registered', 'station.status', 'station.license'].map((t) =>
+    onRealtimeEvent(t, loadStations))
+  offRealtime = () => offs.forEach((off) => off())
 })
+onBeforeUnmount(() => offRealtime?.())
 </script>
 
 <template>
