@@ -56,6 +56,15 @@ public sealed class HttpPlatformClient : IPlatformClient
         return response.IsSuccessStatusCode;
     }
 
+    public async Task<bool> ReportLicenseStatusAsync(Station.Contracts.Reporting.LicenseStatusReport report, CancellationToken ct)
+    {
+        var response = await _http.PostAsJsonAsync(
+            $"{ApiRoutes.Base}/stations/{report.StationId}/license",
+            report, _json, ct);
+        response.EnsureSuccessStatusCode();
+        return response.IsSuccessStatusCode;
+    }
+
     public async Task<ConfigSyncResponse?> SyncConfigAsync(ConfigSyncRequest request, CancellationToken ct)
     {
         var response = await _http.PostAsJsonAsync(

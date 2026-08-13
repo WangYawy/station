@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Configuration;
 using Station.Contracts;
 using Station.Contracts.Alerts;
 using Station.Contracts.Api;
@@ -8,6 +9,7 @@ using Station.Contracts.Reporting;
 using Station.Contracts.Sync;
 using Station.Infrastructure.IdGenerators;
 using Station.Infrastructure.Repositories;
+using Station.Infrastructure.Security;
 using Station.Platform.Domain.Entities;
 
 namespace Station.Platform.Api.Controllers;
@@ -22,6 +24,7 @@ public class StationCommunicationController : ControllerBase
     private readonly IRepository<PlatformAlertReport> _alerts;
     private readonly IRepository<PlatformCommand> _commands;
     private readonly IRepository<PlatformConfigChange> _configChanges;
+    private readonly IConfiguration _configuration;
     private readonly IIdGenerator _idGenerator;
 
     public StationCommunicationController(
@@ -30,7 +33,8 @@ public class StationCommunicationController : ControllerBase
         IRepository<PlatformAlertReport> alerts,
         IRepository<PlatformCommand> commands,
         IRepository<PlatformConfigChange> configChanges,
-        IIdGenerator idGenerator)
+        IIdGenerator idGenerator,
+        IConfiguration configuration)
     {
         _stations = stations;
         _files = files;
@@ -38,6 +42,7 @@ public class StationCommunicationController : ControllerBase
         _commands = commands;
         _configChanges = configChanges;
         _idGenerator = idGenerator;
+        _configuration = configuration;
     }
 
     [HttpPost("stations/register")]
@@ -127,6 +132,13 @@ public class StationCommunicationController : ControllerBase
     [HttpPost("stations/{stationId:long}/alerts")]
     public async Task<ActionResult<ApiResponse<bool>>> ReportAlert(long stationId, AlertReport report)
     {
+        var publicKey = ReadReportingPublicKey();
+        if (!string.IsNullOrWhiteSpace(publicKey) &&
+            !Sm2LicenseSigner.Verify(publicKey, AlertReportSignature.Canonical(report), report.Signature ?? string.Empty))
+        {
+            return BadRequest(ApiResponse<bool>.Fail(400, "报警签名无效"));
+        }
+
         await _alerts.InsertAsync(new PlatformAlertReport
         {
             Id = _idGenerator.NextId(),
@@ -140,6 +152,44 @@ public class StationCommunicationController : ControllerBase
             ReceivedAt = DateTime.Now
         });
         return Ok(ApiResponse<bool>.Ok(true));
+    }
+
+    [HttpPost("stations/{stationId:long}/license")]
+    public async Task<ActionResult<ApiResponse<bool>>> ReportLicenseStatus(
+        long stationId,
+        Station.Contracts.Reporting.LicenseStatusReport report)
+    {
+        var publicKey = ReadReportingPublicKey();
+        if (!string.IsNullOrWhiteSpace(publicKey) &&
+            !Sm2LicenseSigner.Verify(publicKey, LicenseStatusReportSignature.Canonical(report), report.Signature ?? string.Empty))
+        {
+            return BadRequest(ApiResponse<bool>.Fail(400, "授权状态签名无效"));
+        }
+
+        var station = await _stations.GetByIdAsync(stationId);
+        if (station is null)
+        {
+            return NotFound(ApiResponse<bool>.Fail(404, "采集站未注册"));
+        }
+
+        station.LicenseStatus = report.LicenseStatus;
+        station.LicenseExpiresAt = report.ExpiresAt;
+        station.LicenseDaysLeft = report.DaysLeft;
+        await _stations.UpdateAsync(station);
+        return Ok(ApiResponse<bool>.Ok(true));
+    }
+
+    private string? ReadReportingPublicKey()
+    {
+        var publicKey = _configuration["Platform:Reporting:PublicKeyPem"];
+        if (string.IsNullOrWhiteSpace(publicKey) &&
+            _configuration["Platform:Reporting:PublicKeyPemFile"] is { } pemFile &&
+            System.IO.File.Exists(pemFile))
+        {
+            publicKey = System.IO.File.ReadAllText(pemFile).Trim();
+        }
+
+        return publicKey;
     }
 
     [HttpGet("stations/{stationId:long}/commands/poll")]

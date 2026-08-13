@@ -72,6 +72,8 @@ public static class DependencyInjection
         services.AddSingleton<IConfigSyncState, ConfigSyncState>();
         services.Configure<CommandVerifierOptions>(configuration.GetSection(CommandVerifierOptions.SectionName));
         services.AddScoped<ICommandSignatureVerifier, CommandSignatureVerifier>();
+        services.Configure<ReportingOptions>(configuration.GetSection(ReportingOptions.SectionName));
+        services.AddSingleton(configuration.GetSection(ReportingOptions.SectionName).Get<ReportingOptions>() ?? new ReportingOptions());
         services.AddScoped<ISyncOutboxService, SyncOutboxService>();
         services.AddScoped<ICommandExecutor, CommandExecutor>();
         services.AddScoped<ICommandService, CommandService>();

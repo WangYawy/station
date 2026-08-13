@@ -1,5 +1,8 @@
 using Station.Domain.Entities;
 using Station.Contracts;
+using Station.Contracts.Alerts;
+using Station.Application.PlatformSync;
+using Station.Infrastructure.Security;
 using Station.Infrastructure.IdGenerators;
 using Station.Infrastructure.Repositories;
 using SqlSugar;
@@ -10,11 +13,22 @@ public sealed class AlertService : IAlertService
 {
     private readonly IRepository<Alert> _alerts;
     private readonly IIdGenerator _idGenerator;
+    private readonly ISyncOutboxService _outbox;
+    private readonly ReportingOptions _reportingOptions;
+    private readonly IStationContext _stationContext;
 
-    public AlertService(IRepository<Alert> alerts, IIdGenerator idGenerator)
+    public AlertService(
+        IRepository<Alert> alerts,
+        IIdGenerator idGenerator,
+        ISyncOutboxService outbox,
+        ReportingOptions reportingOptions,
+        IStationContext stationContext)
     {
         _alerts = alerts;
         _idGenerator = idGenerator;
+        _outbox = outbox;
+        _reportingOptions = reportingOptions;
+        _stationContext = stationContext;
     }
 
     public async Task WriteAsync(Alert alert)
@@ -22,6 +36,33 @@ public sealed class AlertService : IAlertService
         alert.Id = _idGenerator.NextId();
         alert.CreatedAt = DateTime.Now;
         await _alerts.InsertAsync(alert);
+
+        // 报警自动上报平台（SM2 签名；平台未连接时进入 Outbox 断网补报）
+        if (_stationContext.StationId is { } stationId)
+        {
+            var report = new AlertReport
+            {
+                StationId = stationId,
+                LocalAlertId = alert.Id,
+                Type = alert.Type,
+                Level = alert.Level,
+                Source = alert.Source ?? string.Empty,
+                Message = alert.Detail ?? alert.Title,
+                OccurredAt = alert.CreatedAt,
+                Signature = null
+            };
+            if (!string.IsNullOrWhiteSpace(_reportingOptions.PrivateKeyPem))
+            {
+                report = report with
+                {
+                    Signature = Sm2LicenseSigner.Sign(
+                        _reportingOptions.PrivateKeyPem,
+                        AlertReportSignature.Canonical(report))
+                };
+            }
+
+            await _outbox.EnqueueAsync("alert", System.Text.Json.JsonSerializer.Serialize(report));
+        }
     }
 
     public async Task<IReadOnlyList<AlertDto>> GetAlertsAsync(

@@ -43,6 +43,11 @@ public sealed class PlatformStation
 
     public long ConfigVersion { get; set; }
 
+    [SugarColumn(IsNullable = true)]
+    public DateTime? LicenseExpiresAt { get; set; }
+
+    public int LicenseDaysLeft { get; set; }
+
     [SugarColumn(IsNullable = true, Length = 256)]
     public string? StationBaseUrl { get; set; }
 

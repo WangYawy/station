@@ -1,9 +1,13 @@
 using System.Runtime.InteropServices;
+using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
+using Station.Application.Licensing;
 using Station.Application.PlatformSync;
 using Station.Contracts.Registration;
+using Station.Contracts.Reporting;
+using Station.Infrastructure.Security;
 
 namespace Station.Desktop.Infrastructure;
 
@@ -82,6 +86,30 @@ public sealed class PlatformSyncWorkerHostedService : BackgroundService
 
         if (_stationContext.StationId is { } stationId)
         {
+            // 授权状态心跳上报（SM2 签名）
+            var license = scope.ServiceProvider.GetRequiredService<ILicenseService>();
+            var reporting = scope.ServiceProvider.GetRequiredService<ReportingOptions>();
+            var check = await license.CheckAsync();
+            var statusReport = new LicenseStatusReport
+            {
+                StationId = stationId,
+                LicenseStatus = check.Status,
+                ExpiresAt = check.ExpiresAt,
+                DaysLeft = check.DaysLeft
+            };
+            if (!string.IsNullOrWhiteSpace(reporting.PrivateKeyPem))
+            {
+                statusReport = statusReport with
+                {
+                    Signature = Sm2LicenseSigner.Sign(
+                        reporting.PrivateKeyPem,
+                        LicenseStatusReportSignature.Canonical(statusReport))
+                };
+            }
+
+            await scope.ServiceProvider.GetRequiredService<ISyncOutboxService>()
+                .EnqueueAsync("license-status", JsonSerializer.Serialize(statusReport));
+
             await outbox.DrainAsync();
 
             var configSync = await client.SyncConfigAsync(

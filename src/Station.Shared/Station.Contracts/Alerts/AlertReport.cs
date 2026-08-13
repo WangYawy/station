@@ -17,4 +17,14 @@ public sealed record AlertReport
     public required string Message { get; init; }
 
     public DateTime OccurredAt { get; init; }
+
+    /// <summary>站侧 SM2 签名（平台验签，防伪造上报）。</summary>
+    public string? Signature { get; init; }
+}
+
+/// <summary>报警上报签名规范化。</summary>
+public static class AlertReportSignature
+{
+    public static string Canonical(AlertReport report) =>
+        $"{report.StationId}|{report.LocalAlertId}|{(int)report.Type}|{(int)report.Level}|{report.Source}|{report.Message}|{report.OccurredAt.ToUniversalTime():yyyy-MM-ddTHH:mm:ss}";
 }

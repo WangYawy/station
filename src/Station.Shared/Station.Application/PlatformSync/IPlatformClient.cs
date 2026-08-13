@@ -15,6 +15,8 @@ public interface IPlatformClient
 
     Task<bool> ReportAlertAsync(AlertReport report, CancellationToken ct);
 
+    Task<bool> ReportLicenseStatusAsync(Station.Contracts.Reporting.LicenseStatusReport report, CancellationToken ct);
+
     Task<ConfigSyncResponse?> SyncConfigAsync(ConfigSyncRequest request, CancellationToken ct);
 
     Task<IReadOnlyList<RemoteCommand>> PollCommandsAsync(long stationId, CancellationToken ct);

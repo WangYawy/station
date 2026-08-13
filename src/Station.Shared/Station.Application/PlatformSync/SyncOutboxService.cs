@@ -106,6 +106,11 @@ public sealed class SyncOutboxService : ISyncOutboxService
                             ?? throw new InvalidOperationException("报警载荷无效");
                 await _client.ReportAlertAsync(alert, CancellationToken.None);
                 break;
+            case "license-status":
+                var license = JsonSerializer.Deserialize<Station.Contracts.Reporting.LicenseStatusReport>(item.PayloadJson, _json)
+                              ?? throw new InvalidOperationException("授权状态载荷无效");
+                await _client.ReportLicenseStatusAsync(license, CancellationToken.None);
+                break;
             case "command-result":
                 var envelope = JsonSerializer.Deserialize<CommandResultEnvelope>(item.PayloadJson, _json)
                                ?? throw new InvalidOperationException("回执载荷无效");
