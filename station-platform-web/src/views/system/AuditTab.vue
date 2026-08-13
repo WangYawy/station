@@ -3,7 +3,7 @@ import { onMounted, ref } from 'vue'
 import { api, ApiError } from '../../api/client'
 import type { AuditLogItem, PagedResult } from '../../api/types'
 import { fmtTime } from '../../utils/format'
-import { downloadCsv } from '../../utils/export'
+import { downloadFile } from '../../utils/export'
 
 const loading = ref(false)
 const items = ref<AuditLogItem[]>([])
@@ -35,13 +35,14 @@ function onPageChange(p: number) {
   loadLogs()
 }
 
-async function doExport() {
+async function doExport(format: string) {
   const params = new URLSearchParams()
   if (keyword.value) params.set('keyword', keyword.value)
   if (range.value?.[0]) params.set('from', range.value[0] + ' 00:00:00')
   if (range.value?.[1]) params.set('to', range.value[1] + ' 23:59:59')
+  params.set('format', format)
   try {
-    await downloadCsv(`/exports/audit-logs?${params.toString()}`)
+    await downloadFile(`/exports/audit-logs?${params.toString()}`)
   } catch (e) {
     ElMessage.error(e instanceof ApiError ? e.message : '导出失败')
   }
@@ -63,7 +64,16 @@ onMounted(loadLogs)
         <el-button type="primary" @click="page = 1; loadLogs()">查询</el-button>
       </el-form-item>
       <el-form-item>
-        <el-button @click="doExport()">导出</el-button>
+        <el-dropdown @command="doExport">
+          <el-button>导出</el-button>
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item command="csv">CSV</el-dropdown-item>
+              <el-dropdown-item command="xlsx">Excel(xlsx)</el-dropdown-item>
+              <el-dropdown-item command="pdf">PDF</el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
       </el-form-item>
     </el-form>
 

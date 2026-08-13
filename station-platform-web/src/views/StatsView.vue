@@ -7,7 +7,7 @@ import { CanvasRenderer } from 'echarts/renderers'
 import { api, ApiError } from '../api/client'
 import type { AlertStats, CountItem, OverviewStats, PagedResult, StationStat, TrendPoint } from '../api/types'
 import { ALERT_LEVELS, ALERT_STATUS, ALERT_TYPES, fmtSize, fmtTime } from '../utils/format'
-import { downloadCsv } from '../utils/export'
+import { downloadFile } from '../utils/export'
 
 echarts.use([BarChart, GridComponent, TooltipComponent, CanvasRenderer])
 
@@ -61,9 +61,10 @@ function onResize() {
   chart?.resize()
 }
 
-async function doExport(kind: 'trend' | 'stations') {
+async function doExport(kind: 'trend' | 'stations', format: string) {
   try {
-    await downloadCsv(kind === 'trend' ? '/exports/stats-trend?days=14' : '/exports/stats-stations')
+    const base = kind === 'trend' ? '/exports/stats-trend?days=14' : '/exports/stats-stations'
+    await downloadFile(`${base}&format=${format}`)
   } catch (e) {
     ElMessage.error(e instanceof ApiError ? e.message : '导出失败')
   }
@@ -126,7 +127,16 @@ onBeforeUnmount(() => {
     <el-card shadow="never" class="block">
       <template #header>
         <span>采集趋势（近 14 天）</span>
-        <el-button link type="primary" style="float: right" @click="doExport('trend')">导出趋势</el-button>
+        <el-dropdown style="float: right" @command="(f: string) => doExport('trend', f)">
+          <el-button link type="primary">导出趋势</el-button>
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item command="csv">CSV</el-dropdown-item>
+              <el-dropdown-item command="xlsx">Excel(xlsx)</el-dropdown-item>
+              <el-dropdown-item command="pdf">PDF</el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
       </template>
       <div ref="chartEl" style="height: 300px" />
     </el-card>
@@ -136,7 +146,16 @@ onBeforeUnmount(() => {
         <el-card shadow="never">
           <template #header>
             <span>采集排行</span>
-            <el-button link type="primary" style="float: right" @click="doExport('stations')">导出排行</el-button>
+            <el-dropdown style="float: right" @command="(f: string) => doExport('stations', f)">
+              <el-button link type="primary">导出排行</el-button>
+              <template #dropdown>
+                <el-dropdown-menu>
+                  <el-dropdown-item command="csv">CSV</el-dropdown-item>
+                  <el-dropdown-item command="xlsx">Excel(xlsx)</el-dropdown-item>
+                  <el-dropdown-item command="pdf">PDF</el-dropdown-item>
+                </el-dropdown-menu>
+              </template>
+            </el-dropdown>
           </template>
           <el-table :data="ranking" border stripe size="small">
             <el-table-column prop="stationCode" label="站" width="120" />

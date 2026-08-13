@@ -1,7 +1,7 @@
 import { ApiError } from '../api/client'
 
-/** 下载 CSV（UTF-8 BOM，Excel 可直接打开），文件名取自 Content-Disposition。 */
-export async function downloadCsv(path: string): Promise<void> {
+/** 下载导出文件（CSV/xlsx/PDF 由 URL 的 format 参数决定），文件名取自 Content-Disposition。 */
+export async function downloadFile(path: string): Promise<void> {
   const resp = await fetch('/api/v1' + path)
   if (resp.status === 401) {
     location.hash = '#/login'
@@ -20,6 +20,11 @@ export async function downloadCsv(path: string): Promise<void> {
   a.download = star ? decodeURIComponent(star[1]) : plain ? plain[1] : 'export.csv'
   a.click()
   URL.revokeObjectURL(url)
+}
+
+/** 兼容旧调用：下载 CSV（UTF-8 BOM，Excel 可直接打开）。 */
+export function downloadCsv(path: string): Promise<void> {
+  return downloadFile(path)
 }
 
 /** 下载本地生成的 CSV 文本（UTF-8 BOM）。 */

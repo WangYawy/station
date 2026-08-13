@@ -77,7 +77,8 @@ public class FilesController : ControllerBase
         [FromQuery] CollectFileStatus? status,
         [FromQuery] UploadStatus? syncStatus,
         [FromQuery] DateTime? from,
-        [FromQuery] DateTime? to)
+        [FromQuery] DateTime? to,
+        [FromQuery] string format = "csv")
     {
         if (!await RequirePermissionAsync(PermissionCodes.FileView))
         {
@@ -99,7 +100,7 @@ public class FilesController : ControllerBase
             .ToListAsync();
         var taskMap = (await _tasks.GetListAsync(t => taskIds.Contains(t.Id)))
             .ToDictionary(t => t.Id);
-        var csv = WebCsv.Build(
+        return ExportFile("文件台账", format,
             ["编号", "文件名", "类型", "大小(B)", "采集时间", "原始时间", "SM3", "采集状态", "上传状态", "记录仪", "存储位置"],
             rows.Select(f =>
             {
@@ -114,7 +115,19 @@ public class FilesController : ControllerBase
                     f.RemotePath ?? string.Empty
                 };
             }));
-        return File(csv, "text/csv; charset=utf-8", $"文件台账_{DateTime.Now:yyyyMMdd_HHmmss}.csv");
+    }
+
+    private FileContentResult ExportFile(string name, string format, string[] headers, IEnumerable<string[]> rows)
+    {
+        var normalized = format.ToLowerInvariant() is "xlsx" or "pdf" ? format.ToLowerInvariant() : "csv";
+        var bytes = Station.Application.Exporting.ExportDocumentBuilder.Build(normalized, name, headers, rows);
+        var contentType = normalized switch
+        {
+            "xlsx" => "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            "pdf" => "application/pdf",
+            _ => "text/csv; charset=utf-8"
+        };
+        return File(bytes, contentType, $"{name}_{DateTime.Now:yyyyMMdd_HHmmss}.{normalized}");
     }
 
     private async Task<List<FileView>> ToViewsAsync(List<CollectFile> files)

@@ -77,7 +77,8 @@ public class AuditLogsController : ControllerBase
         [FromQuery] string? keyword,
         [FromQuery] string? operationType,
         [FromQuery] DateTime? from,
-        [FromQuery] DateTime? to)
+        [FromQuery] DateTime? to,
+        [FromQuery] string format = "csv")
     {
         if (!await RequirePermissionAsync(PermissionCodes.AuditExport))
         {
@@ -97,7 +98,8 @@ public class AuditLogsController : ControllerBase
             .OrderBy(a => a.CreatedAt, SqlSugar.OrderByType.Desc)
             .Take(10000)
             .ToListAsync();
-        var csv = WebCsv.Build(
+        var normalized = format.ToLowerInvariant() is "xlsx" or "pdf" ? format.ToLowerInvariant() : "csv";
+        var bytes = Station.Application.Exporting.ExportDocumentBuilder.Build(normalized, "审计日志",
             ["时间", "操作人", "账号", "部门ID", "来源IP(脱敏)", "类型", "目标", "详情", "结果"],
             rows.Select(a => new[]
             {
@@ -107,7 +109,13 @@ public class AuditLogsController : ControllerBase
                 a.OperationType, a.Target ?? string.Empty, a.Detail ?? string.Empty,
                 a.Result == 1 ? "成功" : "失败"
             }));
-        return File(csv, "text/csv; charset=utf-8", $"审计日志_{DateTime.Now:yyyyMMdd_HHmmss}.csv");
+        var contentType = normalized switch
+        {
+            "xlsx" => "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            "pdf" => "application/pdf",
+            _ => "text/csv; charset=utf-8"
+        };
+        return File(bytes, contentType, $"审计日志_{DateTime.Now:yyyyMMdd_HHmmss}.{normalized}");
     }
 
     private async Task<bool> RequirePermissionAsync(string code)

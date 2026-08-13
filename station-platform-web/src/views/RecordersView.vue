@@ -7,7 +7,7 @@ import { CanvasRenderer } from 'echarts/renderers'
 import { api, ApiError, apiText } from '../api/client'
 import type { DeptItem, ImportResult, PagedResult, RecorderItem, RecorderTrail } from '../api/types'
 import { fmtSize, fmtTime } from '../utils/format'
-import { downloadCsv, downloadText } from '../utils/export'
+import { downloadFile, downloadText } from '../utils/export'
 import { useAuthStore } from '../stores/auth'
 
 echarts.use([BarChart, GridComponent, TooltipComponent, CanvasRenderer])
@@ -110,15 +110,16 @@ function onPageChange(p: number) {
   loadRecorders()
 }
 
-async function doExport() {
+async function doExport(format: string) {
   const params = new URLSearchParams()
   if (query.keyword) params.set('keyword', query.keyword)
   if (query.whitelisted !== '') params.set('whitelisted', query.whitelisted)
   if (query.bound === '1') params.set('bound', 'true')
   if (query.bound === '0') params.set('bound', 'false')
   if (query.warning === '1') params.set('warning', 'true')
+  params.set('format', format)
   try {
-    await downloadCsv(`/exports/recorders?${params.toString()}`)
+    await downloadFile(`/exports/recorders?${params.toString()}`)
   } catch (e) {
     ElMessage.error(e instanceof ApiError ? e.message : '导出失败')
   }
@@ -220,7 +221,16 @@ onMounted(() => {
         <el-button type="primary" @click="page = 1; loadRecorders()">查询</el-button>
       </el-form-item>
       <el-form-item>
-        <el-button @click="doExport()">导出</el-button>
+        <el-dropdown @command="doExport">
+          <el-button>导出</el-button>
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item command="csv">CSV</el-dropdown-item>
+              <el-dropdown-item command="xlsx">Excel(xlsx)</el-dropdown-item>
+              <el-dropdown-item command="pdf">PDF</el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
       </el-form-item>
       <el-form-item v-if="auth.hasPermission('recorder:manage')">
         <el-upload :auto-upload="false" :show-file-list="false" accept=".csv" :on-change="handleFile" style="display: inline-block">

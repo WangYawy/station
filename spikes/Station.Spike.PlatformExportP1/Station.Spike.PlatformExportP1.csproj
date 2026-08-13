@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>Station.Spike.PlatformExportP1</RootNamespace>
+    <AssemblyName>Station.Spike.PlatformExportP1</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Station.Shared\Station.Application\Station.Application.csproj" />
+    <ProjectReference Include="..\..\src\Station.Shared\Station.Infrastructure\Station.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\Station.Platform\Station.Platform.Domain\Station.Platform.Domain.csproj" />
+  </ItemGroup>
+
+</Project>

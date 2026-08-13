@@ -26,17 +26,18 @@ async function loadLogs() {
   }
 }
 
-async function doExport() {
+async function doExport(format: string) {
   try {
     const params = new URLSearchParams()
     if (keyword.value) params.set('keyword', keyword.value)
+    params.set('format', format)
     const resp = await fetch(`/api/v1/audit-logs/export?${params.toString()}`)
     if (!resp.ok) throw new ApiError(resp.status, '导出失败')
     const blob = await resp.blob()
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = '审计日志.csv'
+    a.download = `审计日志.${format}`
     a.click()
     URL.revokeObjectURL(url)
   } catch (e) {
@@ -57,7 +58,16 @@ onMounted(loadLogs)
         <el-button type="primary" @click="page = 1; loadLogs()">查询</el-button>
       </el-form-item>
       <el-form-item>
-        <el-button @click="doExport()">导出</el-button>
+        <el-dropdown @command="doExport">
+          <el-button>导出</el-button>
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item command="csv">CSV</el-dropdown-item>
+              <el-dropdown-item command="xlsx">Excel(xlsx)</el-dropdown-item>
+              <el-dropdown-item command="pdf">PDF</el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
       </el-form-item>
     </el-form>
 

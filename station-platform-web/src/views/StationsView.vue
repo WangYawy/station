@@ -3,7 +3,7 @@ import { computed, onMounted, ref } from 'vue'
 import { api, ApiError, apiText } from '../api/client'
 import type { DeptItem, ImportResult, PagedResult, StationItem } from '../api/types'
 import { LICENSE_STATUS, fmtTime } from '../utils/format'
-import { downloadCsv, downloadText } from '../utils/export'
+import { downloadFile, downloadText } from '../utils/export'
 import { useAuthStore } from '../stores/auth'
 
 const auth = useAuthStore()
@@ -97,9 +97,9 @@ async function handleFile(file: { raw?: File }) {
   }
 }
 
-async function doExport() {
+async function doExport(format: string) {
   try {
-    await downloadCsv('/exports/stations')
+    await downloadFile(`/exports/stations?format=${format}`)
   } catch (e) {
     ElMessage.error(e instanceof ApiError ? e.message : '导出失败')
   }
@@ -120,7 +120,16 @@ onMounted(() => {
         <el-button type="primary" @click="loadStations()">刷新</el-button>
       </el-form-item>
       <el-form-item>
-        <el-button @click="doExport()">导出</el-button>
+        <el-dropdown @command="doExport">
+          <el-button>导出</el-button>
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item command="csv">CSV</el-dropdown-item>
+              <el-dropdown-item command="xlsx">Excel(xlsx)</el-dropdown-item>
+              <el-dropdown-item command="pdf">PDF</el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
       </el-form-item>
       <el-form-item v-if="auth.hasPermission('station:manage')">
         <el-upload :auto-upload="false" :show-file-list="false" accept=".csv" :on-change="handleFile" style="display: inline-block">

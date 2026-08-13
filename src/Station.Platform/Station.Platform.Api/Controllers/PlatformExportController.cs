@@ -1,7 +1,7 @@
-using System.Text;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SqlSugar;
+using Station.Application.Exporting;
 using Station.Application.Authorization;
 using Station.Contracts;
 using Station.Contracts.Alerts;
@@ -59,7 +59,8 @@ public class PlatformExportController : ControllerBase
         [FromQuery] string? keyword,
         [FromQuery] int? kind,
         [FromQuery] DateTime? from,
-        [FromQuery] DateTime? to)
+        [FromQuery] DateTime? to,
+        [FromQuery] string format = "csv")
     {
         if (!await RequirePermissionAsync(PermissionCodes.FileView))
         {
@@ -83,7 +84,7 @@ public class PlatformExportController : ControllerBase
         var rows = await query.OrderBy(f => f.CollectedAt, SqlSugar.OrderByType.Desc)
             .Take(10000)
             .ToListAsync();
-        var csv = CsvBuilder.Build(
+        return ExportFile("文件台账", format,
             ["编号", "文件名", "类型", "大小(B)", "采集时间", "记录仪", "用户", "部门", "存储位置"],
             rows.Select(f => new[]
             {
@@ -91,7 +92,6 @@ public class PlatformExportController : ControllerBase
                 f.CollectedAt.ToString("yyyy-MM-dd HH:mm:ss"), f.RecorderSerial,
                 f.UserNo ?? string.Empty, f.DeptCode ?? string.Empty, f.StorageLocation ?? string.Empty
             }));
-        return CsvFile(csv, "文件台账");
     }
 
     [HttpGet("alerts")]
@@ -100,7 +100,8 @@ public class PlatformExportController : ControllerBase
         [FromQuery] int? level,
         [FromQuery] int? status,
         [FromQuery] DateTime? from,
-        [FromQuery] DateTime? to)
+        [FromQuery] DateTime? to,
+        [FromQuery] string format = "csv")
     {
         if (!await RequirePermissionAsync(PermissionCodes.AlertView))
         {
@@ -122,7 +123,7 @@ public class PlatformExportController : ControllerBase
         var rows = await query.OrderBy(a => a.OccurredAt, SqlSugar.OrderByType.Desc)
             .Take(10000)
             .ToListAsync();
-        var csv = CsvBuilder.Build(
+        return ExportFile("报警台账", format,
             ["ID", "采集站", "级别", "类型", "来源", "内容", "状态", "发生时间", "接收时间"],
             rows.Select(a => new[]
             {
@@ -130,11 +131,10 @@ public class PlatformExportController : ControllerBase
                 a.Source, a.Message, AlertStatusNames[(int)a.Status],
                 a.OccurredAt.ToString("yyyy-MM-dd HH:mm:ss"), a.ReceivedAt.ToString("yyyy-MM-dd HH:mm:ss")
             }));
-        return CsvFile(csv, "报警台账");
     }
 
     [HttpGet("stations")]
-    public async Task<IActionResult> ExportStations()
+    public async Task<IActionResult> ExportStations([FromQuery] string format = "csv")
     {
         if (!await RequirePermissionAsync(PermissionCodes.StationView))
         {
@@ -149,7 +149,7 @@ public class PlatformExportController : ControllerBase
         }
 
         var rows = await query.OrderBy(s => s.Id, SqlSugar.OrderByType.Asc).ToListAsync();
-        var csv = CsvBuilder.Build(
+        return ExportFile("采集站台账", format,
             ["站ID", "站编号", "系统", "架构", "版本", "授权状态", "到期时间", "剩余天数", "部门ID", "注册时间"],
             rows.Select(s => new[]
             {
@@ -159,14 +159,14 @@ public class PlatformExportController : ControllerBase
                 s.LicenseDaysLeft.ToString(), s.DeptId?.ToString() ?? string.Empty,
                 s.RegisteredAt.ToString("yyyy-MM-dd HH:mm:ss")
             }));
-        return CsvFile(csv, "采集站台账");
     }
 
     [HttpGet("recorders")]
     public async Task<IActionResult> ExportRecorders(
         [FromQuery] string? keyword,
         [FromQuery] bool? whitelisted,
-        [FromQuery] bool? bound)
+        [FromQuery] bool? bound,
+        [FromQuery] string format = "csv")
     {
         if (!await RequirePermissionAsync(PermissionCodes.RecorderView))
         {
@@ -196,7 +196,7 @@ public class PlatformExportController : ControllerBase
         }
 
         var rows = await query.OrderBy(r => r.LastSeenAt, SqlSugar.OrderByType.Desc).Take(10000).ToListAsync();
-        var csv = CsvBuilder.Build(
+        return ExportFile("记录仪台账", format,
             ["记录仪编号", "最近采集站", "文件数", "容量(B)", "最近采集时间", "首次上报", "末次上报", "绑定用户", "绑定部门", "白名单"],
             rows.Select(r => new[]
             {
@@ -207,14 +207,14 @@ public class PlatformExportController : ControllerBase
                 r.BoundDeptName ?? r.BoundDeptCode ?? string.Empty,
                 r.IsWhitelisted ? "是" : "否"
             }));
-        return CsvFile(csv, "记录仪台账");
     }
 
     [HttpGet("audit-logs")]
     public async Task<IActionResult> ExportAuditLogs(
         [FromQuery] string? keyword,
         [FromQuery] DateTime? from,
-        [FromQuery] DateTime? to)
+        [FromQuery] DateTime? to,
+        [FromQuery] string format = "csv")
     {
         if (!await RequirePermissionAsync(PermissionCodes.AuditExport))
         {
@@ -239,7 +239,7 @@ public class PlatformExportController : ControllerBase
         var rows = await query.OrderBy(a => a.CreatedAt, SqlSugar.OrderByType.Desc)
             .Take(10000)
             .ToListAsync();
-        var csv = CsvBuilder.Build(
+        return ExportFile("审计日志", format,
             ["时间", "操作人", "账号", "部门ID", "来源IP(脱敏)", "类型", "目标", "详情", "结果"],
             rows.Select(a => new[]
             {
@@ -249,11 +249,10 @@ public class PlatformExportController : ControllerBase
                 a.OperationType, a.Target ?? string.Empty, a.Detail ?? string.Empty,
                 a.Result == 1 ? "成功" : "失败"
             }));
-        return CsvFile(csv, "审计日志");
     }
 
     [HttpGet("stats-trend")]
-    public async Task<IActionResult> ExportStatsTrend([FromQuery] int days = 30)
+    public async Task<IActionResult> ExportStatsTrend([FromQuery] int days = 30, [FromQuery] string format = "csv")
     {
         if (!await RequirePermissionAsync(PermissionCodes.FileView))
         {
@@ -278,12 +277,11 @@ public class PlatformExportController : ControllerBase
             byDate.TryGetValue(date, out var agg);
             return new[] { date.ToString("yyyy-MM-dd"), agg.Count.ToString(), agg.Size.ToString() };
         });
-        var csv = CsvBuilder.Build(["日期", "文件数", "容量(B)"], points);
-        return CsvFile(csv, "采集趋势");
+        return ExportFile("采集趋势", format, ["日期", "文件数", "容量(B)"], points);
     }
 
     [HttpGet("stats-stations")]
-    public async Task<IActionResult> ExportStatsStations()
+    public async Task<IActionResult> ExportStatsStations([FromQuery] string format = "csv")
     {
         if (!await RequirePermissionAsync(PermissionCodes.FileView))
         {
@@ -312,7 +310,7 @@ public class PlatformExportController : ControllerBase
             .Select(a => a.StationId)
             .ToListAsync();
         var alertCounts = alertRows.GroupBy(a => a).ToDictionary(g => g.Key, g => g.LongCount());
-        var csv = CsvBuilder.Build(
+        return ExportFile("采集排行", format,
             ["站", "部门", "文件数", "容量(B)", "报警数", "在线"],
             stations.OrderByDescending(s => fileAgg.GetValueOrDefault(s.Id).Count)
                 .Select(s =>
@@ -328,7 +326,6 @@ public class PlatformExportController : ControllerBase
                         fa.Count.ToString(), fa.Size.ToString(), ac.ToString(), online ? "在线" : "离线"
                     };
                 }));
-        return CsvFile(csv, "采集排行");
     }
 
     private async Task<bool> RequirePermissionAsync(string code)
@@ -345,8 +342,18 @@ public class PlatformExportController : ControllerBase
     private Task<DataScopeResult> GetScopeAsync() =>
         DataScopeHelper.GetScopeAsync(User, _authorization, _dataScope);
 
-    private FileContentResult CsvFile(byte[] csv, string name) =>
-        File(csv, "text/csv; charset=utf-8", $"{name}_{DateTime.Now:yyyyMMdd_HHmmss}.csv");
+    private FileContentResult ExportFile(string name, string format, string[] headers, IEnumerable<string[]> rows)
+    {
+        var normalized = format.ToLowerInvariant() is "xlsx" or "pdf" ? format.ToLowerInvariant() : "csv";
+        var bytes = ExportDocumentBuilder.Build(normalized, name, headers, rows);
+        var contentType = normalized switch
+        {
+            "xlsx" => "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            "pdf" => "application/pdf",
+            _ => "text/csv; charset=utf-8"
+        };
+        return File(bytes, contentType, $"{name}_{DateTime.Now:yyyyMMdd_HHmmss}.{normalized}");
+    }
 
     private static string MaskIp(string? ip)
     {
@@ -369,33 +376,4 @@ public class PlatformExportController : ControllerBase
         "磁盘不足", "网络中断", "USB故障", "校验失败", "非授权接入", "绑定异常", "存储不可达", "授权到期"
     ];
     private static readonly string[] LicenseStatusNames = ["试用", "宽限", "已激活", "锁定"];
-}
-
-/// <summary>CSV 构建：UTF-8 BOM + RFC4180 转义。</summary>
-public static class CsvBuilder
-{
-    public static byte[] Build(string[] headers, IEnumerable<string[]> rows)
-    {
-        var sb = new StringBuilder();
-        sb.Append('\uFEFF');
-        sb.AppendLine(string.Join(",", headers.Select(Escape)));
-        foreach (var row in rows)
-        {
-            sb.AppendLine(string.Join(",", row.Select(Escape)));
-        }
-
-        return Encoding.UTF8.GetBytes(sb.ToString());
-    }
-
-    private static string Escape(string? value)
-    {
-        if (value is null)
-        {
-            return string.Empty;
-        }
-
-        return value.Contains(',') || value.Contains('"') || value.Contains('\n') || value.Contains('\r')
-            ? "\"" + value.Replace("\"", "\"\"") + "\""
-            : value;
-    }
 }

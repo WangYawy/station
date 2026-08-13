@@ -27,8 +27,9 @@ public sealed class SqlSugarFactory : ISqlSugarFactory
     public ISqlSugarClient CreateScope(DbOptions options)
     {
         var config = BuildConfig(options);
-        // SQLite 下保持连接常驻，避免异步查询中 auto-close 导致 "reader is closed"
-        config.IsAutoCloseConnection = false;
+        // SQLite 保持连接常驻，避免异步查询中 auto-close 导致 "reader is closed"；
+        // 服务端数据库（MySQL/PostgreSQL/Kingbase）使用 auto-close，避免连接池被常驻连接耗尽
+        config.IsAutoCloseConnection = options.Provider == DbProvider.Sqlite;
         return new SqlSugarScope(config);
     }
 

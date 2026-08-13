@@ -43,15 +43,15 @@ async function loadFiles() {
   }
 }
 
-async function doExport() {
+async function doExport(format: string) {
   try {
-    const resp = await fetch(`/api/v1/files/export?${buildParams(true)}`)
+    const resp = await fetch(`/api/v1/files/export?${buildParams(true)}&format=${format}`)
     if (!resp.ok) throw new ApiError(resp.status, '导出失败')
     const blob = await resp.blob()
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = '文件台账.csv'
+    a.download = `文件台账.${format}`
     a.click()
     URL.revokeObjectURL(url)
   } catch (e) {
@@ -95,7 +95,16 @@ onMounted(loadFiles)
         <el-button type="primary" @click="page = 1; loadFiles()">查询</el-button>
       </el-form-item>
       <el-form-item>
-        <el-button @click="doExport()">导出</el-button>
+        <el-dropdown @command="doExport">
+          <el-button>导出</el-button>
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item command="csv">CSV</el-dropdown-item>
+              <el-dropdown-item command="xlsx">Excel(xlsx)</el-dropdown-item>
+              <el-dropdown-item command="pdf">PDF</el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
       </el-form-item>
     </el-form>
 
