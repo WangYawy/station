@@ -6,6 +6,7 @@ using Station.Infrastructure;
 using Station.Platform.Domain.Entities;
 using Station.Domain.Entities;
 using Station.Infrastructure.Persistence;
+using Station.Infrastructure.Backup;
 
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
@@ -19,6 +20,7 @@ builder.Services.AddControllers(options =>
 builder.Services.AddHttpClient();
 builder.Services.AddStationDatabase(builder.Configuration);
 builder.Services.AddStationApplication(builder.Configuration);
+builder.Services.AddHostedService<PlatformBackupWorker>();
 builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
     .AddCookie(options =>
     {

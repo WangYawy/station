@@ -17,9 +17,13 @@ services:
       STATION__AUTH__DEFAULTADMINPASSWORD: "${ADMIN_PASSWORD:-Admin@123}"
       PLATFORM__COMMAND__PRIVATEKEYPEM: "${PLATFORM_COMMAND_PRIVATE_KEY:-}"
       PLATFORM__REPORTING__PUBLICKEYPEM: "${PLATFORM_REPORTING_PUBLIC_KEY:-}"
+      STATION__BACKUP__BACKUPDIRECTORY: /app/backups
+      STATION__BACKUP__RETENTIONCOUNT: "${BACKUP_RETENTION:-30}"
     depends_on:
       mysql:
         condition: service_healthy
+    volumes:
+      - backups:/app/backups
 
   mysql:
     image: mysql:8.0
@@ -39,3 +43,4 @@ services:
 
 volumes:
   mysql-data:
+  backups:

@@ -2,6 +2,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using SqlSugar;
+using Station.Infrastructure.Backup;
 using Station.Infrastructure.Db;
 using Station.Infrastructure.Licensing;
 using Station.Infrastructure.IdGenerators;
@@ -48,6 +49,10 @@ public static class DependencyInjection
         services.AddScoped<IUnitOfWork>(sp =>
             new UnitOfWork(sp.GetRequiredService<ISqlSugarFactory>().CreateClient(options)));
 
+        var backupSection = configuration.GetSection(BackupOptions.SectionName);
+        services.Configure<BackupOptions>(backupSection);
+        services.AddSingleton(backupSection.Get<BackupOptions>() ?? new BackupOptions());
+        services.AddSingleton<IDatabaseBackupService, DatabaseBackupService>();
         services.AddScoped(typeof(IRepository<>), typeof(RepositoryBase<>));
         return services;
     }

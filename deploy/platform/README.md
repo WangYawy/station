@@ -16,6 +16,7 @@ docker compose -f deploy/platform/docker-compose.yml --env-file deploy/platform/
 
 - 访问 `http://<主机>:5100`，默认账号 `admin / Admin@123`（首次启动自动建库建表、播种权限/角色/管理员）；
 - 数据持久化：命名卷 `mysql-data`；
+- 自动备份：平台库每日 03:00 自动逻辑备份（SQL，可还原）到命名卷 `backups`，保留份数 `BACKUP_RETENTION`（默认 30）；界面"系统管理"可手动备份/查看备份列表；
 - 备份：`docker compose -f deploy/platform/docker-compose.yml exec mysql sh -c 'mysqldump -ustation -p$MYSQL_PASSWORD station_platform' > backup.sql`。
 
 ## 二、PostgreSQL

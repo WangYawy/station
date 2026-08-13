@@ -14,6 +14,7 @@ public static class DependencyInjection
         services.AddHostedService<UploadWorkerHostedService>();
         services.AddHostedService<PlatformSyncWorkerHostedService>();
         services.AddHostedService<LedgerAndReportWorkerHostedService>();
+        services.AddHostedService<LocalBackupWorkerHostedService>();
         return services;
     }
 }

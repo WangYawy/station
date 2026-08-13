@@ -210,3 +210,10 @@ export interface ImportResult {
   failed: number
   errors: ImportErrorItem[]
 }
+
+export interface BackupFileItem {
+  fileName: string
+  fullPath: string
+  size: number
+  createdAt: string
+}

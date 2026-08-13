@@ -4,6 +4,7 @@ import DeptTab from './DeptTab.vue'
 import UsersTab from './UsersTab.vue'
 import RolesTab from './RolesTab.vue'
 import AuditTab from './AuditTab.vue'
+import BackupsTab from './BackupsTab.vue'
 
 const active = ref('depts')
 </script>
@@ -14,5 +15,6 @@ const active = ref('depts')
     <el-tab-pane label="用户管理" name="users"><UsersTab /></el-tab-pane>
     <el-tab-pane label="角色管理" name="roles"><RolesTab /></el-tab-pane>
     <el-tab-pane label="审计日志" name="audit"><AuditTab /></el-tab-pane>
+    <el-tab-pane label="数据备份" name="backups"><BackupsTab /></el-tab-pane>
   </el-tabs>
 </template>
