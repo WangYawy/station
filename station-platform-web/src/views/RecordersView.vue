@@ -1,10 +1,16 @@
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
+import { onBeforeUnmount, onMounted, reactive, ref } from 'vue'
+import * as echarts from 'echarts/core'
+import { BarChart } from 'echarts/charts'
+import { GridComponent, TooltipComponent } from 'echarts/components'
+import { CanvasRenderer } from 'echarts/renderers'
 import { api, ApiError } from '../api/client'
-import type { DeptItem, PagedResult, RecorderItem } from '../api/types'
+import type { DeptItem, PagedResult, RecorderItem, RecorderTrail } from '../api/types'
 import { fmtSize, fmtTime } from '../utils/format'
 import { downloadCsv } from '../utils/export'
 import { useAuthStore } from '../stores/auth'
+
+echarts.use([BarChart, GridComponent, TooltipComponent, CanvasRenderer])
 
 const auth = useAuthStore()
 const loading = ref(false)
@@ -13,11 +19,15 @@ const total = ref(0)
 const page = ref(1)
 const size = 20
 const depts = ref<DeptItem[]>([])
-const query = reactive({ keyword: '', whitelisted: '', bound: '' })
+const query = reactive({ keyword: '', whitelisted: '', bound: '', warning: '' })
 const bindVisible = ref(false)
 const bindRow = ref<RecorderItem | null>(null)
 const bindForm = reactive({ userNo: '', deptId: undefined as number | undefined })
 const bindResult = ref('')
+const trailVisible = ref(false)
+const trail = ref<RecorderTrail | null>(null)
+const trailChartEl = ref<HTMLDivElement | null>(null)
+let trailChart: echarts.ECharts | null = null
 
 async function loadDepts() {
   if (!auth.hasPermission('dept:view')) return
@@ -36,6 +46,7 @@ async function loadRecorders() {
     if (query.whitelisted !== '') params.set('whitelisted', query.whitelisted)
     if (query.bound === '1') params.set('bound', 'true')
     if (query.bound === '0') params.set('bound', 'false')
+    if (query.warning === '1') params.set('warning', 'true')
     const data = await api<PagedResult<RecorderItem>>(`/recorders?${params.toString()}`)
     items.value = data.items
     total.value = data.totalCount
@@ -98,12 +109,61 @@ async function doExport() {
   if (query.whitelisted !== '') params.set('whitelisted', query.whitelisted)
   if (query.bound === '1') params.set('bound', 'true')
   if (query.bound === '0') params.set('bound', 'false')
+  if (query.warning === '1') params.set('warning', 'true')
   try {
     await downloadCsv(`/exports/recorders?${params.toString()}`)
   } catch (e) {
     ElMessage.error(e instanceof ApiError ? e.message : '导出失败')
   }
 }
+
+const WARNING_LABELS: Record<string, { text: string; type: 'warning' | 'danger' }> = {
+  no_binding: { text: '未绑定', type: 'warning' },
+  not_whitelisted: { text: '非白名单', type: 'warning' },
+  idle: { text: '长期未使用', type: 'danger' }
+}
+
+async function openTrail(row: RecorderItem) {
+  try {
+    trail.value = await api<RecorderTrail>(`/recorders/${row.id}/trail?days=30`)
+    trailVisible.value = true
+    requestAnimationFrame(renderTrail)
+  } catch (e) {
+    ElMessage.error(e instanceof ApiError ? e.message : '加载失败')
+  }
+}
+
+function renderTrail() {
+  if (!trailChartEl.value || !trail.value) return
+  if (!trailChart) {
+    trailChart = echarts.init(trailChartEl.value)
+  }
+  trailChart.setOption({
+    tooltip: { trigger: 'axis' },
+    grid: { left: 48, right: 16, top: 24, bottom: 28 },
+    xAxis: { type: 'category', data: trail.value.byDay.map((p) => p.date.slice(5, 10)) },
+    yAxis: { type: 'value', minInterval: 1 },
+    series: [
+      {
+        name: '文件数',
+        type: 'bar',
+        barMaxWidth: 22,
+        data: trail.value.byDay.map((p) => p.fileCount),
+        itemStyle: { color: '#0a2f6c' }
+      }
+    ]
+  })
+}
+
+function onTrailClosed() {
+  trailChart?.dispose()
+  trailChart = null
+}
+
+onBeforeUnmount(() => {
+  trailChart?.dispose()
+  trailChart = null
+})
 
 onMounted(() => {
   loadDepts()
@@ -127,6 +187,11 @@ onMounted(() => {
         <el-select v-model="query.bound" placeholder="绑定状态" clearable style="width: 110px">
           <el-option label="已绑定" value="1" />
           <el-option label="未绑定" value="0" />
+        </el-select>
+      </el-form-item>
+      <el-form-item>
+        <el-select v-model="query.warning" placeholder="生命周期预警" clearable style="width: 130px">
+          <el-option label="有预警" value="1" />
         </el-select>
       </el-form-item>
       <el-form-item>
@@ -156,6 +221,13 @@ onMounted(() => {
       <el-table-column label="绑定部门" width="110">
         <template #default="{ row }">{{ (row as RecorderItem).boundDeptName || (row as RecorderItem).boundDeptCode || '' }}</template>
       </el-table-column>
+      <el-table-column label="生命周期预警" width="200">
+        <template #default="{ row }">
+          <template v-for="w in (row as RecorderItem).lifecycleWarnings" :key="w">
+            <el-tag :type="WARNING_LABELS[w]?.type ?? 'info'" size="small" style="margin-right: 4px">{{ WARNING_LABELS[w]?.text ?? w }}</el-tag>
+          </template>
+        </template>
+      </el-table-column>
       <el-table-column label="白名单" width="100">
         <template #default="{ row }">
           <el-switch
@@ -170,7 +242,13 @@ onMounted(() => {
       </el-table-column>
       <el-table-column v-if="auth.hasPermission('recorder:manage')" label="操作" width="90" fixed="right">
         <template #default="{ row }">
+          <el-button link type="primary" @click="openTrail(row as RecorderItem)">轨迹</el-button>
           <el-button link type="primary" @click="openBind(row as RecorderItem)">绑定</el-button>
+        </template>
+      </el-table-column>
+      <el-table-column v-else label="操作" width="90" fixed="right">
+        <template #default="{ row }">
+          <el-button link type="primary" @click="openTrail(row as RecorderItem)">轨迹</el-button>
         </template>
       </el-table-column>
     </el-table>
@@ -197,6 +275,24 @@ onMounted(() => {
         <el-button @click="bindVisible = false">关闭</el-button>
         <el-button type="primary" @click="saveBind()">保存并下发</el-button>
       </template>
+    </el-dialog>
+
+    <el-dialog v-model="trailVisible" :title="`使用轨迹：${trail?.recorderSerial ?? ''}`" width="760px" destroy-on-close @closed="onTrailClosed">
+      <div ref="trailChartEl" style="height: 260px" />
+      <h4>按采集站聚合</h4>
+      <el-table :data="trail?.byStation ?? []" border stripe size="small">
+        <el-table-column prop="stationCode" label="采集站" width="130" />
+        <el-table-column prop="fileCount" label="文件数" width="90" />
+        <el-table-column label="容量" width="110">
+          <template #default="{ row }">{{ fmtSize(row.totalSize) }}</template>
+        </el-table-column>
+        <el-table-column label="首次使用" min-width="150">
+          <template #default="{ row }">{{ fmtTime(row.firstSeenAt) }}</template>
+        </el-table-column>
+        <el-table-column label="最近使用" min-width="150">
+          <template #default="{ row }">{{ fmtTime(row.lastSeenAt) }}</template>
+        </el-table-column>
+      </el-table>
     </el-dialog>
   </div>
 </template>

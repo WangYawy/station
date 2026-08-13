@@ -23,6 +23,8 @@ namespace Station.Platform.Api.Controllers;
 public class PlatformRecordersController : ControllerBase
 {
     private readonly IRepository<PlatformRecorder> _recorders;
+    private readonly IRepository<PlatformFileMetadata> _files;
+    private readonly IRepository<PlatformStation> _stations;
     private readonly IRepository<PlatformCommand> _commands;
     private readonly IRepository<User> _users;
     private readonly IRepository<Dept> _depts;
@@ -34,6 +36,8 @@ public class PlatformRecordersController : ControllerBase
 
     public PlatformRecordersController(
         IRepository<PlatformRecorder> recorders,
+        IRepository<PlatformFileMetadata> files,
+        IRepository<PlatformStation> stations,
         IRepository<PlatformCommand> commands,
         IRepository<User> users,
         IRepository<Dept> depts,
@@ -44,6 +48,8 @@ public class PlatformRecordersController : ControllerBase
         IAuditLogService audit)
     {
         _recorders = recorders;
+        _files = files;
+        _stations = stations;
         _commands = commands;
         _users = users;
         _depts = depts;
@@ -59,6 +65,7 @@ public class PlatformRecordersController : ControllerBase
         [FromQuery] string? keyword,
         [FromQuery] bool? whitelisted,
         [FromQuery] bool? bound,
+        [FromQuery] bool? warning,
         [FromQuery] int page = 1,
         [FromQuery] int size = 20)
     {
@@ -84,6 +91,12 @@ public class PlatformRecordersController : ControllerBase
             query = query.Where(r => r.BoundUserNo != null);
         }
 
+        var idleCutoff = DateTime.Now.AddDays(-IdleDays);
+        if (warning == true)
+        {
+            query = query.Where(r => r.BoundUserNo == null || !r.IsWhitelisted || r.LastSeenAt < idleCutoff);
+        }
+
         if (!scope.IsAll)
         {
             query = query.Where(r => r.DeptId != null && scope.AllowedDeptIds.Contains(r.DeptId.Value));
@@ -92,9 +105,61 @@ public class PlatformRecordersController : ControllerBase
         var total = query.Count();
         var items = query.OrderBy(r => r.LastSeenAt, SqlSugar.OrderByType.Desc)
             .ToPageList(Math.Max(1, page), Math.Max(1, size))
-            .Select(ToView)
+            .Select(r => ToView(r, idleCutoff))
             .ToList();
         return Ok(ApiResponse<PagedResult<RecorderView>>.Ok(new PagedResult<RecorderView>(page, size, total, items)));
+    }
+
+    /// <summary>使用轨迹：近 N 天按日使用量 + 按采集站聚合（数据范围过滤）。</summary>
+    [HttpGet("{recorderId:long}/trail")]
+    public async Task<IActionResult> Trail(long recorderId, [FromQuery] int days = 30)
+    {
+        if (!await RequirePermissionAsync(PermissionCodes.RecorderView))
+        {
+            return StatusCode(403, new { message = "无记录仪查看权限" });
+        }
+
+        var recorder = await GetInScopeAsync(recorderId);
+        if (recorder is null)
+        {
+            return NotFound(new { message = "记录仪不存在" });
+        }
+
+        var scope = await GetScopeAsync();
+        days = Math.Clamp(days, 1, 365);
+        var start = DateTime.Today.AddDays(-(days - 1));
+        var query = _files.AsQueryable()
+            .Where(f => f.RecorderSerial == recorder.RecorderSerial && f.CollectedAt >= start);
+        if (!scope.IsAll)
+        {
+            query = query.Where(f => f.DeptId != null && scope.AllowedDeptIds.Contains(f.DeptId.Value));
+        }
+
+        var rows = await query.Select(f => new { f.StationId, f.CollectedAt, f.Size }).ToListAsync();
+        var byDay = rows.GroupBy(f => f.CollectedAt.Date)
+            .ToDictionary(g => g.Key, g => (Count: g.LongCount(), Size: g.Sum(x => x.Size)));
+        var dayPoints = Enumerable.Range(0, days).Select(i =>
+        {
+            var date = start.AddDays(i);
+            byDay.TryGetValue(date, out var agg);
+            return new RecorderTrailDayView(date, agg.Count, agg.Size);
+        }).ToList();
+
+        var stationIds = rows.Select(f => f.StationId).Distinct().ToList();
+        var stationMap = (await _stations.GetListAsync(s => stationIds.Contains(s.Id)))
+            .ToDictionary(s => s.Id, s => s.StationCode);
+        var byStation = rows.GroupBy(f => f.StationId)
+            .Select(g => new RecorderTrailStationView(
+                g.Key,
+                stationMap.TryGetValue(g.Key, out var code) ? code : string.Empty,
+                g.LongCount(),
+                g.Sum(x => x.Size),
+                g.Min(x => x.CollectedAt),
+                g.Max(x => x.CollectedAt)))
+            .OrderByDescending(x => x.FileCount)
+            .ToList();
+        return Ok(ApiResponse<RecorderTrailView>.Ok(
+            new RecorderTrailView(recorder.RecorderSerial, dayPoints, byStation)));
     }
 
     [HttpPut("{recorderId:long}/whitelist")]
@@ -252,11 +317,35 @@ public class PlatformRecordersController : ControllerBase
         });
     }
 
-    private static RecorderView ToView(PlatformRecorder r) => new(
+    private static RecorderView ToView(PlatformRecorder r, DateTime idleCutoff) => new(
         r.Id, r.RecorderSerial, r.LastStationId, r.DeptId, r.Protocol,
         r.FirstSeenAt, r.LastSeenAt, r.FileCount, r.TotalSize, r.LastFileAt,
         r.BoundUserNo, r.BoundUserName, r.BoundDeptCode, r.BoundDeptName, r.BoundAt,
-        r.IsWhitelisted, r.IsActive, r.UpdatedAt);
+        r.IsWhitelisted, r.IsActive, r.UpdatedAt, Warnings(r, idleCutoff));
+
+    private static List<string> Warnings(PlatformRecorder r, DateTime idleCutoff)
+    {
+        var warnings = new List<string>();
+        if (string.IsNullOrEmpty(r.BoundUserNo))
+        {
+            warnings.Add("no_binding");
+        }
+
+        if (!r.IsWhitelisted)
+        {
+            warnings.Add("not_whitelisted");
+        }
+
+        if (r.LastSeenAt < idleCutoff)
+        {
+            warnings.Add("idle");
+        }
+
+        return warnings;
+    }
+
+    /// <summary>生命周期预警阈值：记录仪 N 天未上报视为"长期未使用"。</summary>
+    private int IdleDays => _configuration.GetValue("Platform:RecorderIdleDays", 30);
 }
 
 public sealed record SetRecorderWhitelistRequest(bool IsWhitelisted);
@@ -283,4 +372,20 @@ public sealed record RecorderView(
     DateTime? BoundAt,
     bool IsWhitelisted,
     bool IsActive,
-    DateTime UpdatedAt);
+    DateTime UpdatedAt,
+    IReadOnlyList<string> LifecycleWarnings);
+
+public sealed record RecorderTrailDayView(DateTime Date, long FileCount, long Size);
+
+public sealed record RecorderTrailStationView(
+    long StationId,
+    string StationCode,
+    long FileCount,
+    long TotalSize,
+    DateTime FirstSeenAt,
+    DateTime LastSeenAt);
+
+public sealed record RecorderTrailView(
+    string RecorderSerial,
+    List<RecorderTrailDayView> ByDay,
+    List<RecorderTrailStationView> ByStation);

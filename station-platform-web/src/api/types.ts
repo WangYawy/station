@@ -183,4 +183,18 @@ export interface RecorderItem {
   isWhitelisted: boolean
   isActive: boolean
   updatedAt: string
+  lifecycleWarnings: string[]
+}
+
+export interface RecorderTrail {
+  recorderSerial: string
+  byDay: Array<{ date: string; fileCount: number; size: number }>
+  byStation: Array<{
+    stationId: number
+    stationCode: string
+    fileCount: number
+    totalSize: number
+    firstSeenAt: string
+    lastSeenAt: string
+  }>
 }
