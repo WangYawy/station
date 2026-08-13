@@ -13,6 +13,7 @@
         .tab { padding: 8px 18px; cursor: pointer; border: 1px solid #cbd5e1; background: #f8fafc; margin-right: 4px; }
         .tab.active { background: #0a2f6c; color: #fff; }
         .section { margin-top: 12px; }
+        .card { border: 1px solid #e2e8f0; border-radius: 6px; padding: 10px 16px; min-width: 130px; text-align: center; background: #f8fafc; }
     </style>
 </head>
 <body>
@@ -30,6 +31,7 @@
         <span class="tab" id="tab-alerts" onclick="switchTab('alerts')">报警管理</span>
         <span class="tab" id="tab-stations" onclick="switchTab('stations')">采集站授权</span>
         <span class="tab" id="tab-commands" onclick="switchTab('commands')">远程指令</span>
+        <span class="tab" id="tab-stats" onclick="switchTab('stats')">统计报表</span>
     </div>
 
     <!-- 文件列表 -->
@@ -66,6 +68,19 @@
         <button onclick="dispatch()">下发指令</button>
         <span id="cmdMsg"></span>
         <table id="cmdTable" style="margin-top:10px;"><thead><tr><th>指令ID</th><th>类型</th><th>状态</th><th>结果</th><th>下发时间</th></tr></thead><tbody></tbody></table>
+    </div>
+
+    <!-- 统计报表 -->
+    <div class="section" id="sec-stats" style="display:none;">
+        <div id="overviewCards" style="display:flex;gap:12px;flex-wrap:wrap;"></div>
+        <h4>采集趋势（近 14 天）</h4>
+        <table id="trendTable"><thead><tr><th>日期</th><th>文件数</th><th>容量</th><th>趋势</th></tr></thead><tbody></tbody></table>
+        <h4>采集排行</h4>
+        <table id="stationStatTable"><thead><tr><th>站</th><th>部门</th><th>文件数</th><th>容量</th><th>报警数</th><th>最后采集</th><th>在线</th></tr></thead><tbody></tbody></table>
+        <h4>报警统计</h4>
+        <table id="alertLevelTable" style="display:inline-table;margin-right:20px;"><thead><tr><th>级别</th><th>数量</th></tr></thead><tbody></tbody></table>
+        <table id="alertStatusTable" style="display:inline-table;margin-right:20px;"><thead><tr><th>状态</th><th>数量</th></tr></thead><tbody></tbody></table>
+        <table id="alertTypeTable" style="display:inline-table;"><thead><tr><th>类型</th><th>数量</th></tr></thead><tbody></tbody></table>
     </div>
 
     <script>
@@ -141,10 +156,11 @@
         function switchTab(name) {
             document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
             document.getElementById('tab-' + name).classList.add('active');
-            ['files', 'alerts', 'stations', 'commands'].forEach(s =>
+            ['files', 'alerts', 'stations', 'commands', 'stats'].forEach(s =>
                 document.getElementById('sec-' + s).style.display = s === name ? '' : 'none');
             if (name === 'alerts') loadAlerts(1);
             if (name === 'stations') loadStations();
+            if (name === 'stats') loadStats();
         }
 
         async function loadFiles(page) {
@@ -278,6 +294,63 @@
                     <td>${CMD_STATUS[c.status]}</td><td>${c.message||''}</td><td>${c.issuedAt||''}</td>`;
                 tbody.appendChild(tr);
             });
+        }
+
+        function fmtSize(bytes) {
+            if (!bytes) return '0 B';
+            const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+            let v = bytes, i = 0;
+            while (v >= 1024 && i < units.length - 1) { v /= 1024; i++; }
+            return v.toFixed(1) + ' ' + units[i];
+        }
+
+        async function loadStats() {
+            const resp = await fetch('/api/v1/stats/overview');
+            if (resp.status === 401) { document.getElementById('loginMsg').textContent = '请先登录'; return; }
+            if (!resp.ok) { document.getElementById('overviewCards').textContent = '无统计查看权限'; return; }
+            const o = (await resp.json()).data;
+            document.getElementById('overviewCards').innerHTML =
+                `<div class="card"><b>${o.stationCount}</b><br>采集站（在线 ${o.onlineCount} / 离线 ${o.offlineCount}）</div>
+                 <div class="card"><b>${o.fileCount}</b><br>文件总数</div>
+                 <div class="card"><b>${fmtSize(o.totalSize)}</b><br>存储总量</div>
+                 <div class="card"><b>${o.todayFileCount}</b><br>今日采集（${fmtSize(o.todaySize)}）</div>
+                 <div class="card"><b>${o.videoCount}</b><br>视频文件</div>
+                 <div class="card"><b>${o.pendingAlertCount}</b><br>待处理报警 / ${o.alertCount}</div>`;
+            loadTrend();
+            loadStationStats();
+            loadAlertStats();
+        }
+
+        async function loadTrend() {
+            const resp = await fetch('/api/v1/stats/collection-trend?days=14');
+            if (!resp.ok) return;
+            const points = (await resp.json()).data;
+            const max = Math.max(1, ...points.map(p => p.fileCount));
+            document.querySelector('#trendTable tbody').innerHTML = points.map(p =>
+                `<tr><td>${p.date.slice(0, 10)}</td><td>${p.fileCount}</td><td>${fmtSize(p.size)}</td>
+                 <td><div style="background:#0a2f6c;height:12px;width:${Math.round(p.fileCount / max * 100)}%;"></div></td></tr>`).join('');
+        }
+
+        async function loadStationStats() {
+            const resp = await fetch('/api/v1/stats/stations?page=1&size=50');
+            if (!resp.ok) return;
+            const data = (await resp.json()).data;
+            document.querySelector('#stationStatTable tbody').innerHTML = data.items.map(s =>
+                `<tr><td>${s.stationCode}</td><td>${s.deptName || ''}</td><td>${s.fileCount}</td>
+                 <td>${fmtSize(s.totalSize)}</td><td>${s.alertCount}</td><td>${s.lastCollectedAt || ''}</td>
+                 <td>${s.isOnline ? '在线' : '离线'}</td></tr>`).join('');
+        }
+
+        async function loadAlertStats() {
+            const resp = await fetch('/api/v1/stats/alerts');
+            if (!resp.ok) return;
+            const a = (await resp.json()).data;
+            document.querySelector('#alertLevelTable tbody').innerHTML =
+                a.byLevel.map(x => `<tr><td>${ALERT_LEVELS[Number(x.key)]}</td><td>${x.count}</td></tr>`).join('');
+            document.querySelector('#alertStatusTable tbody').innerHTML =
+                a.byStatus.map(x => `<tr><td>${ALERT_STATUS[Number(x.key)]}</td><td>${x.count}</td></tr>`).join('');
+            document.querySelector('#alertTypeTable tbody').innerHTML =
+                a.byType.map(x => `<tr><td>${ALERT_TYPES[Number(x.key)]}</td><td>${x.count}</td></tr>`).join('');
         }
 
         document.getElementById('fileSummary').textContent = '请先登录后查看';

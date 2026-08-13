@@ -52,6 +52,8 @@ public class StationCommunicationController : ControllerBase
         var existing = await _stations.FirstAsync(s => s.StationCode == request.StationCode);
         if (existing is not null)
         {
+            existing.LastHeartbeatAt = DateTime.Now;
+            await _stations.UpdateAsync(existing);
             return Ok(ApiResponse<StationRegistrationResponse>.Ok(ToResponse(existing)));
         }
 
@@ -68,6 +70,7 @@ public class StationCommunicationController : ControllerBase
             SoftwareVersion = request.SoftwareVersion,
             UsbPortCount = request.UsbPortCount,
             StationBaseUrl = request.StationBaseUrl,
+            LastHeartbeatAt = DateTime.Now,
             RegisteredAt = DateTime.Now
         };
         await _stations.InsertAsync(station);
@@ -79,6 +82,7 @@ public class StationCommunicationController : ControllerBase
         long stationId,
         ConfigSyncRequest request)
     {
+        await TouchHeartbeatAsync(stationId);
         var changes = (await _configChanges.GetListAsync(c => c.StationId == stationId)).ToList();
         var pending = changes
             .Where(c => !request.AppliedVersions.TryGetValue(c.EntityType, out var applied) || c.Version > applied)
@@ -98,6 +102,7 @@ public class StationCommunicationController : ControllerBase
         long stationId,
         FileMetadataReport report)
     {
+        await TouchHeartbeatAsync(stationId);
         if (report.StationId != stationId)
         {
             return BadRequest(ApiResponse<ReportResult>.Fail(400, "StationId 不一致"));
@@ -133,6 +138,7 @@ public class StationCommunicationController : ControllerBase
     [HttpPost("stations/{stationId:long}/alerts")]
     public async Task<ActionResult<ApiResponse<bool>>> ReportAlert(long stationId, AlertReport report)
     {
+        await TouchHeartbeatAsync(stationId);
         var publicKey = ReadReportingPublicKey();
         if (!string.IsNullOrWhiteSpace(publicKey) &&
             !Sm2LicenseSigner.Verify(publicKey, AlertReportSignature.Canonical(report), report.Signature ?? string.Empty))
@@ -177,6 +183,7 @@ public class StationCommunicationController : ControllerBase
         station.LicenseStatus = report.LicenseStatus;
         station.LicenseExpiresAt = report.ExpiresAt;
         station.LicenseDaysLeft = report.DaysLeft;
+        station.LastHeartbeatAt = DateTime.Now;
         await _stations.UpdateAsync(station);
         return Ok(ApiResponse<bool>.Ok(true));
     }
@@ -197,6 +204,7 @@ public class StationCommunicationController : ControllerBase
     [HttpGet("stations/{stationId:long}/commands/poll")]
     public async Task<ActionResult<ApiResponse<List<RemoteCommand>>>> PollCommands(long stationId)
     {
+        await TouchHeartbeatAsync(stationId);
         var pending = (await _commands.GetListAsync(c =>
                 c.StationId == stationId && c.Status == CommandStatus.Pending))
             .OrderBy(c => c.Id)
@@ -231,6 +239,7 @@ public class StationCommunicationController : ControllerBase
         long commandId,
         CommandExecutionResult result)
     {
+        await TouchHeartbeatAsync(stationId);
         var command = await _commands.FirstAsync(c => c.Id == commandId && c.StationId == stationId);
         if (command is null)
         {
@@ -252,4 +261,16 @@ public class StationCommunicationController : ControllerBase
         IsRegistered = station.IsRegistered,
         ConfigVersion = station.ConfigVersion
     };
+
+    private async Task TouchHeartbeatAsync(long stationId)
+    {
+        var station = await _stations.GetByIdAsync(stationId);
+        if (station is null)
+        {
+            return;
+        }
+
+        station.LastHeartbeatAt = DateTime.Now;
+        await _stations.UpdateAsync(station);
+    }
 }
