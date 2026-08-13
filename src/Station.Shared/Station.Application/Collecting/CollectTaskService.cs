@@ -36,7 +36,7 @@ public sealed class CollectTaskService : ICollectTaskService
         IRepository<CollectFile> files,
         IIdGenerator idGenerator,
         ICollectSource source,
-        IOptions<CollectOptions> options,
+        CollectOptions options,
         ICollectControl collectControl,
         ISqlSugarFactory sqlSugarFactory,
         DbOptions dbOptions)
@@ -45,7 +45,7 @@ public sealed class CollectTaskService : ICollectTaskService
         _files = files;
         _idGenerator = idGenerator;
         _source = source;
-        _options = options.Value;
+        _options = options;
         _collectControl = collectControl;
         _sqlSugarFactory = sqlSugarFactory;
         _dbOptions = dbOptions;

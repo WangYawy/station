@@ -37,7 +37,7 @@ public sealed class FileLedgerService : IFileLedgerService
         IStationContext stationContext,
         IIdGenerator idGenerator,
         IOptions<PlatformOptions> platformOptions,
-        IOptions<CollectOptions> collectOptions,
+        CollectOptions collectOptions,
         ISqlSugarFactory sqlSugarFactory,
         DbOptions dbOptions)
     {
@@ -48,7 +48,7 @@ public sealed class FileLedgerService : IFileLedgerService
         _stationContext = stationContext;
         _idGenerator = idGenerator;
         _platformOptions = platformOptions.Value;
-        _collectOptions = collectOptions.Value;
+        _collectOptions = collectOptions;
         _sqlSugarFactory = sqlSugarFactory;
         _dbOptions = dbOptions;
     }

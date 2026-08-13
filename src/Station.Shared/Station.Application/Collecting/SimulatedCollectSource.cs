@@ -20,9 +20,9 @@ public sealed class SimulatedCollectSource : ICollectSource
     private readonly CollectOptions _options;
     private readonly string _root;
 
-    public SimulatedCollectSource(IOptions<CollectOptions> options)
+    public SimulatedCollectSource(CollectOptions options)
     {
-        _options = options.Value;
+        _options = options;
         _root = _options.SimulatedSourceDirectory
                 ?? Path.Combine(_options.CacheDirectory, "sim-recorder");
     }

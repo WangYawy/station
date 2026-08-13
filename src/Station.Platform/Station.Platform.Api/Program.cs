@@ -27,7 +27,8 @@ using (var scope = app.Services.CreateScope())
         typeof(PlatformStation),
         typeof(PlatformFileMetadata),
         typeof(PlatformAlertReport),
-        typeof(PlatformCommand));
+        typeof(PlatformCommand),
+        typeof(PlatformConfigChange));
 }
 
 app.Run();

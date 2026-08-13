@@ -25,8 +25,8 @@ public sealed class UploadService : IUploadService
         IRepository<CollectTask> tasks,
         IRepository<CollectFile> files,
         IStorageTarget target,
-        IOptions<StorageOptions> options,
-        IOptions<CollectOptions> collectOptions,
+        StorageOptions options,
+        CollectOptions collectOptions,
         IStorageCircuitBreaker breaker,
         ISqlSugarFactory sqlSugarFactory,
         DbOptions dbOptions)
@@ -34,8 +34,8 @@ public sealed class UploadService : IUploadService
         _tasks = tasks;
         _files = files;
         _target = target;
-        _options = options.Value;
-        _collectOptions = collectOptions.Value;
+        _options = options;
+        _collectOptions = collectOptions;
         _breaker = breaker;
         _sqlSugarFactory = sqlSugarFactory;
         _dbOptions = dbOptions;

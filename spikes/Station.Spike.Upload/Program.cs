@@ -200,8 +200,8 @@ try
         sp.GetRequiredService<IRepository<CollectTask>>(),
         sp.GetRequiredService<IRepository<CollectFile>>(),
         flaky,
-        Options.Create(storageOptions),
-        Options.Create(sp.GetRequiredService<CollectOptions>()),
+        storageOptions,
+        sp.GetRequiredService<CollectOptions>(),
         breaker,
         factory,
         dbOptions);

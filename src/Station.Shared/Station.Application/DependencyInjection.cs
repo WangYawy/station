@@ -73,6 +73,7 @@ public static class DependencyInjection
         services.AddScoped<ICommandExecutor, CommandExecutor>();
         services.AddScoped<ICommandService, CommandService>();
         services.AddScoped<IFileLedgerService, FileLedgerService>();
+        services.AddScoped<IConfigApplyService, ConfigApplyService>();
 
         services.AddScoped<IAuditLogService, AuditLogService>();
         services.AddScoped<IAuthorizationService, AuthorizationService>();

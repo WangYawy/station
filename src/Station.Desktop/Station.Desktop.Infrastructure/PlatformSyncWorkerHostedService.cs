@@ -88,13 +88,15 @@ public sealed class PlatformSyncWorkerHostedService : BackgroundService
                 new Station.Contracts.Sync.ConfigSyncRequest
                 {
                     StationId = stationId,
-                    AppliedVersions = new Dictionary<string, long>()
+                    AppliedVersions = new Dictionary<string, long>(
+                        scope.ServiceProvider.GetRequiredService<IConfigSyncState>().AppliedVersions)
                 },
                 ct);
             if (configSync is not null)
             {
-                scope.ServiceProvider.GetRequiredService<IConfigSyncState>()
-                    .Record(configSync.Version, configSync.Changes.Count);
+                await scope.ServiceProvider.GetRequiredService<IConfigApplyService>()
+                    .ApplyAsync(configSync);
+                scope.ServiceProvider.GetRequiredService<IConfigSyncState>().MarkSynced();
             }
 
             if (DateTime.Now - _lastCommandPoll >= TimeSpan.FromSeconds(Math.Max(3, _options.CommandPollIntervalSeconds)))

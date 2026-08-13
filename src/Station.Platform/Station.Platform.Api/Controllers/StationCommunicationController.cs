@@ -21,6 +21,7 @@ public class StationCommunicationController : ControllerBase
     private readonly IRepository<PlatformFileMetadata> _files;
     private readonly IRepository<PlatformAlertReport> _alerts;
     private readonly IRepository<PlatformCommand> _commands;
+    private readonly IRepository<PlatformConfigChange> _configChanges;
     private readonly IIdGenerator _idGenerator;
 
     public StationCommunicationController(
@@ -28,12 +29,14 @@ public class StationCommunicationController : ControllerBase
         IRepository<PlatformFileMetadata> files,
         IRepository<PlatformAlertReport> alerts,
         IRepository<PlatformCommand> commands,
+        IRepository<PlatformConfigChange> configChanges,
         IIdGenerator idGenerator)
     {
         _stations = stations;
         _files = files;
         _alerts = alerts;
         _commands = commands;
+        _configChanges = configChanges;
         _idGenerator = idGenerator;
     }
 
@@ -67,8 +70,23 @@ public class StationCommunicationController : ControllerBase
     }
 
     [HttpPost("stations/{stationId:long}/config-sync")]
-    public ActionResult<ApiResponse<ConfigSyncResponse>> SyncConfig(long stationId, ConfigSyncRequest request) =>
-        Ok(ApiResponse<ConfigSyncResponse>.Ok(new ConfigSyncResponse { Version = 0, Changes = [] }));
+    public async Task<ActionResult<ApiResponse<ConfigSyncResponse>>> SyncConfig(
+        long stationId,
+        ConfigSyncRequest request)
+    {
+        var changes = (await _configChanges.GetListAsync(c => c.StationId == stationId)).ToList();
+        var pending = changes
+            .Where(c => !request.AppliedVersions.TryGetValue(c.EntityType, out var applied) || c.Version > applied)
+            .OrderBy(c => c.Version)
+            .Select(PlatformConfigsController.ToItem)
+            .ToList();
+        var version = changes.Count == 0 ? 0 : changes.Max(c => c.Version);
+        return Ok(ApiResponse<ConfigSyncResponse>.Ok(new ConfigSyncResponse
+        {
+            Version = version,
+            Changes = pending
+        }));
+    }
 
     [HttpPost("stations/{stationId:long}/files/metadata")]
     public async Task<ActionResult<ApiResponse<ReportResult>>> ReportMetadata(
