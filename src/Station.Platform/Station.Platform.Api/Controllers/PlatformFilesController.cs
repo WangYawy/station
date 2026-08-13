@@ -1,10 +1,16 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.Extensions.Configuration;
 using SqlSugar;
+using Station.Application.Audit;
 using Station.Contracts;
 using Station.Contracts.Api;
 using Station.Contracts.Reporting;
+using Station.Domain.Entities;
+using Station.Infrastructure.IdGenerators;
+using Station.Infrastructure.Persistence;
 using Station.Infrastructure.Repositories;
+using Station.Infrastructure.Security;
 using Station.Platform.Domain.Entities;
 using AuthService = Station.Application.Authorization.IAuthorizationService;
 using Station.Application.Authorization;
@@ -19,20 +25,32 @@ public class PlatformFilesController : ControllerBase
 {
     private readonly IRepository<PlatformFileMetadata> _files;
     private readonly IRepository<PlatformStation> _stations;
+    private readonly IRepository<PlatformFileCorrection> _corrections;
     private readonly IHttpClientFactory _httpFactory;
+    private readonly IConfiguration _configuration;
+    private readonly IAuditLogService _audit;
+    private readonly IIdGenerator _idGenerator;
     private readonly AuthService _authorization;
     private readonly IDataScopeProvider _dataScope;
 
     public PlatformFilesController(
         IRepository<PlatformFileMetadata> files,
         IRepository<PlatformStation> stations,
+        IRepository<PlatformFileCorrection> corrections,
         IHttpClientFactory httpFactory,
+        IConfiguration configuration,
+        IAuditLogService audit,
+        IIdGenerator idGenerator,
         AuthService authorization,
         IDataScopeProvider dataScope)
     {
         _files = files;
         _stations = stations;
+        _corrections = corrections;
         _httpFactory = httpFactory;
+        _configuration = configuration;
+        _audit = audit;
+        _idGenerator = idGenerator;
         _authorization = authorization;
         _dataScope = dataScope;
     }
@@ -142,4 +160,109 @@ public class PlatformFilesController : ControllerBase
 
     private static bool IsInScope(DataScopeResult scope, long? deptId) =>
         scope.IsAll || (deptId != null && scope.AllowedDeptIds.Contains(deptId.Value));
+
+    /// <summary>文件归属修正（file:manage）：更新归属并留痕（SM2 签名）。</summary>
+    [HttpPut("{fileNo}/ownership")]
+    public async Task<IActionResult> CorrectOwnership(string fileNo, [FromBody] CorrectOwnershipRequest request)
+    {
+        if (!await RequirePermissionAsync(PermissionCodes.FileManage))
+        {
+            return StatusCode(403, new { message = "无文件管理权限" });
+        }
+
+        var scope = await GetScopeAsync();
+        var file = await _files.FirstAsync(f => f.FileNo == fileNo);
+        if (file is null || !IsInScope(scope, file.DeptId))
+        {
+            return NotFound(new { message = "文件不存在" });
+        }
+
+        var correctedAt = DateTime.Now;
+        var canonical = $"{file.FileNo}|{file.UserNo}|{request.UserNo}|{file.DeptCode}|{request.DeptCode}|" +
+                        $"{User.Identity?.Name}|{correctedAt.ToUniversalTime():yyyy-MM-ddTHH:mm:ss}";
+        var privateKey = PlatformCommandKeys.ReadPrivateKey(_configuration);
+        var signature = string.IsNullOrWhiteSpace(privateKey)
+            ? "unsigned"
+            : Sm2LicenseSigner.Sign(privateKey, canonical);
+
+        await _corrections.InsertAsync(new PlatformFileCorrection
+        {
+            Id = _idGenerator.NextId(),
+            FileNo = file.FileNo,
+            StationId = file.StationId,
+            OldUserNo = file.UserNo,
+            NewUserNo = request.UserNo,
+            OldDeptCode = file.DeptCode,
+            NewDeptCode = request.DeptCode,
+            OperatorAccount = User.Identity?.Name,
+            CorrectedAt = correctedAt,
+            Signature = signature
+        });
+
+        file.UserNo = request.UserNo;
+        file.DeptCode = request.DeptCode;
+        await _files.UpdateAsync(file);
+        await _audit.WriteAsync(new AuditLog
+        {
+            OperatorAccount = User.Identity?.Name,
+            OperationType = "file.correct",
+            Target = file.FileNo,
+            Detail = $"归属修正：{request.UserNo ?? "无"}/{request.DeptCode ?? "无"}（签名 {signature[..Math.Min(16, signature.Length)]}…）",
+            SourceIp = HttpContext.Connection.RemoteIpAddress?.ToString(),
+            Result = 1
+        });
+        return Ok(ApiResponse<bool>.Ok(true));
+    }
+
+    /// <summary>文件归属修正记录（file:view）。</summary>
+    [HttpGet("{fileNo}/corrections")]
+    public async Task<IActionResult> Corrections(string fileNo)
+    {
+        if (!await RequirePermissionAsync(PermissionCodes.FileView))
+        {
+            return StatusCode(403, new { message = "无文件查看权限" });
+        }
+
+        var scope = await GetScopeAsync();
+        var file = await _files.FirstAsync(f => f.FileNo == fileNo);
+        if (file is null || !IsInScope(scope, file.DeptId))
+        {
+            return NotFound(new { message = "文件不存在" });
+        }
+
+        var list = (await _corrections.GetListAsync(c => c.FileNo == fileNo))
+            .OrderByDescending(c => c.CorrectedAt)
+            .Select(c => new FileCorrectionView(
+                c.Id, c.FileNo, c.OldUserNo, c.NewUserNo, c.OldDeptCode, c.NewDeptCode,
+                c.OperatorAccount, c.CorrectedAt, c.Signature))
+            .ToList();
+        return Ok(ApiResponse<List<FileCorrectionView>>.Ok(list));
+    }
+
+    private async Task<bool> RequirePermissionAsync(string code)
+    {
+        if (User.FindFirst("accountId") is not { } accountClaim ||
+            !long.TryParse(accountClaim.Value, out var accountId))
+        {
+            return false;
+        }
+
+        return await _authorization.HasPermissionAsync(accountId, code);
+    }
+
+    private Task<DataScopeResult> GetScopeAsync() =>
+        DataScopeHelper.GetScopeAsync(User, _authorization, _dataScope);
 }
+
+public sealed record CorrectOwnershipRequest(string? UserNo, string? DeptCode);
+
+public sealed record FileCorrectionView(
+    long Id,
+    string FileNo,
+    string? OldUserNo,
+    string? NewUserNo,
+    string? OldDeptCode,
+    string? NewDeptCode,
+    string? OperatorAccount,
+    DateTime CorrectedAt,
+    string Signature);

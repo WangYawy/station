@@ -17,6 +17,9 @@ const query = reactive({ keyword: '', kind: '', deptId: '' })
 const previewVisible = ref(false)
 const previewSrc = ref('')
 const previewName = ref('')
+const correctVisible = ref(false)
+const correctRow = ref<FileItem | null>(null)
+const correctForm = reactive({ userNo: '', deptCode: '' })
 
 async function loadDepts() {
   if (!auth.hasPermission('dept:view')) return
@@ -48,6 +51,28 @@ function openPreview(f: FileItem) {
   previewName.value = f.fileName
   previewSrc.value = `/api/v1/files/${f.fileNo}/preview`
   previewVisible.value = true
+}
+
+function openCorrect(row: FileItem) {
+  correctRow.value = row
+  correctForm.userNo = row.userNo ?? ''
+  correctForm.deptCode = row.deptCode ?? ''
+  correctVisible.value = true
+}
+
+async function saveCorrect() {
+  if (!correctRow.value) return
+  try {
+    await api<boolean>(`/files/${correctRow.value.fileNo}/ownership`, {
+      method: 'PUT',
+      body: JSON.stringify({ userNo: correctForm.userNo || null, deptCode: correctForm.deptCode || null })
+    })
+    ElMessage.success('归属已修正并签名留痕')
+    correctVisible.value = false
+    loadFiles()
+  } catch (e) {
+    ElMessage.error(e instanceof ApiError ? e.message : '修正失败')
+  }
 }
 
 function onPageChange(p: number) {
@@ -117,6 +142,11 @@ onMounted(() => {
           <el-button link type="primary" @click="openPreview(row as FileItem)">预览</el-button>
         </template>
       </el-table-column>
+      <el-table-column v-if="auth.hasPermission('file:manage')" label="归属" width="90" fixed="right">
+        <template #default="{ row }">
+          <el-button link type="warning" @click="openCorrect(row as FileItem)">修正</el-button>
+        </template>
+      </el-table-column>
     </el-table>
 
     <div class="pager">
@@ -126,6 +156,22 @@ onMounted(() => {
     <el-dialog v-model="previewVisible" :title="previewName" width="720px" destroy-on-close>
       <video :src="previewSrc" controls style="width: 100%; max-height: 380px" />
       <p style="font-size: 12px; color: #64748b">H.264 在线播放；H.265 请下载后播放（转码为 P2 规划）</p>
+    </el-dialog>
+
+    <el-dialog v-model="correctVisible" :title="`归属修正：${correctRow?.fileNo ?? ''}`" width="420px">
+      <el-form label-width="80px">
+        <el-form-item label="用户工号">
+          <el-input v-model="correctForm.userNo" placeholder="留空为未归属" />
+        </el-form-item>
+        <el-form-item label="部门编码">
+          <el-input v-model="correctForm.deptCode" placeholder="留空为未归属" />
+        </el-form-item>
+        <el-alert type="warning" :closable="false" title="修正将永久留痕，平台私钥 SM2 签名后不可抵赖" />
+      </el-form>
+      <template #footer>
+        <el-button @click="correctVisible = false">取消</el-button>
+        <el-button type="primary" @click="saveCorrect()">确认修正</el-button>
+      </template>
     </el-dialog>
   </div>
 </template>

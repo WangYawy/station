@@ -50,6 +50,7 @@ using (var scope = app.Services.CreateScope())
         typeof(PlatformFileMetadata),
         typeof(PlatformAlertReport),
         typeof(PlatformRecorder),
+        typeof(PlatformFileCorrection),
         typeof(PlatformCommand),
         typeof(PlatformConfigChange),
         typeof(Account), typeof(User), typeof(Dept), typeof(Role),
