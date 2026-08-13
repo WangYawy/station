@@ -70,6 +70,8 @@ public static class DependencyInjection
         services.AddSingleton<IStationContext, StationContext>();
         services.AddSingleton<ICollectControl, CollectControl>();
         services.AddSingleton<IConfigSyncState, ConfigSyncState>();
+        services.Configure<CommandVerifierOptions>(configuration.GetSection(CommandVerifierOptions.SectionName));
+        services.AddScoped<ICommandSignatureVerifier, CommandSignatureVerifier>();
         services.AddScoped<ISyncOutboxService, SyncOutboxService>();
         services.AddScoped<ICommandExecutor, CommandExecutor>();
         services.AddScoped<ICommandService, CommandService>();

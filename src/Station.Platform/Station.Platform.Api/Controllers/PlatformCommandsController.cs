@@ -1,9 +1,11 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Configuration;
 using Station.Contracts;
 using Station.Contracts.Api;
 using Station.Contracts.Commands;
 using Station.Infrastructure.IdGenerators;
 using Station.Infrastructure.Repositories;
+using Station.Infrastructure.Security;
 using Station.Platform.Domain.Entities;
 
 namespace Station.Platform.Api.Controllers;
@@ -15,13 +17,16 @@ public class PlatformCommandsController : ControllerBase
 {
     private readonly IRepository<PlatformCommand> _commands;
     private readonly IIdGenerator _idGenerator;
+    private readonly IConfiguration _configuration;
 
     public PlatformCommandsController(
         IRepository<PlatformCommand> commands,
-        IIdGenerator idGenerator)
+        IIdGenerator idGenerator,
+        IConfiguration configuration)
     {
         _commands = commands;
         _idGenerator = idGenerator;
+        _configuration = configuration;
     }
 
     /// <summary>下发指令（P0 六类）。</summary>
@@ -30,16 +35,35 @@ public class PlatformCommandsController : ControllerBase
         long stationId,
         DispatchCommandRequest request)
     {
+        var remote = new RemoteCommand
+        {
+            CommandId = _idGenerator.NextId(),
+            StationId = stationId,
+            Type = request.Type,
+            PayloadJson = request.PayloadJson,
+            IssuedAt = DateTime.Now,
+            TimeoutSeconds = request.TimeoutSeconds,
+            Signature = string.Empty
+        };
+        var privateKey = _configuration["Platform:Command:PrivateKeyPem"];
+        if (string.IsNullOrWhiteSpace(privateKey) &&
+            _configuration["Platform:Command:PrivateKeyPemFile"] is { } pemFile &&
+            System.IO.File.Exists(pemFile))
+        {
+            privateKey = System.IO.File.ReadAllText(pemFile).Trim();
+        }
         var command = new PlatformCommand
         {
-            Id = _idGenerator.NextId(),
+            Id = remote.CommandId,
             StationId = stationId,
             Type = request.Type,
             PayloadJson = request.PayloadJson,
             Status = CommandStatus.Pending,
-            IssuedAt = DateTime.Now,
+            IssuedAt = remote.IssuedAt,
             TimeoutSeconds = request.TimeoutSeconds,
-            Signature = $"sm2-{Guid.NewGuid():N}" // 正式签名 P2（SM2 签名与验签）
+            Signature = string.IsNullOrWhiteSpace(privateKey)
+                ? "unsigned"
+                : Sm2LicenseSigner.Sign(privateKey, RemoteCommandSignature.Canonical(remote))
         };
         await _commands.InsertAsync(command);
         return Ok(ApiResponse<CommandExecutionResult>.Ok(new CommandExecutionResult
