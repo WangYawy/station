@@ -58,7 +58,12 @@ public sealed class LicenseService : ILicenseService
             return (false, $"授权文件无效：{ex.Message}");
         }
 
-        if (!LicenseFileCodec.Verify(file, _options.SigningKey))
+        if (string.IsNullOrWhiteSpace(_options.PublicKeyPem))
+        {
+            return (false, "未配置授权公钥（无法验签）");
+        }
+
+        if (!LicenseFileCodec.Verify(file, _options.PublicKeyPem))
         {
             return (false, "授权文件签名无效");
         }

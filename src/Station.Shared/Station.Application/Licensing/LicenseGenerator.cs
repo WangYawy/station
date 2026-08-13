@@ -15,6 +15,11 @@ public sealed class LicenseGenerator
 
     public LicenseFile Generate(string stationCode, string fingerprint, DateTime expiresAt)
     {
+        if (string.IsNullOrWhiteSpace(_options.PrivateKeyPem))
+        {
+            throw new InvalidOperationException("未配置授权签名私钥（内部工具）");
+        }
+
         var file = new LicenseFile(
             $"LIC-{Guid.NewGuid():N}"[..20].ToUpperInvariant(),
             _options.ProductCode,
@@ -23,7 +28,7 @@ public sealed class LicenseGenerator
             DateTime.Now,
             expiresAt,
             string.Empty);
-        return file with { Signature = LicenseFileCodec.Sign(file, _options.SigningKey) };
+        return file with { Signature = LicenseFileCodec.Sign(file, _options.PrivateKeyPem) };
     }
 
     public string GenerateFileText(string stationCode, string fingerprint, DateTime expiresAt) =>

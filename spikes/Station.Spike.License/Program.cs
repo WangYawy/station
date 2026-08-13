@@ -12,6 +12,7 @@ using Station.Infrastructure;
 using Station.Infrastructure.Db;
 using Station.Infrastructure.Licensing;
 using Station.Infrastructure.Repositories;
+using Station.Infrastructure.Security;
 using ProtocolType = Station.Contracts.ProtocolType;
 
 // ---------------------------------------------------------------------------
@@ -41,6 +42,7 @@ var connStr = provider switch
 
 var testRoot = @"E:\Reny\station\archive\license-test";
 var simDir = Path.Combine(testRoot, "sim");
+var (licensePrivatePem, licensePublicPem) = Sm2LicenseSigner.CreateKeyPair();
 
 var results = new List<(string Step, bool Ok, string Detail)>();
 void Pass(string step, bool ok, string detail)
@@ -58,7 +60,8 @@ var config = new ConfigurationBuilder()
         ["Station:Collect:SimulatedSourceDirectory"] = simDir,
         ["Station:Collect:SimulatedFileCount"] = "5",
         ["Station:Collect:SimulatedChunkDelayMs"] = "500",
-        ["Station:License:SigningKey"] = "station-license-signing-key-v1",
+        ["Station:License:PublicKeyPem"] = licensePublicPem,
+        ["Station:License:PrivateKeyPem"] = licensePrivatePem,
         ["Station:License:TrialDays"] = "30",
         ["Station:License:ProductCode"] = "STATION-DESKTOP-1"
     })
@@ -77,6 +80,19 @@ var license = sp.GetRequiredService<ILicenseService>();
 var generator = sp.GetRequiredService<LicenseGenerator>();
 var collect = sp.GetRequiredService<ICollectTaskService>();
 
+// ---------- 0. SM2 签名/验签 ----------
+try
+{
+    var signature = Sm2LicenseSigner.Sign(licensePrivatePem, "payload");
+    var ok = Sm2LicenseSigner.Verify(licensePublicPem, "payload", signature);
+    var bad = !Sm2LicenseSigner.Verify(licensePublicPem, "tampered", signature);
+    Pass("SM2 签名/验签", ok && bad, $"验签={ok}, 篡改拒绝={bad}");
+}
+catch (Exception ex)
+{
+    Pass("SM2 签名/验签", false, ex.Message);
+}
+
 // ---------- 1. 机器指纹采集 ----------
 try
 {
@@ -94,7 +110,7 @@ try
 {
     var fp = fingerprint.CollectFingerprint();
     var file = generator.Generate("ST-TEST", fp, DateTime.Now.AddDays(30));
-    var verified = LicenseFileCodec.Verify(file, "station-license-signing-key-v1");
+    var verified = LicenseFileCodec.Verify(file, licensePublicPem);
     var (ok, message) = await license.ActivateAsync(LicenseFileCodec.Serialize(file));
     var check = await license.CheckAsync();
     Pass("生成+激活", verified && ok && check.Status == LicenseStatus.Activated && check.DaysLeft >= 29,

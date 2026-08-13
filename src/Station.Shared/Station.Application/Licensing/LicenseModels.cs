@@ -23,14 +23,11 @@ public static class LicenseFileCodec
     public static string Canonical(LicenseFile file) =>
         $"{file.LicenseKey}|{file.ProductCode}|{file.StationCode}|{file.Fingerprint}|{file.IssuedAt:O}|{file.ExpiresAt:O}";
 
-    public static string Sign(LicenseFile file, string signingKey) =>
-        Sm3Checksum.ComputeHmac(signingKey, Canonical(file));
+    public static string Sign(LicenseFile file, string privateKeyPem) =>
+        Sm2LicenseSigner.Sign(privateKeyPem, Canonical(file));
 
-    public static bool Verify(LicenseFile file, string signingKey) =>
-        string.Equals(
-            file.Signature,
-            Sign(file with { Signature = string.Empty }, signingKey),
-            StringComparison.OrdinalIgnoreCase);
+    public static bool Verify(LicenseFile file, string publicKeyPem) =>
+        Sm2LicenseSigner.Verify(publicKeyPem, Canonical(file), file.Signature);
 }
 
 /// <summary>授权检查结果。</summary>
