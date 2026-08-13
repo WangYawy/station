@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { Bell, FolderOpened, Monitor, Odometer, Promotion, User } from '@element-plus/icons-vue'
+import { Bell, FolderOpened, Monitor, Odometer, Promotion, Setting, User } from '@element-plus/icons-vue'
 import { useAuthStore } from '../stores/auth'
 
 const route = useRoute()
@@ -15,7 +15,8 @@ const menus = [
   { path: '/files', title: '文件检索', icon: FolderOpened },
   { path: '/alerts', title: '报警中心', icon: Bell },
   { path: '/stations', title: '采集站管理', icon: Monitor },
-  { path: '/commands', title: '远程指令', icon: Promotion }
+  { path: '/commands', title: '远程指令', icon: Promotion },
+  { path: '/system', title: '系统管理', icon: Setting }
 ]
 
 async function onLogout() {

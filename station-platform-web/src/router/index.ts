@@ -15,7 +15,8 @@ const router = createRouter({
         { path: 'files', component: () => import('../views/FilesView.vue'), meta: { title: '文件检索' } },
         { path: 'alerts', component: () => import('../views/AlertsView.vue'), meta: { title: '报警中心' } },
         { path: 'stations', component: () => import('../views/StationsView.vue'), meta: { title: '采集站管理' } },
-        { path: 'commands', component: () => import('../views/CommandsView.vue'), meta: { title: '远程指令' } }
+        { path: 'commands', component: () => import('../views/CommandsView.vue'), meta: { title: '远程指令' } },
+        { path: 'system', component: () => import('../views/system/SystemView.vue'), meta: { title: '系统管理' } }
       ]
     }
   ]

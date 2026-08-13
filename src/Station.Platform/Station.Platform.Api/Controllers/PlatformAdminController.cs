@@ -118,7 +118,13 @@ public class PlatformAdminController : ControllerBase
             return StatusCode(403, new { message = "无部门查看权限" });
         }
 
+        var scope = await GetScopeAsync();
         var depts = await _depts.GetListAsync(d => d.IsActive);
+        if (!scope.IsAll)
+        {
+            depts = depts.Where(d => scope.AllowedDeptIds.Contains(d.Id)).ToList();
+        }
+
         return Ok(ApiResponse<List<DeptView>>.Ok(depts
             .OrderBy(d => d.SortOrder)
             .Select(d => new DeptView(d.Id, d.Code, d.Name, d.ParentId, d.SortOrder))

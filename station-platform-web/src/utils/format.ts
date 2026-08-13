@@ -5,6 +5,7 @@ export const ALERT_TYPES = ['磁盘不足', '网络中断', 'USB故障', '校验
 export const LICENSE_STATUS = ['试用', '宽限', '已激活', '锁定']
 export const CMD_TYPES = ['重启服务', '清理缓存', '重拉配置', '执行自检', '停止采集', '启动采集']
 export const CMD_STATUS = ['待下发', '已拉取', '执行中', '成功', '失败', '超时']
+export const DATA_SCOPES = ['全部数据', '本部门及下级', '仅本部门', '仅本人']
 
 export function fmtSize(bytes: number): string {
   if (!bytes) return '0 B'

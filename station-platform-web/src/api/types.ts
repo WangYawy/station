@@ -122,3 +122,44 @@ export interface AlertStats {
   byStatus: CountItem[]
   byType: CountItem[]
 }
+
+export interface UserItem {
+  id: number
+  userNo: string
+  name: string
+  deptId: number
+  deptName: string | null
+  accountName: string | null
+  isActive: boolean
+  roles: string[]
+}
+
+export interface RoleItem {
+  id: number
+  code: string
+  name: string
+  dataScope: number
+  isSystem: boolean
+  isActive: boolean
+  permissions: string[]
+}
+
+export interface PermissionItem {
+  id: number
+  code: string
+  name: string
+  module: string
+}
+
+export interface AuditLogItem {
+  id: number
+  operatorAccount: string | null
+  operatorName: string | null
+  deptId: number | null
+  sourceIp: string | null
+  operationType: string
+  target: string | null
+  detail: string | null
+  result: number
+  createdAt: string
+}
