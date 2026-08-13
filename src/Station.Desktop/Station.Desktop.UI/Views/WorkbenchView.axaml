@@ -3,7 +3,7 @@
              xmlns:vm="using:Station.Desktop.UI.ViewModels"
              x:Class="Station.Desktop.UI.Views.WorkbenchView"
              x:DataType="vm:WorkbenchViewModel">
-  <Grid RowDefinitions="Auto,*,Auto" Margin="16" RowSpacing="14">
+  <Grid RowDefinitions="Auto,*,Auto,Auto" Margin="16" RowSpacing="14">
     <!-- 统计卡片 -->
     <Grid Grid.Row="0" ColumnDefinitions="*,*,*,*" ColumnSpacing="14">
       <Border Background="White" CornerRadius="12" Padding="16"
@@ -95,5 +95,45 @@
         </DockPanel>
       </Border>
     </Grid>
+
+    <!-- 状态监控 -->
+    <Border Grid.Row="2" Background="White" CornerRadius="12" Padding="16"
+            BoxShadow="0 2 8 0 #14000000">
+      <StackPanel Spacing="8">
+        <TextBlock Text="状态监控" FontSize="16" FontWeight="Bold" Foreground="#0a2f6c" />
+        <WrapPanel>
+          <Border Background="#f1f5f9" CornerRadius="8" Padding="12,6" Margin="0,0,10,8">
+            <TextBlock>
+              <Run Text="CPU：" /><Run Text="{Binding MonitorLines[0].Value}" Foreground="#0a2f6c" FontWeight="SemiBold" />
+            </TextBlock>
+          </Border>
+          <Border Background="#f1f5f9" CornerRadius="8" Padding="12,6" Margin="0,0,10,8">
+            <TextBlock>
+              <Run Text="内存：" /><Run Text="{Binding MonitorLines[1].Value}" Foreground="#0a2f6c" FontWeight="SemiBold" />
+            </TextBlock>
+          </Border>
+          <Border Background="#f1f5f9" CornerRadius="8" Padding="12,6" Margin="0,0,10,8">
+            <TextBlock>
+              <Run Text="磁盘：" /><Run Text="{Binding MonitorLines[2].Value}" Foreground="#0a2f6c" FontWeight="SemiBold" />
+            </TextBlock>
+          </Border>
+          <Border Background="#f1f5f9" CornerRadius="8" Padding="12,6" Margin="0,0,10,8">
+            <TextBlock>
+              <Run Text="网络：" /><Run Text="{Binding MonitorLines[3].Value}" Foreground="#0a2f6c" FontWeight="SemiBold" />
+            </TextBlock>
+          </Border>
+          <Border Background="#f1f5f9" CornerRadius="8" Padding="12,6" Margin="0,0,10,8">
+            <TextBlock>
+              <Run Text="监听端口：" /><Run Text="{Binding MonitorLines[4].Value}" Foreground="#0a2f6c" FontWeight="SemiBold" />
+            </TextBlock>
+          </Border>
+          <Border Background="#f1f5f9" CornerRadius="8" Padding="12,6" Margin="0,0,10,8">
+            <TextBlock>
+              <Run Text="设备：" /><Run Text="{Binding MonitorLines[5].Value}" Foreground="#0a2f6c" FontWeight="SemiBold" />
+            </TextBlock>
+          </Border>
+        </WrapPanel>
+      </StackPanel>
+    </Border>
   </Grid>
 </UserControl>

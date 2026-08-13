@@ -5,6 +5,7 @@ using CommunityToolkit.Mvvm.Input;
 using Station.Application.Authentication;
 using Station.Application.Collecting;
 using Station.Application.Uploading;
+using Station.Desktop.Application.Monitoring;
 using Station.Desktop.Application.Session;
 using Station.Domain.Enums;
 
@@ -20,7 +21,9 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
     private readonly IAuthenticationService _authentication;
     private readonly ICollectTaskService _collectService;
     private readonly IUploadService _uploadService;
+    private readonly SystemMonitorService _monitor;
     private readonly DispatcherTimer _timer;
+    private int _monitorTicks;
 
     [ObservableProperty]
     private string _onlineText = "28 / 30";
@@ -43,19 +46,43 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
 
     public ObservableCollection<QueueItem> ActiveQueue { get; } = [];
 
+    public ObservableCollection<MonitorLine> MonitorLines { get; } = [];
+
     public WorkbenchViewModel(
         ISessionManager sessions,
         IAuthenticationService authentication,
         ICollectTaskService collectService,
-        IUploadService uploadService)
+        IUploadService uploadService,
+        CollectOptions collectOptions)
     {
         _sessions = sessions;
         _authentication = authentication;
         _collectService = collectService;
         _uploadService = uploadService;
+        _monitor = new SystemMonitorService(collectOptions);
         _timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
-        _timer.Tick += async (_, _) => await RefreshQueueAsync();
+        _timer.Tick += async (_, _) =>
+        {
+            if (++_monitorTicks % 2 == 0)
+            {
+                RefreshMonitor();
+            }
+
+            await RefreshQueueAsync();
+        };
         _timer.Start();
+    }
+
+    private void RefreshMonitor()
+    {
+        var lines = _monitor.Snapshot();
+        MonitorLines.Clear();
+        foreach (var line in lines)
+        {
+            MonitorLines.Add(line);
+        }
+
+        SystemText = string.Join(" · ", lines.Take(3).Select(l => $"{l.Label} {l.Value}"));
     }
 
     private async Task RefreshQueueAsync()

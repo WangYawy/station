@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>Station.Spike.SystemMonitor</RootNamespace>
+    <AssemblyName>Station.Spike.SystemMonitor</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Station.Desktop\Station.Desktop.Application\Station.Desktop.Application.csproj" />
+  </ItemGroup>
+
+</Project>

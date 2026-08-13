@@ -1,5 +1,9 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
+  <ItemGroup>
+    <PackageReference Include="System.Diagnostics.PerformanceCounter" Version="8.0.0" />
+  </ItemGroup>
+
   <PropertyGroup>
     <RootNamespace>Station.Desktop.Application</RootNamespace>
   </PropertyGroup>

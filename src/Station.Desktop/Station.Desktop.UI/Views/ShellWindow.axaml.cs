@@ -9,6 +9,7 @@ using Station.Application.Collecting;
 using Station.Application.Licensing;
 using Station.Application.Recorders;
 using Station.Application.Uploading;
+using Station.Contracts;
 using Station.Desktop.Application.OperationAccess;
 using Station.Desktop.Application.Session;
 using Station.Desktop.UI.Services;
@@ -36,6 +37,7 @@ public partial class ShellWindow : Window
     private readonly DispatcherTimer _clockTimer;
     private readonly DispatcherTimer _alertTimer;
     private int _clockTicks;
+    private long? _lastAlertId;
     private readonly Dictionary<string, Button> _navButtons;
     private IDisposable? _currentViewModel;
 
@@ -145,7 +147,8 @@ public partial class ShellWindow : Window
                 _sessions,
                 services.GetRequiredService<IAuthenticationService>(),
                 services.GetRequiredService<ICollectTaskService>(),
-                services.GetRequiredService<IUploadService>());
+                services.GetRequiredService<IUploadService>(),
+                services.GetRequiredService<CollectOptions>());
             ModuleContent.Content = new WorkbenchView { DataContext = viewModel };
             _currentViewModel = viewModel;
             return;
@@ -226,12 +229,57 @@ public partial class ShellWindow : Window
             var pending = await _alertService.CountPendingAsync();
             AlertBanner.IsVisible = pending > 0;
             AlertBannerText.Text = pending > 0 ? $"⚠ 有 {pending} 条待处理报警（点击查看）" : string.Empty;
+            var latest = (await _alertService.GetAlertsAsync(null, AlertStatus.Pending, 5))
+                .OrderByDescending(a => a.Id)
+                .FirstOrDefault();
+            if (latest is not null)
+            {
+                if (_lastAlertId is null)
+                {
+                    _lastAlertId = latest.Id;
+                }
+                else if (latest.Id > _lastAlertId)
+                {
+                    _lastAlertId = latest.Id;
+                    Services.DesktopAlertSound.Play();
+                    ShowAlertPopup(latest);
+                }
+            }
         }
         catch
         {
             // 忽略轮询异常
         }
     }
+
+    private void ShowAlertPopup(AlertDto alert)
+    {
+        var popup = new AlertPopupWindow(
+            $"{AlertTypeName(alert.Type)} · {LevelName(alert.Level)}",
+            alert.Title,
+            this);
+        popup.Show();
+    }
+
+    private static string AlertTypeName(AlertType type) => type switch
+    {
+        AlertType.DiskLow => "磁盘不足",
+        AlertType.NetworkDown => "网络中断",
+        AlertType.UsbFault => "USB故障",
+        AlertType.ChecksumFailed => "校验失败",
+        AlertType.UnauthorizedAccess => "非授权接入",
+        AlertType.BindingInvalid => "绑定异常",
+        AlertType.StorageUnreachable => "存储不可达",
+        AlertType.LicenseExpired => "授权到期",
+        _ => "报警"
+    };
+
+    private static string LevelName(AlertLevel level) => level switch
+    {
+        AlertLevel.Warning => "警告",
+        AlertLevel.Critical => "严重",
+        _ => "提示"
+    };
 
     private async void OnAlertBannerTapped(object? sender, TappedEventArgs e)
     {

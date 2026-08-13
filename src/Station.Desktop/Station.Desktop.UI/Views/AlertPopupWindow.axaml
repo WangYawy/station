@@ -1,0 +1,17 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="Station.Desktop.UI.Views.AlertPopupWindow"
+        Width="380" Height="112"
+        WindowStartupLocation="Manual"
+        ShowInTaskbar="False"
+        Topmost="True"
+        SystemDecorations="None"
+        Background="Transparent">
+  <Border Background="#0a2f6c" CornerRadius="10" Padding="14"
+          BoxShadow="0 4 16 0 #40000000">
+    <StackPanel Spacing="6">
+      <TextBlock x:Name="TitleText" Text="新报警" Foreground="#fca5a5" FontWeight="Bold" FontSize="14" />
+      <TextBlock x:Name="DetailText" Foreground="White" FontSize="12" TextWrapping="Wrap" MaxHeight="52" />
+    </StackPanel>
+  </Border>
+</Window>
