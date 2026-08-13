@@ -1,10 +1,16 @@
 using System.Text.Json;
+using SqlSugar;
 using Station.Application.Alerts;
 using Station.Application.Audit;
 using Station.Application.Collecting;
 using Station.Contracts;
 using Station.Contracts.Sync;
 using Station.Domain.Entities;
+using Station.Domain.Enums;
+using Station.Infrastructure;
+using Station.Infrastructure.Db;
+using Station.Infrastructure.IdGenerators;
+using Station.Infrastructure.Persistence;
 using Station.Infrastructure.Storage;
 
 namespace Station.Application.PlatformSync;
@@ -15,17 +21,26 @@ public sealed class ConfigApplyService : IConfigApplyService
     private readonly StorageOptions _storageOptions;
     private readonly IConfigSyncState _state;
     private readonly IAuditLogService _audit;
+    private readonly ISqlSugarFactory _sqlSugarFactory;
+    private readonly DbOptions _dbOptions;
+    private readonly IIdGenerator _idGenerator;
 
     public ConfigApplyService(
         CollectOptions collectOptions,
         StorageOptions storageOptions,
         IConfigSyncState state,
-        IAuditLogService audit)
+        IAuditLogService audit,
+        ISqlSugarFactory sqlSugarFactory,
+        DbOptions dbOptions,
+        IIdGenerator idGenerator)
     {
         _collectOptions = collectOptions;
         _storageOptions = storageOptions;
         _state = state;
         _audit = audit;
+        _sqlSugarFactory = sqlSugarFactory;
+        _dbOptions = dbOptions;
+        _idGenerator = idGenerator;
     }
 
     public async Task<int> ApplyAsync(ConfigSyncResponse response)
@@ -33,24 +48,47 @@ public sealed class ConfigApplyService : IConfigApplyService
         var applied = 0;
         foreach (var change in response.Changes)
         {
-            var detail = change.EntityType switch
+            string detail;
+            try
             {
-                "CollectPolicy" => ApplyCollectPolicy(change),
-                "StoragePolicy" => ApplyStoragePolicy(change),
-                _ => $"暂不支持配置类型 {change.EntityType}，已跳过"
-            };
+                detail = change.EntityType switch
+                {
+                    "CollectPolicy" => ApplyCollectPolicy(change),
+                    "StoragePolicy" => ApplyStoragePolicy(change),
+                    ConfigDomainPayload.EntityTypeDept => await ApplyDeptAsync(change),
+                    ConfigDomainPayload.EntityTypeUser => await ApplyUserAsync(change),
+                    ConfigDomainPayload.EntityTypeRole => await ApplyRoleAsync(change),
+                    ConfigDomainPayload.EntityTypeUserRole => await ApplyUserRoleAsync(change),
+                    ConfigDomainPayload.EntityTypeAccount => await ApplyAccountAsync(change),
+                    ConfigDomainPayload.EntityTypeRecorder => await ApplyRecorderAsync(change),
+                    _ => $"暂不支持配置类型 {change.EntityType}，已跳过"
+                };
 
-            _state.RecordApplied(change.EntityType, change.Version);
-            applied++;
-            await _audit.WriteAsync(new AuditLog
+                _state.RecordApplied(change.EntityType, change.Version);
+                applied++;
+                await _audit.WriteAsync(new AuditLog
+                {
+                    OperatorAccount = "platform",
+                    OperationType = "config-apply",
+                    Target = change.EntityType,
+                    Detail = $"v{change.Version}：{detail}",
+                    Result = 1,
+                    CreatedAt = DateTime.Now
+                });
+            }
+            catch (Exception ex)
             {
-                OperatorAccount = "platform",
-                OperationType = "config-apply",
-                Target = change.EntityType,
-                Detail = $"v{change.Version}：{detail}",
-                Result = detail.StartsWith("暂不支持") ? 0 : 1,
-                CreatedAt = DateTime.Now
-            });
+                // 单条失败不阻塞后续变更：记失败审计、不记录已应用版本，下轮轮询自动重试
+                await _audit.WriteAsync(new AuditLog
+                {
+                    OperatorAccount = "platform",
+                    OperationType = "config-apply",
+                    Target = change.EntityType,
+                    Detail = $"v{change.Version}：应用失败：{ex.Message}",
+                    Result = 0,
+                    CreatedAt = DateTime.Now
+                });
+            }
         }
 
         return applied;
@@ -109,5 +147,356 @@ public sealed class ConfigApplyService : IConfigApplyService
         }
 
         return $"存储策略已热更新（Target={_storageOptions.Target}, Retry={_storageOptions.RetryCount}, 熔断阈值={_storageOptions.CircuitBreakerThreshold}）";
+    }
+
+    // ==================== 用户域（组织/用户/角色/账号/记录仪） ====================
+
+    /// <summary>创建独立长连接客户端，规避共享作用域与采集/查询并发时的连接竞争。</summary>
+    private SqlSugar.ISqlSugarClient NewClient() =>
+        _sqlSugarFactory.CreateClient(_dbOptions, autoCloseConnection: false);
+
+    private static List<T> DeserializeRows<T>(string payloadJson)
+    {
+        using var json = JsonDocument.Parse(payloadJson);
+        if (!json.RootElement.TryGetProperty("rows", out var rows) || rows.ValueKind != JsonValueKind.Array)
+        {
+            return [];
+        }
+
+        return rows.EnumerateArray().Select(r => r.Deserialize<T>()!).ToList();
+    }
+
+    private async Task<string> ApplyDeptAsync(ConfigChangeItem change)
+    {
+        var rows = DeserializeRows<DeptSyncRow>(change.PayloadJson);
+        using var db = NewClient();
+        var existing = await db.Queryable<Dept>().ToListAsync();
+        var idByCode = existing.ToDictionary(d => d.Code, d => d.Id, StringComparer.OrdinalIgnoreCase);
+        var entityById = existing.ToDictionary(d => d.Id, d => d);
+        var toUpdate = new List<Dept>();
+
+        foreach (var row in rows)
+        {
+            if (idByCode.TryGetValue(row.Code, out var id))
+            {
+                var dept = existing.First(d => d.Id == id);
+                dept.Name = row.Name;
+                dept.SortOrder = row.SortOrder;
+                dept.IsActive = row.IsActive;
+                toUpdate.Add(dept);
+            }
+            else
+            {
+                var dept = new Dept
+                {
+                    Id = _idGenerator.NextId(),
+                    Code = row.Code,
+                    Name = row.Name,
+                    SortOrder = row.SortOrder,
+                    IsActive = row.IsActive
+                };
+                idByCode[row.Code] = dept.Id;
+                entityById[dept.Id] = dept;
+                await db.Insertable(dept).ExecuteCommandAsync();
+                toUpdate.Add(dept); // 第二遍回填父级后统一落库
+            }
+        }
+
+        // 第二遍回填父级（避免行序导致父级未落库）
+        foreach (var row in rows)
+        {
+            if (!idByCode.TryGetValue(row.Code, out var id) || !entityById.TryGetValue(id, out var dept))
+            {
+                continue;
+            }
+
+            dept.ParentId = row.ParentCode is { } parentCode &&
+                            idByCode.TryGetValue(parentCode, out var parentId)
+                ? parentId
+                : null;
+        }
+
+        // 快照外缺失部门软停用（保留历史引用，不物理删除）
+        var seen = rows.Select(r => r.Code).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var disabled = existing.Count(d => !seen.Contains(d.Code) && d.IsActive);
+        foreach (var dept in existing.Where(d => !seen.Contains(d.Code) && d.IsActive))
+        {
+            dept.IsActive = false;
+            toUpdate.Add(dept);
+        }
+
+        if (toUpdate.Count > 0)
+        {
+            await db.Updateable(toUpdate).ExecuteCommandAsync();
+        }
+
+        return $"部门快照已应用：{rows.Count} 条（软停用 {disabled} 条）";
+    }
+
+    private async Task<string> ApplyUserAsync(ConfigChangeItem change)
+    {
+        var rows = DeserializeRows<UserSyncRow>(change.PayloadJson);
+        using var db = NewClient();
+        var existing = await db.Queryable<User>().ToListAsync();
+        var idByUserNo = existing.ToDictionary(u => u.UserNo, u => u.Id, StringComparer.OrdinalIgnoreCase);
+        var depts = await db.Queryable<Dept>().ToListAsync();
+        var deptIdByCode = depts.ToDictionary(d => d.Code, d => d.Id, StringComparer.OrdinalIgnoreCase);
+        var fallbackDeptId = deptIdByCode.TryGetValue(AuthSeedData.RootDeptCode, out var rootId)
+            ? rootId
+            : depts.Count > 0 ? depts[0].Id : 0;
+        var touched = new List<User>();
+
+        foreach (var row in rows)
+        {
+            var deptId = deptIdByCode.TryGetValue(row.DeptCode, out var did) ? did : fallbackDeptId;
+            if (idByUserNo.TryGetValue(row.UserNo, out var id))
+            {
+                var user = existing.First(u => u.Id == id);
+                user.Name = row.Name;
+                user.DeptId = deptId;
+                user.IsActive = row.IsActive;
+                touched.Add(user);
+            }
+            else
+            {
+                var user = new User
+                {
+                    Id = _idGenerator.NextId(),
+                    UserNo = row.UserNo,
+                    Name = row.Name,
+                    DeptId = deptId,
+                    IsActive = row.IsActive
+                };
+                idByUserNo[row.UserNo] = user.Id;
+                await db.Insertable(user).ExecuteCommandAsync();
+            }
+        }
+
+        var seen = rows.Select(r => r.UserNo).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        foreach (var user in existing.Where(u => !seen.Contains(u.UserNo) && u.IsActive))
+        {
+            user.IsActive = false;
+            touched.Add(user);
+        }
+
+        if (touched.Count > 0)
+        {
+            await db.Updateable(touched).ExecuteCommandAsync();
+        }
+
+        return $"用户快照已应用：{rows.Count} 条";
+    }
+
+    private async Task<string> ApplyRoleAsync(ConfigChangeItem change)
+    {
+        var rows = DeserializeRows<RoleSyncRow>(change.PayloadJson);
+        using var db = NewClient();
+        var existing = await db.Queryable<Role>().ToListAsync();
+        var idByCode = existing.ToDictionary(r => r.Code, r => r.Id, StringComparer.OrdinalIgnoreCase);
+        var permissionIdByCode = (await db.Queryable<Permission>().ToListAsync())
+            .ToDictionary(p => p.Code, p => p.Id, StringComparer.OrdinalIgnoreCase);
+        var touched = new List<Role>();
+
+        foreach (var row in rows)
+        {
+            Role role;
+            if (idByCode.TryGetValue(row.Code, out var id))
+            {
+                role = existing.First(r => r.Id == id);
+                role.Name = row.Name;
+                role.DataScope = (DataScope)row.DataScope;
+                role.IsActive = row.IsActive;
+                touched.Add(role);
+            }
+            else
+            {
+                role = new Role
+                {
+                    Id = _idGenerator.NextId(),
+                    Code = row.Code,
+                    Name = row.Name,
+                    DataScope = (DataScope)row.DataScope,
+                    IsSystem = row.IsSystem,
+                    IsActive = row.IsActive
+                };
+                idByCode[row.Code] = role.Id;
+                await db.Insertable(role).ExecuteCommandAsync();
+            }
+
+            // 角色权限全量重建（幂等）
+            await db.Deleteable<RolePermission>().Where(rp => rp.RoleId == role.Id).ExecuteCommandAsync();
+            var links = row.PermissionCodes
+                .Where(code => permissionIdByCode.TryGetValue(code, out var _))
+                .Select(code => new RolePermission
+                {
+                    Id = _idGenerator.NextId(),
+                    RoleId = role.Id,
+                    PermissionId = permissionIdByCode[code]
+                })
+                .ToList();
+            if (links.Count > 0)
+            {
+                await db.Insertable(links).ExecuteCommandAsync();
+            }
+        }
+
+        var seen = rows.Select(r => r.Code).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        foreach (var role in existing.Where(r => !seen.Contains(r.Code) && r.IsActive))
+        {
+            role.IsActive = false;
+            touched.Add(role);
+        }
+
+        if (touched.Count > 0)
+        {
+            await db.Updateable(touched).ExecuteCommandAsync();
+        }
+
+        return $"角色快照已应用：{rows.Count} 条";
+    }
+
+    private async Task<string> ApplyUserRoleAsync(ConfigChangeItem change)
+    {
+        var rows = DeserializeRows<UserRoleSyncRow>(change.PayloadJson);
+        using var db = NewClient();
+        var userNoToId = (await db.Queryable<User>().ToListAsync())
+            .ToDictionary(u => u.UserNo, u => u.Id, StringComparer.OrdinalIgnoreCase);
+        var roleCodeToId = (await db.Queryable<Role>().ToListAsync())
+            .ToDictionary(r => r.Code, r => r.Id, StringComparer.OrdinalIgnoreCase);
+
+        // 派生表全量重建：先清空再按快照插入
+        await db.Deleteable<UserRole>().ExecuteCommandAsync();
+        var links = rows
+            .Where(r => userNoToId.TryGetValue(r.UserNo, out var _) &&
+                        roleCodeToId.TryGetValue(r.RoleCode, out var _))
+            .Select(r => new UserRole
+            {
+                Id = _idGenerator.NextId(),
+                UserId = userNoToId[r.UserNo],
+                RoleId = roleCodeToId[r.RoleCode]
+            })
+            .ToList();
+        if (links.Count > 0)
+        {
+            await db.Insertable(links).ExecuteCommandAsync();
+        }
+
+        return $"用户角色快照已应用：{rows.Count} 条（有效 {links.Count} 条）";
+    }
+
+    private async Task<string> ApplyAccountAsync(ConfigChangeItem change)
+    {
+        var rows = DeserializeRows<AccountSyncRow>(change.PayloadJson);
+        using var db = NewClient();
+        var existing = await db.Queryable<Account>().ToListAsync();
+        var idByUserName = existing.ToDictionary(a => a.UserName, a => a.Id, StringComparer.OrdinalIgnoreCase);
+        var userNoToId = (await db.Queryable<User>().ToListAsync())
+            .ToDictionary(u => u.UserNo, u => u.Id, StringComparer.OrdinalIgnoreCase);
+        var touched = new List<Account>();
+
+        foreach (var row in rows)
+        {
+            var userId = row.UserNo is { } userNo && userNoToId.TryGetValue(userNo, out var uid)
+                ? uid
+                : (long?)null;
+            if (idByUserName.TryGetValue(row.UserName, out var id))
+            {
+                var account = existing.First(a => a.Id == id);
+                account.PasswordHash = row.PasswordHash;
+                account.UserId = userId;
+                account.IsEnabled = row.IsEnabled;
+                // 本地运行态（失败次数/锁定截止）不随平台快照覆盖
+                touched.Add(account);
+            }
+            else
+            {
+                await db.Insertable(new Account
+                {
+                    Id = _idGenerator.NextId(),
+                    UserName = row.UserName,
+                    PasswordHash = row.PasswordHash,
+                    UserId = userId,
+                    IsEnabled = row.IsEnabled,
+                    FailedLoginAttempts = row.FailedLoginAttempts,
+                    LockedUntil = row.LockedUntil
+                }).ExecuteCommandAsync();
+            }
+        }
+
+        var seen = rows.Select(r => r.UserName).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        foreach (var account in existing.Where(a => !seen.Contains(a.UserName) && a.IsEnabled))
+        {
+            account.IsEnabled = false;
+            touched.Add(account);
+        }
+
+        if (touched.Count > 0)
+        {
+            await db.Updateable(touched).ExecuteCommandAsync();
+        }
+
+        return $"账号快照已应用：{rows.Count} 条";
+    }
+
+    private async Task<string> ApplyRecorderAsync(ConfigChangeItem change)
+    {
+        var rows = DeserializeRows<RecorderSyncRow>(change.PayloadJson);
+        using var db = NewClient();
+        var existing = await db.Queryable<Recorder>().ToListAsync();
+        var idBySerial = existing.ToDictionary(r => r.SerialNumber, r => r.Id, StringComparer.OrdinalIgnoreCase);
+        var userNoToId = (await db.Queryable<User>().ToListAsync())
+            .ToDictionary(u => u.UserNo, u => u.Id, StringComparer.OrdinalIgnoreCase);
+        var deptIdByCode = (await db.Queryable<Dept>().ToListAsync())
+            .ToDictionary(d => d.Code, d => d.Id, StringComparer.OrdinalIgnoreCase);
+        var touched = new List<Recorder>();
+
+        foreach (var row in rows)
+        {
+            var boundUserId = row.BoundUserNo is { } userNo && userNoToId.TryGetValue(userNo, out var uid)
+                ? uid
+                : (long?)null;
+            var deptId = row.DeptCode is { } deptCode && deptIdByCode.TryGetValue(deptCode, out var did)
+                ? did
+                : (long?)null;
+            if (idBySerial.TryGetValue(row.SerialNumber, out var id))
+            {
+                var recorder = existing.First(r => r.Id == id);
+                recorder.Model = row.Model;
+                recorder.Protocol = (ProtocolType)row.Protocol;
+                recorder.BoundUserId = boundUserId;
+                recorder.DeptId = deptId;
+                recorder.IsAuthorized = row.IsAuthorized;
+                recorder.IsActive = row.IsActive;
+                touched.Add(recorder);
+            }
+            else
+            {
+                await db.Insertable(new Recorder
+                {
+                    Id = _idGenerator.NextId(),
+                    SerialNumber = row.SerialNumber,
+                    Model = row.Model,
+                    Protocol = (ProtocolType)row.Protocol,
+                    BoundUserId = boundUserId,
+                    DeptId = deptId,
+                    IsAuthorized = row.IsAuthorized,
+                    IsActive = row.IsActive
+                }).ExecuteCommandAsync();
+            }
+        }
+
+        var seen = rows.Select(r => r.SerialNumber).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        foreach (var recorder in existing.Where(r => !seen.Contains(r.SerialNumber) && r.IsActive))
+        {
+            recorder.IsActive = false;
+            touched.Add(recorder);
+        }
+
+        if (touched.Count > 0)
+        {
+            await db.Updateable(touched).ExecuteCommandAsync();
+        }
+
+        return $"记录仪白名单快照已应用：{rows.Count} 条";
     }
 }
