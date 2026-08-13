@@ -19,6 +19,8 @@ public sealed class PlatformAlertReport
 
     public AlertLevel Level { get; set; }
 
+    public AlertStatus Status { get; set; } = AlertStatus.Pending;
+
     [SugarColumn(Length = 64)]
     public string Source { get; set; } = string.Empty;
 
