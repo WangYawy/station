@@ -1,7 +1,9 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authorization;
 using SqlSugar;
 using Station.Contracts;
 using Station.Contracts.Api;
+using AppAuthorization = Station.Application.Authorization.IAuthorizationService;
 using Station.Infrastructure.Repositories;
 using Station.Platform.Domain.Entities;
 
@@ -9,18 +11,22 @@ namespace Station.Platform.Api.Controllers;
 
 /// <summary>平台报警/采集站授权管理查询。</summary>
 [ApiController]
+[Authorize]
 [Route("api/v1")]
 public class PlatformAdminController : ControllerBase
 {
     private readonly IRepository<PlatformAlertReport> _alerts;
     private readonly IRepository<PlatformStation> _stations;
+    private readonly AppAuthorization _authorization;
 
     public PlatformAdminController(
         IRepository<PlatformAlertReport> alerts,
-        IRepository<PlatformStation> stations)
+        IRepository<PlatformStation> stations,
+        AppAuthorization authorization)
     {
         _alerts = alerts;
         _stations = stations;
+        _authorization = authorization;
     }
 
     [HttpGet("alerts")]
@@ -58,7 +64,30 @@ public class PlatformAdminController : ControllerBase
                 s.Id, s.StationCode, s.OsVersion, s.CpuArch, s.SoftwareVersion,
                 s.LicenseStatus, s.LicenseExpiresAt, s.LicenseDaysLeft, s.RegisteredAt)).ToList())));
     }
+
+    /// <summary>报警处置：确认/处理/关闭（需要 alert:handle 权限）。</summary>
+    [HttpPost("alerts/{alertId:long}/status")]
+    public async Task<IActionResult> SetAlertStatus(long alertId, [FromBody] SetAlertStatusRequest request)
+    {
+        if (User.FindFirst("accountId") is not { } accountClaim ||
+            !await _authorization.HasPermissionAsync(long.Parse(accountClaim.Value), "alert:handle"))
+        {
+            return StatusCode(403, new { message = "无报警处置权限" });
+        }
+
+        var alert = await _alerts.GetByIdAsync(alertId);
+        if (alert is null)
+        {
+            return NotFound(new { message = "报警不存在" });
+        }
+
+        alert.Status = request.Status;
+        await _alerts.UpdateAsync(alert);
+        return Ok(ApiResponse<bool>.Ok(true));
+    }
 }
+
+public sealed record SetAlertStatusRequest(AlertStatus Status);
 
 public sealed record AlertView(
     long Id,

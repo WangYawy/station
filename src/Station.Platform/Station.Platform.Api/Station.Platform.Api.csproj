@@ -13,6 +13,7 @@
     <ProjectReference Include="..\Station.Platform.Application\Station.Platform.Application.csproj" />
     <ProjectReference Include="..\Station.Platform.Domain\Station.Platform.Domain.csproj" />
     <ProjectReference Include="..\..\Station.Shared\Station.Infrastructure\Station.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\Station.Shared\Station.Application\Station.Application.csproj" />
     <None Update="appsettings.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
