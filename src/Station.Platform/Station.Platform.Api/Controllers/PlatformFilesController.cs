@@ -1,35 +1,46 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authorization;
 using SqlSugar;
 using Station.Contracts;
 using Station.Contracts.Api;
 using Station.Contracts.Reporting;
 using Station.Infrastructure.Repositories;
 using Station.Platform.Domain.Entities;
+using AuthService = Station.Application.Authorization.IAuthorizationService;
+using Station.Application.Authorization;
 
 namespace Station.Platform.Api.Controllers;
 
 /// <summary>平台文件统一列表/检索/预览（元数据来自各采集站上报，预览经采集站代理转发）。</summary>
 [ApiController]
+[Authorize]
 [Route("api/v1/files")]
 public class PlatformFilesController : ControllerBase
 {
     private readonly IRepository<PlatformFileMetadata> _files;
     private readonly IRepository<PlatformStation> _stations;
     private readonly IHttpClientFactory _httpFactory;
+    private readonly AuthService _authorization;
+    private readonly IDataScopeProvider _dataScope;
 
     public PlatformFilesController(
         IRepository<PlatformFileMetadata> files,
         IRepository<PlatformStation> stations,
-        IHttpClientFactory httpFactory)
+        IHttpClientFactory httpFactory,
+        AuthService authorization,
+        IDataScopeProvider dataScope)
     {
         _files = files;
         _stations = stations;
         _httpFactory = httpFactory;
+        _authorization = authorization;
+        _dataScope = dataScope;
     }
 
     [HttpGet]
     public async Task<ActionResult<ApiResponse<PagedResult<FileMetadataView>>>> List(
         [FromQuery] long? stationId,
+        [FromQuery] long? deptId,
         [FromQuery] string? keyword,
         [FromQuery] FileKind? kind,
         [FromQuery] DateTime? from,
@@ -37,14 +48,20 @@ public class PlatformFilesController : ControllerBase
         [FromQuery] int page = 1,
         [FromQuery] int size = 20)
     {
+        var scope = await DataScopeHelper.GetScopeAsync(User, _authorization, _dataScope);
         var query = _files.AsQueryable()
             .Where(f =>
                 (stationId == null || f.StationId == stationId) &&
+                (deptId == null || f.DeptId == deptId) &&
                 (kind == null || f.Kind == kind) &&
                 (from == null || f.CollectedAt >= from) &&
                 (to == null || f.CollectedAt <= to) &&
                 (string.IsNullOrWhiteSpace(keyword) ||
                  f.FileName.Contains(keyword) || f.FileNo.Contains(keyword) || f.RecorderSerial.Contains(keyword)));
+        if (!scope.IsAll)
+        {
+            query = query.Where(f => f.DeptId != null && scope.AllowedDeptIds.Contains(f.DeptId.Value));
+        }
 
         var total = query.Count();
         var items = query.OrderBy(f => f.CollectedAt, OrderByType.Desc)
@@ -56,8 +73,9 @@ public class PlatformFilesController : ControllerBase
     [HttpGet("{fileNo}")]
     public async Task<ActionResult<ApiResponse<FileMetadataView>>> Detail(string fileNo)
     {
+        var scope = await DataScopeHelper.GetScopeAsync(User, _authorization, _dataScope);
         var file = await _files.FirstAsync(f => f.FileNo == fileNo);
-        return file is null
+        return file is null || !IsInScope(scope, file.DeptId)
             ? NotFound(ApiResponse<FileMetadataView>.Fail(404, "文件不存在"))
             : Ok(ApiResponse<FileMetadataView>.Ok(ToView(file)));
     }
@@ -68,8 +86,9 @@ public class PlatformFilesController : ControllerBase
     {
         try
         {
+            var scope = await DataScopeHelper.GetScopeAsync(User, _authorization, _dataScope);
             var file = await _files.FirstAsync(f => f.FileNo == fileNo);
-            if (file is null)
+            if (file is null || !IsInScope(scope, file.DeptId))
             {
                 return NotFound();
             }
@@ -120,4 +139,7 @@ public class PlatformFilesController : ControllerBase
     private static FileMetadataView ToView(PlatformFileMetadata f) => new(
         f.StationId, f.LocalFileId, f.FileNo, f.FileName, f.Size, f.Kind, f.Sm3,
         f.CollectedAt, f.RecorderSerial, f.UserNo, f.DeptCode, f.StorageLocation);
+
+    private static bool IsInScope(DataScopeResult scope, long? deptId) =>
+        scope.IsAll || (deptId != null && scope.AllowedDeptIds.Contains(deptId.Value));
 }

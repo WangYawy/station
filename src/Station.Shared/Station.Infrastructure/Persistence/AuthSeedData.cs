@@ -22,6 +22,8 @@ public static class PermissionCodes
     public const string AuditExport = "audit:export";
     public const string SettingView = "setting:view";
     public const string SettingManage = "setting:manage";
+    public const string StationView = "station:view";
+    public const string StationManage = "station:manage";
 
     public static readonly IReadOnlyList<(string Code, string Name, string Module)> Catalog =
     [
@@ -39,7 +41,9 @@ public static class PermissionCodes
         (AuditView, "查看审计", "audit"),
         (AuditExport, "导出审计", "audit"),
         (SettingView, "查看设置", "setting"),
-        (SettingManage, "管理设置", "setting")
+        (SettingManage, "管理设置", "setting"),
+        (StationView, "查看采集站", "station"),
+        (StationManage, "管理采集站", "station")
     ];
 }
 
@@ -63,7 +67,7 @@ public static class AuthSeedData
         new(AdminRoleCode, "管理员", DataScope.All,
             PermissionCodes.Catalog.Select(p => p.Code).ToArray()),
         new(ManagerRoleCode, "部门负责人", DataScope.DeptAndChildren,
-            [PermissionCodes.UserView, PermissionCodes.DeptView, PermissionCodes.RoleView,
+            [PermissionCodes.UserView, PermissionCodes.DeptView, PermissionCodes.RoleView, PermissionCodes.StationView,
              PermissionCodes.FileView, PermissionCodes.FileManage,
              PermissionCodes.AlertView, PermissionCodes.AlertHandle,
              PermissionCodes.AuditView, PermissionCodes.SettingView]),

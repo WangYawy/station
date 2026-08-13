@@ -36,6 +36,7 @@
     <div class="section" id="sec-files">
         <input id="keyword" placeholder="文件名/编号/记录仪关键字">
         <select id="kind"><option value="">全部类型</option><option value="0">视频</option><option value="1">音频</option><option value="2">图片</option><option value="3">其他</option></select>
+        <select id="deptFilter" style="display:none;"><option value="">全部部门</option></select>
         <button onclick="loadFiles(1)">查询</button>
         <span id="fileSummary"></span>
         <table id="fileTable" style="margin-top:8px;"><thead><tr><th>编号</th><th>文件名</th><th>类型</th><th>大小</th><th>采集时间</th><th>记录仪</th><th>用户</th><th>部门</th><th>操作</th></tr></thead><tbody></tbody></table>
@@ -55,7 +56,7 @@
     <div class="section" id="sec-stations" style="display:none;">
         <button onclick="loadStations()">刷新</button>
         <span id="stationSummary"></span>
-        <table id="stationTable" style="margin-top:8px;"><thead><tr><th>站ID</th><th>站编号</th><th>系统</th><th>架构</th><th>版本</th><th>授权状态</th><th>到期时间</th><th>剩余天数</th><th>注册时间</th></tr></thead><tbody></tbody></table>
+        <table id="stationTable" style="margin-top:8px;"><thead><tr><th>站ID</th><th>站编号</th><th>系统</th><th>架构</th><th>版本</th><th>授权状态</th><th>到期时间</th><th>剩余天数</th><th>部门</th><th>操作</th><th>注册时间</th></tr></thead><tbody></tbody></table>
     </div>
 
     <!-- 远程指令 -->
@@ -75,6 +76,29 @@
         const CMD_TYPES = ['重启服务', '清理缓存', '重拉配置', '执行自检', '停止采集', '启动采集'];
         const CMD_STATUS = ['待下发', '已拉取', '执行中', '成功', '失败', '超时'];
         const ALERT_STATUS = ['待处理', '已确认', '已处理', '已关闭'];
+        let currentSession = null;
+        let DEPTS = [];
+
+        function deptName(id) {
+            if (!id) return '';
+            const d = DEPTS.find(x => x.id === id);
+            return d ? d.name : String(id);
+        }
+
+        async function loadDepts() {
+            const sel = document.getElementById('deptFilter');
+            if (!currentSession || !currentSession.permissions.includes('dept:view')) {
+                sel.style.display = 'none';
+                return;
+            }
+            const resp = await fetch('/api/v1/depts');
+            if (!resp.ok) { sel.style.display = 'none'; return; }
+            const body = await resp.json();
+            DEPTS = body.data || [];
+            sel.innerHTML = '<option value="">全部部门</option>' +
+                DEPTS.map(d => `<option value="${d.id}">${d.name}</option>`).join('');
+            sel.style.display = '';
+        }
 
         async function login() {
             const user = document.getElementById('loginUser').value.trim();
@@ -86,17 +110,22 @@
             });
             if (!resp.ok) { document.getElementById('loginMsg').textContent = '登录失败'; return; }
             const body = await resp.json();
+            currentSession = body.session;
             document.getElementById('loginMsg').textContent = '';
             document.getElementById('userInfo').textContent = `当前用户：${body.session.userName}（${body.session.roles.join(',')}）`;
             document.getElementById('logoutBtn').style.display = '';
+            await loadDepts();
             loadFiles(1);
             loadAlerts(1);
         }
 
         async function logout() {
             await fetch('/api/v1/auth/logout', { method: 'POST' });
+            currentSession = null;
+            DEPTS = [];
             document.getElementById('userInfo').textContent = '';
             document.getElementById('logoutBtn').style.display = 'none';
+            document.getElementById('deptFilter').style.display = 'none';
         }
 
         async function setAlertStatus(id, status) {
@@ -121,12 +150,16 @@
         async function loadFiles(page) {
             const kw = document.getElementById('keyword').value.trim();
             const kind = document.getElementById('kind').value;
+            const deptId = document.getElementById('deptFilter').value;
             const q = new URLSearchParams({ page, size: 20 });
             if (kw) q.set('keyword', kw);
             if (kind !== '') q.set('kind', kind);
+            if (deptId) q.set('deptId', deptId);
             const resp = await fetch('/api/v1/files?' + q.toString());
+            if (resp.status === 401) { document.getElementById('loginMsg').textContent = '请先登录'; return; }
             const body = await resp.json();
             const data = body.data;
+            if (!data) return;
             document.getElementById('fileSummary').textContent = `共 ${data.totalCount} 条`;
             const tbody = document.querySelector('#fileTable tbody');
             tbody.innerHTML = '';
@@ -147,8 +180,10 @@
             if (stationId) q.set('stationId', stationId);
             if (level !== '') q.set('level', level);
             const resp = await fetch('/api/v1/alerts?' + q.toString());
+            if (resp.status === 401) { document.getElementById('loginMsg').textContent = '请先登录'; return; }
             const body = await resp.json();
             const data = body.data;
+            if (!data) return;
             document.getElementById('alertSummary').textContent = `共 ${data.totalCount} 条`;
             const tbody = document.querySelector('#alertTable tbody');
             tbody.innerHTML = '';
@@ -166,19 +201,45 @@
 
         async function loadStations() {
             const resp = await fetch('/api/v1/stations?page=1&size=50');
+            if (resp.status === 401) { document.getElementById('loginMsg').textContent = '请先登录'; return; }
             const body = await resp.json();
             const data = body.data;
+            if (!data) return;
             document.getElementById('stationSummary').textContent = `共 ${data.totalCount} 个采集站`;
             const tbody = document.querySelector('#stationTable tbody');
             tbody.innerHTML = '';
+            const canManage = currentSession && currentSession.permissions.includes('station:manage');
+            const deptOptions = DEPTS.map(d => `<option value="${d.id}">${d.name}</option>`).join('');
             data.items.forEach(s => {
                 const tr = document.createElement('tr');
+                const deptCell = canManage
+                    ? `<select id="deptSel-${s.stationId}">${deptOptions}</select>`
+                    : deptName(s.deptId);
+                const opCell = canManage
+                    ? `<button onclick="assignDept(${s.stationId})">保存</button>`
+                    : '';
                 tr.innerHTML = `<td>${s.stationId}</td><td>${s.stationCode}</td><td>${s.osVersion}</td>
                     <td>${s.cpuArch}</td><td>${s.softwareVersion}</td>
                     <td>${LICENSE_STATUS[s.licenseStatus]}</td><td>${s.licenseExpiresAt||''}</td>
-                    <td>${s.licenseDaysLeft}</td><td>${s.registeredAt}</td>`;
+                    <td>${s.licenseDaysLeft}</td><td>${deptCell}</td><td>${opCell}</td><td>${s.registeredAt}</td>`;
                 tbody.appendChild(tr);
             });
+        }
+
+        async function assignDept(stationId) {
+            const deptId = Number(document.getElementById('deptSel-' + stationId).value) || null;
+            const resp = await fetch(`/api/v1/stations/${stationId}/dept`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ deptId })
+            });
+            if (!resp.ok) {
+                const body = await resp.json().catch(() => ({}));
+                document.getElementById('stationSummary').textContent = body.message || '调整失败';
+                return;
+            }
+            document.getElementById('stationSummary').textContent = '归属已更新';
+            loadStations();
         }
 
         function preview(fileNo, name) {
@@ -206,7 +267,9 @@
             const stationId = document.getElementById('cmdStation').value.trim();
             if (!stationId) return;
             const resp = await fetch(`/api/v1/stations/${stationId}/commands`);
+            if (resp.status === 401) { document.getElementById('loginMsg').textContent = '请先登录'; return; }
             const body = await resp.json();
+            if (!body.data) return;
             const tbody = document.querySelector('#cmdTable tbody');
             tbody.innerHTML = '';
             (body.data || []).forEach(c => {
@@ -217,7 +280,7 @@
             });
         }
 
-        loadFiles(1);
+        document.getElementById('fileSummary').textContent = '请先登录后查看';
     </script>
 </body>
 </html>

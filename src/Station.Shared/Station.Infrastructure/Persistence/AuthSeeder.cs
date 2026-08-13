@@ -54,45 +54,68 @@ public sealed class AuthSeeder : IAuthSeeder
     {
         _initializer.EnsureCreated(AuthSeedData.EntityTypes);
 
-        // 权限目录
+        // 权限目录（幂等升级：目录为空时全量播种，否则仅补新增权限码）
         if (!await _permissions.IsAnyAsync(_ => true))
         {
-            var catalog = PermissionCodes.Catalog.Select((p, i) => new Permission
+            var seed = PermissionCodes.Catalog.Select((p, i) => new Permission
             {
                 Id = i + 1,
                 Code = p.Code,
                 Name = p.Name,
                 Module = p.Module
             }).ToList();
-            await _permissions.InsertRangeAsync(catalog);
+            await _permissions.InsertRangeAsync(seed);
+        }
+        else
+        {
+            var existing = await _permissions.GetListAsync();
+            var existingCodes = existing.Select(p => p.Code).ToHashSet();
+            var missing = PermissionCodes.Catalog.Where(p => !existingCodes.Contains(p.Code)).ToList();
+            if (missing.Count > 0)
+            {
+                var maxId = existing.Max(p => p.Id);
+                await _permissions.InsertRangeAsync(missing.Select((p, i) => new Permission
+                {
+                    Id = maxId + i + 1,
+                    Code = p.Code,
+                    Name = p.Name,
+                    Module = p.Module
+                }).ToList());
+            }
         }
 
-        // 预置角色 + 角色权限
-        if (!await _roles.IsAnyAsync(_ => true))
+        // 预置角色 + 角色权限（幂等：缺失角色补建，系统角色按目录补齐缺失权限）
+        var roles = await _roles.GetListAsync();
+        var nextRoleId = roles.Count > 0 ? roles.Max(r => r.Id) + 1 : 1;
+        var allLinks = await _rolePermissions.GetListAsync();
+        var nextLinkId = allLinks.Count > 0 ? allLinks.Max(x => x.Id) + 1 : 1;
+        foreach (var preset in AuthSeedData.PresetRoles)
         {
-            var roleId = 0L;
-            var links = new List<RolePermission>();
-            var linkId = 0L;
-            foreach (var preset in AuthSeedData.PresetRoles)
+            var role = await _roles.FirstAsync(r => r.Code == preset.Code);
+            if (role is null)
             {
-                roleId++;
-                await _roles.InsertAsync(new Role
+                role = new Role
                 {
-                    Id = roleId,
+                    Id = nextRoleId++,
                     Code = preset.Code,
                     Name = preset.Name,
                     DataScope = preset.DataScope,
                     IsSystem = true
-                });
-
-                var perms = await _permissions.GetListAsync(p => preset.Permissions.Contains(p.Code));
-                foreach (var perm in perms)
-                {
-                    links.Add(new RolePermission { Id = ++linkId, RoleId = roleId, PermissionId = perm.Id });
-                }
+                };
+                await _roles.InsertAsync(role);
             }
 
-            await _rolePermissions.InsertRangeAsync(links);
+            var presetPerms = await _permissions.GetListAsync(p => preset.Permissions.Contains(p.Code));
+            var granted = await _rolePermissions.GetListAsync(rp => rp.RoleId == role.Id);
+            var grantedPermissionIds = granted.Select(x => x.PermissionId).ToHashSet();
+            var missingLinks = presetPerms
+                .Where(p => !grantedPermissionIds.Contains(p.Id))
+                .Select(p => new RolePermission { Id = nextLinkId++, RoleId = role.Id, PermissionId = p.Id })
+                .ToList();
+            if (missingLinks.Count > 0)
+            {
+                await _rolePermissions.InsertRangeAsync(missingLinks);
+            }
         }
 
         // 根部门

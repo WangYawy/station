@@ -5,9 +5,11 @@ using Station.Contracts;
 using Station.Contracts.Api;
 using AppAuthorization = Station.Application.Authorization.IAuthorizationService;
 using Station.Application.Authorization;
+using Station.Domain.Entities;
 using Station.Domain.Enums;
 using Station.Infrastructure.Repositories;
 using Station.Platform.Domain.Entities;
+using Station.Infrastructure.Persistence;
 
 namespace Station.Platform.Api.Controllers;
 
@@ -19,17 +21,20 @@ public class PlatformAdminController : ControllerBase
 {
     private readonly IRepository<PlatformAlertReport> _alerts;
     private readonly IRepository<PlatformStation> _stations;
+    private readonly IRepository<Dept> _depts;
     private readonly AppAuthorization _authorization;
     private readonly IDataScopeProvider _dataScope;
 
     public PlatformAdminController(
         IRepository<PlatformAlertReport> alerts,
         IRepository<PlatformStation> stations,
+        IRepository<Dept> depts,
         AppAuthorization authorization,
         IDataScopeProvider dataScope)
     {
         _alerts = alerts;
         _stations = stations;
+        _depts = depts;
         _authorization = authorization;
         _dataScope = dataScope;
     }
@@ -103,25 +108,68 @@ public class PlatformAdminController : ControllerBase
         return Ok(ApiResponse<bool>.Ok(true));
     }
 
-    private async Task<DataScopeResult> GetScopeAsync()
+    /// <summary>部门树（用于采集站归属调整等组织数据展示）。</summary>
+    [HttpGet("depts")]
+    public async Task<IActionResult> ListDepts()
     {
         if (User.FindFirst("accountId") is not { } accountClaim ||
-            !long.TryParse(accountClaim.Value, out var accountId))
+            !await _authorization.HasPermissionAsync(long.Parse(accountClaim.Value), PermissionCodes.DeptView))
         {
-            return new DataScopeResult(DataScope.Self, false, [], 0);
+            return StatusCode(403, new { message = "无部门查看权限" });
         }
 
-        var session = await _authorization.GetSessionAsync(accountId);
-        if (session.UserId is not { } userId)
+        var depts = await _depts.GetListAsync(d => d.IsActive);
+        return Ok(ApiResponse<List<DeptView>>.Ok(depts
+            .OrderBy(d => d.SortOrder)
+            .Select(d => new DeptView(d.Id, d.Code, d.Name, d.ParentId, d.SortOrder))
+            .ToList()));
+    }
+
+    /// <summary>调整采集站部门归属（station:manage；历史文件/报警保留上报时归属快照）。</summary>
+    [HttpPut("stations/{stationId:long}/dept")]
+    public async Task<IActionResult> UpdateStationDept(long stationId, [FromBody] UpdateStationDeptRequest request)
+    {
+        if (User.FindFirst("accountId") is not { } accountClaim ||
+            !await _authorization.HasPermissionAsync(long.Parse(accountClaim.Value), PermissionCodes.StationManage))
         {
-            return new DataScopeResult(DataScope.Self, false, [], 0);
+            return StatusCode(403, new { message = "无采集站管理权限" });
         }
 
-        return await _dataScope.GetDataScopeAsync(userId);
+        var station = await _stations.GetByIdAsync(stationId);
+        if (station is null)
+        {
+            return NotFound(new { message = "采集站不存在" });
+        }
+
+        var scope = await GetScopeAsync();
+        if (!scope.IsAll && (station.DeptId is null || !scope.AllowedDeptIds.Contains(station.DeptId.Value)))
+        {
+            return StatusCode(403, new { message = "无权调整该采集站归属" });
+        }
+
+        if (request.DeptId is { } deptId)
+        {
+            var dept = await _depts.GetByIdAsync(deptId);
+            if (dept is null || !dept.IsActive)
+            {
+                return BadRequest(new { message = "部门不存在或已停用" });
+            }
+        }
+
+        station.DeptId = request.DeptId;
+        await _stations.UpdateAsync(station);
+        return Ok(ApiResponse<bool>.Ok(true));
+    }
+
+    private async Task<DataScopeResult> GetScopeAsync()
+    {
+        return await DataScopeHelper.GetScopeAsync(User, _authorization, _dataScope);
     }
 }
 
     public sealed record SetAlertStatusRequest(AlertStatus Status);
+
+    public sealed record UpdateStationDeptRequest(long? DeptId);
 
 public sealed record AlertView(
     long Id,
@@ -146,3 +194,5 @@ public sealed record StationView(
     int LicenseDaysLeft,
     long? DeptId,
     DateTime RegisteredAt);
+
+public sealed record DeptView(long Id, string Code, string Name, long? ParentId, int SortOrder);
