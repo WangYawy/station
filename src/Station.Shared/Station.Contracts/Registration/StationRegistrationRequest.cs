@@ -15,4 +15,7 @@ public sealed record StationRegistrationRequest
     public required string SoftwareVersion { get; init; }
 
     public int UsbPortCount { get; init; }
+
+    /// <summary>采集站内置 Web 地址（平台预览代理用，可空）。</summary>
+    public string? StationBaseUrl { get; init; }
 }

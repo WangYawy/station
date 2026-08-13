@@ -59,6 +59,7 @@ public class StationCommunicationController : ControllerBase
             CpuArch = request.CpuArch,
             SoftwareVersion = request.SoftwareVersion,
             UsbPortCount = request.UsbPortCount,
+            StationBaseUrl = request.StationBaseUrl,
             RegisteredAt = DateTime.Now
         };
         await _stations.InsertAsync(station);

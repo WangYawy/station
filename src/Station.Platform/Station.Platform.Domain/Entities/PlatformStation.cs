@@ -43,5 +43,8 @@ public sealed class PlatformStation
 
     public long ConfigVersion { get; set; }
 
+    [SugarColumn(IsNullable = true, Length = 256)]
+    public string? StationBaseUrl { get; set; }
+
     public DateTime RegisteredAt { get; set; }
 }

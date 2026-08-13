@@ -70,7 +70,8 @@ public sealed class PlatformSyncWorkerHostedService : BackgroundService
                 OsVersion = Environment.OSVersion.VersionString,
                 CpuArch = RuntimeInformation.ProcessArchitecture.ToString(),
                 SoftwareVersion = "0.1.0",
-                UsbPortCount = 0
+                UsbPortCount = 0,
+                StationBaseUrl = _options.StationBaseUrl
             };
             var response = await client.RegisterAsync(registration, ct);
             if (response is not null)

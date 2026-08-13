@@ -21,4 +21,7 @@ public sealed class PlatformOptions
     public int TimeoutSeconds { get; set; } = 30;
 
     public bool Enabled { get; set; }
+
+    /// <summary>采集站内置 Web 地址（注册时上报，供平台预览代理）。</summary>
+    public string StationBaseUrl { get; set; } = "http://127.0.0.1:5000";
 }
