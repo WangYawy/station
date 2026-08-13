@@ -1,7 +1,15 @@
+using Station.Contracts.Registration;
+using Station.Infrastructure.Security;
+
 namespace Station.Infrastructure.Licensing;
 
-/// <summary>机器指纹采集：CPU + 主板 + 磁盘 + MAC（换硬件即新指纹）。</summary>
+/// <summary>
+/// 机器指纹采集：CPU + 主板 + 磁盘 + MAC 原始字段，指纹 = SM3(ToRaw())。
+/// Windows 走 WMI；Linux/信创 走 sysfs（DMI/块设备）。
+/// </summary>
 public interface IMachineFingerprintProvider
 {
-    string CollectFingerprint();
+    MachineFingerprint CollectParts();
+
+    string CollectFingerprint() => Sm3Checksum.ComputeString(CollectParts().ToRaw());
 }

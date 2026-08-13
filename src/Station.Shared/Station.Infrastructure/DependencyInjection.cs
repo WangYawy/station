@@ -38,7 +38,10 @@ public static class DependencyInjection
         services.AddScoped<IPasswordHasher, Sm3PasswordHasher>();
         services.Configure<AuthSeedOptions>(configuration.GetSection("Station:Auth"));
         services.AddScoped<IAuthSeeder, AuthSeeder>();
-        services.AddSingleton<IMachineFingerprintProvider, WindowsMachineFingerprintProvider>();
+        services.AddSingleton<IMachineFingerprintProvider>(_ =>
+            OperatingSystem.IsWindows()
+                ? new WindowsMachineFingerprintProvider()
+                : new LinuxMachineFingerprintProvider());
 
         // UnitOfWork：独立客户端 + 独立事务，与共享作用域隔离
         services.AddScoped<IUnitOfWork>(sp =>

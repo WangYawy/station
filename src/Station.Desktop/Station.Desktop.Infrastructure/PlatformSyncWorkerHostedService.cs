@@ -7,6 +7,7 @@ using Station.Application.Licensing;
 using Station.Application.PlatformSync;
 using Station.Contracts.Registration;
 using Station.Contracts.Reporting;
+using Station.Infrastructure.Licensing;
 using Station.Infrastructure.Security;
 
 namespace Station.Desktop.Infrastructure;
@@ -20,15 +21,18 @@ public sealed class PlatformSyncWorkerHostedService : BackgroundService
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly PlatformOptions _options;
     private readonly IStationContext _stationContext;
+    private readonly IMachineFingerprintProvider _fingerprint;
     private DateTime _lastCommandPoll = DateTime.MinValue;
 
     public PlatformSyncWorkerHostedService(
         IServiceScopeFactory scopeFactory,
         IStationContext stationContext,
+        IMachineFingerprintProvider fingerprint,
         IOptions<PlatformOptions> options)
     {
         _scopeFactory = scopeFactory;
         _stationContext = stationContext;
+        _fingerprint = fingerprint;
         _options = options.Value;
     }
 
@@ -64,13 +68,7 @@ public sealed class PlatformSyncWorkerHostedService : BackgroundService
             var registration = new StationRegistrationRequest
             {
                 StationCode = _options.StationCode,
-                MachineFingerprint = new MachineFingerprint
-                {
-                    CpuSerial = "unknown",
-                    MotherboardSerial = "unknown",
-                    DiskSerial = "unknown",
-                    MacAddress = "unknown"
-                },
+                MachineFingerprint = _fingerprint.CollectParts(),
                 OsVersion = Environment.OSVersion.VersionString,
                 CpuArch = RuntimeInformation.ProcessArchitecture.ToString(),
                 SoftwareVersion = "0.1.0",

@@ -1,23 +1,20 @@
 using System.Management;
-using System.Net.NetworkInformation;
-using Station.Infrastructure.Security;
+using Station.Contracts.Registration;
 
 namespace Station.Infrastructure.Licensing;
 
 /// <summary>
-/// Windows 机器指纹：CPU 序列号 + 主板序列号 + 磁盘序列号 + MAC，
-/// 组合后 SM3 哈希（换硬件即新指纹）。Linux/信创实现后续补充。
+/// Windows 机器指纹：CPU/主板/磁盘序列号（WMI）+ MAC，组合后 SM3。
 /// </summary>
 public sealed class WindowsMachineFingerprintProvider : IMachineFingerprintProvider
 {
-    public string CollectFingerprint()
+    public MachineFingerprint CollectParts() => new()
     {
-        var raw = $"{QueryFirst("Win32_Processor", "ProcessorId")}|" +
-                  $"{QueryFirst("Win32_BaseBoard", "SerialNumber")}|" +
-                  $"{QueryFirst("Win32_DiskDrive", "SerialNumber")}|" +
-                  $"{FirstMac()}";
-        return Sm3Checksum.ComputeString(raw);
-    }
+        CpuSerial = QueryFirst("Win32_Processor", "ProcessorId"),
+        MotherboardSerial = QueryFirst("Win32_BaseBoard", "SerialNumber"),
+        DiskSerial = QueryFirst("Win32_DiskDrive", "SerialNumber"),
+        MacAddress = MachineFingerprintUtil.FirstMac()
+    };
 
     private static string QueryFirst(string className, string property)
     {
@@ -40,22 +37,5 @@ public sealed class WindowsMachineFingerprintProvider : IMachineFingerprintProvi
         }
 
         return "unknown";
-    }
-
-    private static string FirstMac()
-    {
-        try
-        {
-            var mac = NetworkInterface.GetAllNetworkInterfaces()
-                .Where(n => n.OperationalStatus == OperationalStatus.Up &&
-                            n.NetworkInterfaceType != NetworkInterfaceType.Loopback)
-                .Select(n => n.GetPhysicalAddress().ToString())
-                .FirstOrDefault(a => !string.IsNullOrEmpty(a));
-            return mac ?? "unknown";
-        }
-        catch
-        {
-            return "unknown";
-        }
     }
 }
