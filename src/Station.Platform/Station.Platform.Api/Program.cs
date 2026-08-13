@@ -12,7 +12,10 @@ using Microsoft.Extensions.DependencyInjection;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddControllers();
+builder.Services.AddControllers(options =>
+{
+    options.InputFormatters.Insert(0, new TextPlainInputFormatter());
+});
 builder.Services.AddHttpClient();
 builder.Services.AddStationDatabase(builder.Configuration);
 builder.Services.AddStationApplication(builder.Configuration);

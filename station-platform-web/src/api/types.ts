@@ -198,3 +198,15 @@ export interface RecorderTrail {
     lastSeenAt: string
   }>
 }
+
+export interface ImportErrorItem {
+  line: number
+  message: string
+}
+
+export interface ImportResult {
+  total: number
+  success: number
+  failed: number
+  errors: ImportErrorItem[]
+}
