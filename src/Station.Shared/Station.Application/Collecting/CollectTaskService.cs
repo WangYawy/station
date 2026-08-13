@@ -7,6 +7,7 @@ using Station.Infrastructure;
 using Station.Infrastructure.Db;
 using Station.Infrastructure.IdGenerators;
 using Station.Infrastructure.Repositories;
+using Station.Application.PlatformSync;
 
 namespace Station.Application.Collecting;
 
@@ -25,6 +26,7 @@ public sealed class CollectTaskService : ICollectTaskService
     private readonly IIdGenerator _idGenerator;
     private readonly ICollectSource _source;
     private readonly CollectOptions _options;
+    private readonly ICollectControl _collectControl;
     private readonly ISqlSugarFactory _sqlSugarFactory;
     private readonly DbOptions _dbOptions;
     private readonly ConcurrentDictionary<long, TaskControl> _controls = new();
@@ -35,6 +37,7 @@ public sealed class CollectTaskService : ICollectTaskService
         IIdGenerator idGenerator,
         ICollectSource source,
         IOptions<CollectOptions> options,
+        ICollectControl collectControl,
         ISqlSugarFactory sqlSugarFactory,
         DbOptions dbOptions)
     {
@@ -43,6 +46,7 @@ public sealed class CollectTaskService : ICollectTaskService
         _idGenerator = idGenerator;
         _source = source;
         _options = options.Value;
+        _collectControl = collectControl;
         _sqlSugarFactory = sqlSugarFactory;
         _dbOptions = dbOptions;
     }
@@ -76,6 +80,11 @@ public sealed class CollectTaskService : ICollectTaskService
 
     public async Task<CollectTaskDto> StartAsync(long taskId)
     {
+        if (!_collectControl.CollectingEnabled)
+        {
+            throw new InvalidOperationException($"采集已停止：{_collectControl.StoppedReason ?? "远程指令"}");
+        }
+
         var task = await RequireTaskAsync(taskId);
         if (_controls.ContainsKey(taskId))
         {

@@ -84,6 +84,19 @@ public sealed class PlatformSyncWorkerHostedService : BackgroundService
         {
             await outbox.DrainAsync();
 
+            var configSync = await client.SyncConfigAsync(
+                new Station.Contracts.Sync.ConfigSyncRequest
+                {
+                    StationId = stationId,
+                    AppliedVersions = new Dictionary<string, long>()
+                },
+                ct);
+            if (configSync is not null)
+            {
+                scope.ServiceProvider.GetRequiredService<IConfigSyncState>()
+                    .Record(configSync.Version, configSync.Changes.Count);
+            }
+
             if (DateTime.Now - _lastCommandPoll >= TimeSpan.FromSeconds(Math.Max(3, _options.CommandPollIntervalSeconds)))
             {
                 await commands.PollAndExecuteAsync(stationId);

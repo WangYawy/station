@@ -67,6 +67,8 @@ public static class DependencyInjection
         services.AddSingleton(platformSection.Get<PlatformOptions>() ?? new PlatformOptions());
         services.AddHttpClient<IPlatformClient, HttpPlatformClient>();
         services.AddSingleton<IStationContext, StationContext>();
+        services.AddSingleton<ICollectControl, CollectControl>();
+        services.AddSingleton<IConfigSyncState, ConfigSyncState>();
         services.AddScoped<ISyncOutboxService, SyncOutboxService>();
         services.AddScoped<ICommandExecutor, CommandExecutor>();
         services.AddScoped<ICommandService, CommandService>();
