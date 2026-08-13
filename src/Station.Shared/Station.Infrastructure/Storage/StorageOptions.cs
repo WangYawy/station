@@ -31,6 +31,9 @@ public sealed class StorageOptions
 
     public string? SftpPassword { get; set; }
 
+    /// <summary>SFTP 远程根目录；为空时使用登录用户主目录（SSH.NET WorkingDirectory）。</summary>
+    public string? SftpRoot { get; set; }
+
     /// <summary>上传目录模板，默认 采集站/日期/记录仪/用户/部门/类型。</summary>
     public string DirectoryTemplate { get; set; } =
         "{StationNo}/{Date:yyyy-MM-dd}/{RecorderName}/{UserId}/{DeptId}/{FileType}";

@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
+using Renci.SshNet;
 using SqlSugar;
 using Station.Application;
 using Station.Application.Collecting;
@@ -39,6 +40,10 @@ var connStr = provider switch
     DbProvider.PostgreSQL => "Host=localhost;Port=5432;Database=station_spike;Username=station;Password=Station@123",
     _ => $"Data Source={Path.Combine(AppContext.BaseDirectory, "spike_upload.db")}"
 };
+if (provider == DbProvider.Sqlite && File.Exists(Path.Combine(AppContext.BaseDirectory, "spike_upload.db")))
+{
+    File.Delete(Path.Combine(AppContext.BaseDirectory, "spike_upload.db"));
+}
 
 var testRoot = @"E:\Reny\station\archive\upload-test";
 var cacheDir = Path.Combine(testRoot, "cache");
@@ -58,6 +63,7 @@ var storageTarget = targetArg.ToLowerInvariant() switch
     "sftp" => StorageTargetKind.Sftp,
     _ => StorageTargetKind.Local
 };
+var sftpRoot = $"/home/kingbase/spike-upload-{DateTime.Now:yyyyMMddHHmmss}";
 
 var config = new ConfigurationBuilder()
     .AddInMemoryCollection(new Dictionary<string, string?>
@@ -79,6 +85,7 @@ var config = new ConfigurationBuilder()
         ["Station:Storage:SftpPort"] = "2222",
         ["Station:Storage:SftpUser"] = "kingbase",
         ["Station:Storage:SftpPassword"] = "Kingbase@123",
+        ["Station:Storage:SftpRoot"] = sftpRoot,
         ["Station:Storage:RetryCount"] = "2",
         ["Station:Storage:RetryIntervalSeconds"] = "0",
         ["Station:Storage:CircuitBreakerThreshold"] = "3",
@@ -92,7 +99,8 @@ services.AddStationDatabase(config);
 services.AddStationApplication(config);
 await using var sp = services.BuildServiceProvider();
 
-sp.GetRequiredService<IDatabaseInitializer>().EnsureCreated(typeof(CollectTask), typeof(CollectFile));
+sp.GetRequiredService<IDatabaseInitializer>().EnsureCreated(
+    typeof(CollectTask), typeof(CollectFile), typeof(LicenseInfo), typeof(Alert), typeof(AuditLog));
 var collect = sp.GetRequiredService<ICollectTaskService>();
 var upload = sp.GetRequiredService<IUploadService>();
 var sim = (SimulatedCollectSource)sp.GetRequiredService<ICollectSource>();
@@ -180,7 +188,7 @@ try
 }
 catch (Exception ex)
 {
-    Pass("采集→上传", false, ex.Message);
+    Pass("采集→上传", false, ex.ToString());
 }
 
 // ---------- 2. 熔断：连续失败打开 → 冷却后半开探测成功关闭 ----------
@@ -247,6 +255,57 @@ try
 catch (Exception ex)
 {
     Pass("清理", false, ex.Message);
+}
+
+// 清理 SFTP 远端测试目录（含历史遗留），保持服务器整洁
+if (storageTarget == StorageTargetKind.Sftp)
+{
+    try
+    {
+        using var sftp = new SftpClient("localhost", 2222, "kingbase", "Kingbase@123");
+        sftp.Connect();
+        foreach (var entry in sftp.ListDirectory("/home/kingbase"))
+        {
+            if (entry.IsDirectory && entry.Name.StartsWith("spike-upload-"))
+            {
+                DeleteRemoteRecursive(sftp, $"/home/kingbase/{entry.Name}");
+            }
+        }
+
+        if (sftp.Exists("/home/kingbase/ST0001"))
+        {
+            DeleteRemoteRecursive(sftp, "/home/kingbase/ST0001");
+        }
+
+        sftp.Disconnect();
+    }
+    catch
+    {
+        // 远端清理失败不影响结论
+    }
+}
+
+static void DeleteRemoteRecursive(SftpClient sftp, string path)
+{
+    foreach (var entry in sftp.ListDirectory(path))
+    {
+        if (entry.Name is "." or "..")
+        {
+            continue;
+        }
+
+        var full = $"{path.TrimEnd('/')}/{entry.Name}";
+        if (entry.IsDirectory)
+        {
+            DeleteRemoteRecursive(sftp, full);
+        }
+        else
+        {
+            sftp.DeleteFile(full);
+        }
+    }
+
+    sftp.DeleteDirectory(path);
 }
 
 Console.WriteLine();

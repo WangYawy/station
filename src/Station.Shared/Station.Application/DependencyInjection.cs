@@ -33,7 +33,13 @@ public static class DependencyInjection
         var collectSection = configuration.GetSection(CollectOptions.SectionName);
         services.Configure<CollectOptions>(collectSection);
         services.AddSingleton(collectSection.Get<CollectOptions>() ?? new CollectOptions());
-        services.AddSingleton<ICollectSource, SimulatedCollectSource>();
+        services.AddSingleton<ICollectSource>(sp =>
+        {
+            var collect = sp.GetRequiredService<CollectOptions>();
+            return collect.SourceMode == "ums"
+                ? new UmsCollectSource(collect)
+                : new SimulatedCollectSource(collect);
+        });
         services.AddScoped<ICollectTaskService, CollectTaskService>();
 
         var bindingSection = configuration.GetSection(BindingOptions.SectionName);

@@ -16,6 +16,12 @@ public sealed class CollectOptions
     /// <summary>模拟记录仪根目录（开发用；空则默认 CacheDirectory/sim-recorder）。</summary>
     public string? SimulatedSourceDirectory { get; set; }
 
+    /// <summary>采集源模式：simulated（开发默认）/ ums（真实U盘/记录仪，UMS 协议）。</summary>
+    public string SourceMode { get; set; } = "simulated";
+
+    /// <summary>UMS 根目录覆盖（开发/测试用；为空时自动枚举可移动磁盘）。</summary>
+    public string? UmsRootOverride { get; set; }
+
     /// <summary>记录仪接入后是否自动开始采集（需求：默认自动）。</summary>
     public bool AutoCollectOnConnect { get; set; } = true;
 

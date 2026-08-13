@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>Station.Spike.SftpLive</RootNamespace>
+    <AssemblyName>Station.Spike.SftpLive</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Station.Shared\Station.Infrastructure\Station.Infrastructure.csproj" />
+  </ItemGroup>
+
+</Project>

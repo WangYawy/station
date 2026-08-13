@@ -24,9 +24,11 @@ public sealed class SftpStorageTarget : IStorageTarget
     {
         using var sftp = CreateClient();
         sftp.Connect();
-        EnsureRemoteDirectories(sftp, RemoteDirectory(file.RemotePath));
+        var root = ResolveRoot(sftp);
+        var remotePath = AbsolutePath(root, file.RemotePath);
+        EnsureRemoteDirectories(sftp, RemoteDirectory(remotePath));
 
-        using var remoteStream = sftp.Open(file.RemotePath, FileMode.Append, FileAccess.Write);
+        using var remoteStream = sftp.Open(remotePath, FileMode.Append, FileAccess.Write);
         await using var localStream = File.OpenRead(file.LocalPath);
         var buffer = new byte[_options.ChunkBytes];
         long total = 0;
@@ -41,6 +43,7 @@ public sealed class SftpStorageTarget : IStorageTarget
             }
         }
 
+        remoteStream.Flush();
         if (file.Size > 0)
         {
             onProgress?.Invoke(1);
@@ -53,10 +56,18 @@ public sealed class SftpStorageTarget : IStorageTarget
     {
         using var sftp = CreateClient();
         sftp.Connect();
-        var length = sftp.GetAttributes(remotePath).Size;
+        var length = sftp.GetAttributes(AbsolutePath(ResolveRoot(sftp), remotePath)).Size;
         sftp.Disconnect();
         return Task.FromResult(length);
     }
+
+    private string ResolveRoot(SftpClient sftp) =>
+        string.IsNullOrWhiteSpace(_options.SftpRoot)
+            ? sftp.WorkingDirectory.TrimEnd('/')
+            : _options.SftpRoot.TrimEnd('/');
+
+    private static string AbsolutePath(string root, string remotePath) =>
+        $"{root}/{remotePath.TrimStart('/')}";
 
     private static string RemoteDirectory(string remotePath)
     {
