@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
-import { ElMessage } from 'element-plus'
 import { api, ApiError } from '../api/client'
 import type { DeptItem, FileItem, PagedResult } from '../api/types'
 import { FILE_KINDS, fmtSize, fmtTime } from '../utils/format'
@@ -99,7 +98,7 @@ onMounted(() => {
       <el-table-column prop="deptCode" label="部门" width="90" />
       <el-table-column label="操作" width="90" fixed="right">
         <template #default="{ row }">
-          <el-button link type="primary" @click="openPreview(row)">预览</el-button>
+          <el-button link type="primary" @click="openPreview(row as FileItem)">预览</el-button>
         </template>
       </el-table-column>
     </el-table>

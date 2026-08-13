@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
-import { ElMessage } from 'element-plus'
 import { api, ApiError } from '../api/client'
 import type { AlertItem, PagedResult } from '../api/types'
 import { ALERT_LEVELS, ALERT_STATUS, ALERT_TYPES, fmtTime, levelTagType } from '../utils/format'
@@ -88,9 +87,9 @@ onMounted(loadAlerts)
       </el-table-column>
       <el-table-column v-if="auth.hasPermission('alert:handle')" label="操作" width="150" fixed="right">
         <template #default="{ row }">
-          <el-button link type="primary" :disabled="row.status === 1" @click="setStatus(row, 1)">确认</el-button>
-          <el-button link type="warning" :disabled="row.status === 2" @click="setStatus(row, 2)">处理</el-button>
-          <el-button link type="info" :disabled="row.status === 3" @click="setStatus(row, 3)">关闭</el-button>
+          <el-button link type="primary" :disabled="row.status === 1" @click="setStatus(row as AlertItem, 1)">确认</el-button>
+          <el-button link type="warning" :disabled="row.status === 2" @click="setStatus(row as AlertItem, 2)">处理</el-button>
+          <el-button link type="info" :disabled="row.status === 3" @click="setStatus(row as AlertItem, 3)">关闭</el-button>
         </template>
       </el-table-column>
     </el-table>

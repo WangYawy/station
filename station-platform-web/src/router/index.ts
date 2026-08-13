@@ -1,27 +1,21 @@
 import { createRouter, createWebHashHistory } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
-import AppLayout from '../App.vue'
-import LoginView from '../views/LoginView.vue'
-import StatsView from '../views/StatsView.vue'
-import FilesView from '../views/FilesView.vue'
-import AlertsView from '../views/AlertsView.vue'
-import StationsView from '../views/StationsView.vue'
-import CommandsView from '../views/CommandsView.vue'
+import AdminLayout from '../layouts/AdminLayout.vue'
 
 const router = createRouter({
   history: createWebHashHistory(),
   routes: [
-    { path: '/login', component: LoginView },
+    { path: '/login', component: () => import('../views/LoginView.vue') },
     {
       path: '/',
-      component: AppLayout,
+      component: AdminLayout,
       redirect: '/stats',
       children: [
-        { path: 'stats', component: StatsView, meta: { title: '总览驾驶舱' } },
-        { path: 'files', component: FilesView, meta: { title: '文件检索' } },
-        { path: 'alerts', component: AlertsView, meta: { title: '报警中心' } },
-        { path: 'stations', component: StationsView, meta: { title: '采集站管理' } },
-        { path: 'commands', component: CommandsView, meta: { title: '远程指令' } }
+        { path: 'stats', component: () => import('../views/StatsView.vue'), meta: { title: '总览驾驶舱' } },
+        { path: 'files', component: () => import('../views/FilesView.vue'), meta: { title: '文件检索' } },
+        { path: 'alerts', component: () => import('../views/AlertsView.vue'), meta: { title: '报警中心' } },
+        { path: 'stations', component: () => import('../views/StationsView.vue'), meta: { title: '采集站管理' } },
+        { path: 'commands', component: () => import('../views/CommandsView.vue'), meta: { title: '远程指令' } }
       ]
     }
   ]

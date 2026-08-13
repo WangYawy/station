@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
-import { ElMessage } from 'element-plus'
 import { api, ApiError } from '../api/client'
 import type { CommandItem } from '../api/types'
 import { CMD_STATUS, CMD_TYPES, fmtTime } from '../utils/format'

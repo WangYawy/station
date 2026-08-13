@@ -1,10 +1,14 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref } from 'vue'
-import { ElMessage } from 'element-plus'
-import * as echarts from 'echarts'
+import * as echarts from 'echarts/core'
+import { BarChart } from 'echarts/charts'
+import { GridComponent, TooltipComponent } from 'echarts/components'
+import { CanvasRenderer } from 'echarts/renderers'
 import { api, ApiError } from '../api/client'
 import type { AlertStats, CountItem, OverviewStats, PagedResult, StationStat, TrendPoint } from '../api/types'
 import { ALERT_LEVELS, ALERT_STATUS, ALERT_TYPES, fmtSize, fmtTime } from '../utils/format'
+
+echarts.use([BarChart, GridComponent, TooltipComponent, CanvasRenderer])
 
 const loading = ref(false)
 const overview = ref<OverviewStats | null>(null)

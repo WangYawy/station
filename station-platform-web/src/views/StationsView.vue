@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
-import { ElMessage } from 'element-plus'
 import { api, ApiError } from '../api/client'
 import type { DeptItem, PagedResult, StationItem } from '../api/types'
 import { LICENSE_STATUS, fmtTime } from '../utils/format'
@@ -104,7 +103,7 @@ onMounted(() => {
       </el-table-column>
       <el-table-column v-if="auth.hasPermission('station:manage')" label="操作" width="90" fixed="right">
         <template #default="{ row }">
-          <el-button link type="primary" @click="assignDept(row)">保存</el-button>
+          <el-button link type="primary" @click="assignDept(row as StationItem)">保存</el-button>
         </template>
       </el-table-column>
     </el-table>
