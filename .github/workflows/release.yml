@@ -1,0 +1,103 @@
+name: Desktop Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  package-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20.x
+          cache: npm
+          cache-dependency-path: station-web/package-lock.json
+
+      - name: Resolve version
+        id: version
+        shell: pwsh
+        run: |
+          if ($env:GITHUB_REF_TYPE -eq 'tag') {
+            $v = $env:GITHUB_REF_NAME.TrimStart('v')
+          }
+          else {
+            $m = Select-String -Path Directory.Build.props -Pattern '<Version>([^<]+)<'
+            $v = $m.Matches[0].Groups[1].Value
+          }
+          if ($v -notmatch '^\d+\.\d+\.\d+$') { throw "invalid version: $v" }
+          "version=$v" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding ascii
+
+      - name: Sync embedded web assets
+        run: pwsh -File scripts/sync-station-web.ps1
+
+      - name: Package MSI
+        run: pwsh -File scripts/package-windows.ps1 -Version ${{ steps.version.outputs.version }} -SkipWebSync
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: msi
+          path: publish/packages/*.msi
+
+  package-linux:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        rid: [linux-x64, linux-arm64]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20.x
+          cache: npm
+          cache-dependency-path: station-web/package-lock.json
+
+      - name: Resolve version
+        id: version
+        run: |
+          if [ "$GITHUB_REF_TYPE" = "tag" ]; then
+            v="${GITHUB_REF_NAME#v}"
+          else
+            v="$(grep -oE '<Version>[^<]+' Directory.Build.props | sed 's/<Version>//')"
+          fi
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+
+      - name: Sync embedded web assets
+        run: pwsh -File scripts/sync-station-web.ps1
+
+      - name: Package DEB
+        run: bash scripts/package-linux.sh "${{ steps.version.outputs.version }}" "${{ matrix.rid }}"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: deb-${{ matrix.rid }}
+          path: publish/packages/*.deb
+
+  release:
+    needs: [package-windows, package-linux]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            artifacts/msi/*.msi
+            artifacts/deb-linux-x64/*.deb
+            artifacts/deb-linux-arm64/*.deb

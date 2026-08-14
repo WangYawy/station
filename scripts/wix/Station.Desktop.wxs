@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Station.Desktop - Windows MSI 安装包定义（WiX Toolset v5）
+
+  用法（由 scripts/package-windows.ps1 调用）：
+    wix build scripts\wix\Station.Desktop.wxs `
+      -d PublishDir=<绝对路径，指向 win-x64 发布产物目录> `
+      -d Version=<版本号，形如 1.0.0> `
+      -o <输出 .msi>
+
+  说明：
+  - WiX v5 已弃用 heat.exe，文件收集由 <Files Include=".../**"> 完成，排除用子元素 <Exclude>；
+  - station.db（运行期数据库）、*.pdb 不进入安装包；
+  - appsettings.json 不进入安装包：应用按默认配置运行，部署时按《部署与运维手册》在
+    安装目录下新建/修改 appsettings.json，升级不会覆盖用户配置。
+-->
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+
+  <Package Name="Station Desktop"
+           Manufacturer="Station"
+           Version="$(var.Version)"
+           UpgradeCode="{5F820090-4721-4DBD-9571-1901C2F4C486}"
+           Language="2052"
+           Scope="perMachine">
+
+    <MajorUpgrade DowngradeErrorMessage="[ProductName] 已安装更高版本，请先卸载旧版本。" />
+
+    <MediaTemplate EmbedCab="yes" />
+
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="INSTALLFOLDER" Name="Station Desktop" />
+    </StandardDirectory>
+
+    <StandardDirectory Id="ProgramMenuFolder">
+      <Directory Id="ApplicationProgramsFolder" Name="Station Desktop" />
+    </StandardDirectory>
+
+    <Feature Id="Main" Title="Station Desktop" Level="1">
+      <ComponentGroupRef Id="ProductComponents" />
+      <ComponentRef Id="StartMenuShortcut" />
+    </Feature>
+
+    <ComponentGroup Id="ProductComponents" Directory="INSTALLFOLDER">
+      <Files Include="$(var.PublishDir)\**">
+        <Exclude Files="$(var.PublishDir)\appsettings.json" />
+        <Exclude Files="$(var.PublishDir)\station.db" />
+        <Exclude Files="$(var.PublishDir)\*.pdb" />
+      </Files>
+    </ComponentGroup>
+
+    <Component Id="StartMenuShortcut" Directory="ApplicationProgramsFolder" Guid="{071DC04D-952B-427F-9F96-6F328909975F}">
+      <Shortcut Id="StationDesktopStartMenuShortcut"
+                Name="Station Desktop"
+                Target="[INSTALLFOLDER]Station.Desktop.UI.exe"
+                WorkingDirectory="INSTALLFOLDER" />
+      <RemoveFolder Id="RemoveApplicationProgramsFolder" Directory="ApplicationProgramsFolder" On="uninstall" />
+      <RegistryValue Root="HKLM" Key="Software\Station\Desktop" Name="installed" Type="integer" Value="1" KeyPath="yes" />
+    </Component>
+
+  </Package>
+</Wix>
