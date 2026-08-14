@@ -37,3 +37,13 @@ dotnet build .\Station.Platform.sln -c Release
 
 - [开发基线需求规格说明书](docs/01视音频数据采集站与监控管理平台 — 开发基线需求规格说明书.md)
 - [开发基线技术选型方案](docs/02视音频数据采集站与监控管理平台 — 开发基线技术选型方案.md)
+- [开发环境搭建 — WSL2 与 KingbaseES V8R6 安装运维手册](docs/03开发环境搭建 — WSL2与KingbaseES V8R6 安装运维手册.md)
+- [部署与运维手册](docs/04部署与运维手册.md)
+- [开发规范](docs/05开发规范.md)
+- [Git 与协作规范](docs/06Git与协作规范.md)
+- [CI 与发布规范](docs/07CI与发布规范.md)
+- [日常开发流程与检查清单](docs/08日常开发流程与检查清单.md)
+- [桌面端 Windows 部署与运维手册](docs/04-1桌面端Windows部署与运维手册.md)
+- [桌面端 Linux 麒麟统信部署与运维手册](docs/04-2桌面端Linux麒麟统信部署与运维手册.md)
+- [平台 Windows 部署与运维手册](docs/04-3平台Windows部署与运维手册.md)
+- [平台 Linux 麒麟统信部署与运维手册](docs/04-4平台Linux麒麟统信部署与运维手册.md)
