@@ -67,6 +67,7 @@ public class PlatformRecordersController : ControllerBase
     [HttpGet]
     public async Task<IActionResult> List(
         [FromQuery] string? keyword,
+        [FromQuery] long? stationId,
         [FromQuery] bool? whitelisted,
         [FromQuery] bool? bound,
         [FromQuery] bool? warning,
@@ -79,7 +80,13 @@ public class PlatformRecordersController : ControllerBase
         }
 
         var scope = await GetScopeAsync();
-        var query = _recorders.AsQueryable().Where(r =>
+        var query = _recorders.AsQueryable();
+        if (stationId is { } sid)
+        {
+            query = query.Where(r => r.LastStationId == sid);
+        }
+
+        query = query.Where(r =>
             string.IsNullOrWhiteSpace(keyword) ||
             r.RecorderSerial.Contains(keyword) ||
             (r.BoundUserNo != null && r.BoundUserNo.Contains(keyword)) ||

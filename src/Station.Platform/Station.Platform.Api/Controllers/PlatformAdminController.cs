@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.Extensions.Configuration;
 using SqlSugar;
 using Station.Contracts;
 using Station.Contracts.Api;
@@ -23,28 +24,37 @@ public class PlatformAdminController : ControllerBase
 {
     private readonly IRepository<PlatformAlertReport> _alerts;
     private readonly IRepository<PlatformStation> _stations;
+    private readonly IRepository<PlatformFileMetadata> _files;
+    private readonly IRepository<PlatformRecorder> _recorders;
     private readonly IRepository<Dept> _depts;
     private readonly IAuditLogService _audit;
     private readonly AppAuthorization _authorization;
     private readonly IDataScopeProvider _dataScope;
     private readonly IRealtimeEventBus _realtime;
+    private readonly int _onlineTimeoutSeconds;
 
     public PlatformAdminController(
         IRepository<PlatformAlertReport> alerts,
         IRepository<PlatformStation> stations,
+        IRepository<PlatformFileMetadata> files,
+        IRepository<PlatformRecorder> recorders,
         IRepository<Dept> depts,
         IAuditLogService audit,
         AppAuthorization authorization,
         IDataScopeProvider dataScope,
-        IRealtimeEventBus realtime)
+        IRealtimeEventBus realtime,
+        IConfiguration configuration)
     {
         _alerts = alerts;
         _stations = stations;
+        _files = files;
+        _recorders = recorders;
         _depts = depts;
         _audit = audit;
         _authorization = authorization;
         _dataScope = dataScope;
         _realtime = realtime;
+        _onlineTimeoutSeconds = configuration.GetValue("Platform:OnlineTimeoutSeconds", 300);
     }
 
     [HttpGet("alerts")]
@@ -205,6 +215,80 @@ public class PlatformAdminController : ControllerBase
         return Ok(ApiResponse<bool>.Ok(true));
     }
 
+    /// <summary>
+    /// 采集站详情：基础信息 + 文件/报警/记录仪聚合 + 存储位置分布（数据范围过滤）。
+    /// </summary>
+    [HttpGet("stations/{stationId:long}")]
+    public async Task<IActionResult> GetStationDetail(long stationId)
+    {
+        var station = await _stations.GetByIdAsync(stationId);
+        if (station is null)
+        {
+            return NotFound(new { message = "采集站不存在" });
+        }
+
+        var scope = await GetScopeAsync();
+        if (!scope.IsAll && (station.DeptId is null || !scope.AllowedDeptIds.Contains(station.DeptId.Value)))
+        {
+            return StatusCode(403, new { message = "无权查看该采集站" });
+        }
+
+        var onlineCutoff = DateTime.Now.AddSeconds(-_onlineTimeoutSeconds);
+        var isOnline = station.LastHeartbeatAt != null && station.LastHeartbeatAt >= onlineCutoff;
+
+        var fileRows = await _files.GetListAsync(f => f.StationId == stationId);
+        var alertRows = await _alerts.GetListAsync(a => a.StationId == stationId);
+        var recorderRows = await _recorders.GetListAsync(r => r.LastStationId == stationId && r.IsActive);
+        var deptName = station.DeptId is { } deptId
+            ? (await _depts.GetByIdAsync(deptId))?.Name
+            : null;
+
+        var todayStart = DateTime.Today;
+        var storageUsage = fileRows
+            .Where(f => !string.IsNullOrWhiteSpace(f.StorageLocation))
+            .GroupBy(f => f.StorageLocation!)
+            .Select(g => new StorageUsageView(g.Key, g.LongCount(), g.Sum(x => x.Size)))
+            .OrderByDescending(x => x.TotalSize)
+            .ToList();
+
+        var detail = new StationDetailView(
+            station.Id,
+            station.StationCode,
+            station.OsVersion,
+            station.CpuArch,
+            station.SoftwareVersion,
+            station.OperationalStatus,
+            station.LicenseStatus,
+            station.LicenseExpiresAt,
+            station.LicenseDaysLeft,
+            station.DeptId,
+            station.RegisteredAt,
+            deptName,
+            station.CpuSerial,
+            station.MotherboardSerial,
+            station.DiskSerial,
+            station.MacAddress,
+            station.UsbPortCount,
+            station.ConfigVersion,
+            station.StationBaseUrl,
+            station.LastHeartbeatAt,
+            isOnline,
+            fileRows.LongCount(),
+            fileRows.Sum(f => f.Size),
+            fileRows.Count(f => f.CollectedAt >= todayStart),
+            fileRows.Where(f => f.CollectedAt >= todayStart).Sum(f => f.Size),
+            alertRows.Count(a => a.Status == AlertStatus.Pending),
+            alertRows.Where(a => a.Status == AlertStatus.Pending)
+                .GroupBy(a => a.Level)
+                .Select(g => new CountItemView(((int)g.Key).ToString(), g.LongCount()))
+                .OrderBy(x => int.Parse(x.Key))
+                .ToList(),
+            recorderRows.Count,
+            recorderRows.Count(r => r.IsWhitelisted),
+            storageUsage);
+        return Ok(ApiResponse<StationDetailView>.Ok(detail));
+    }
+
     private async Task<DataScopeResult> GetScopeAsync()
     {
         return await DataScopeHelper.GetScopeAsync(User, _authorization, _dataScope);
@@ -256,3 +340,37 @@ public sealed record StationView(
     DateTime RegisteredAt);
 
 public sealed record DeptView(long Id, string Code, string Name, long? ParentId, int SortOrder);
+
+public sealed record StorageUsageView(string Location, long FileCount, long TotalSize);
+
+public sealed record StationDetailView(
+    long StationId,
+    string StationCode,
+    string OsVersion,
+    string CpuArch,
+    string SoftwareVersion,
+    StationOperationalStatus OperationalStatus,
+    LicenseStatus LicenseStatus,
+    DateTime? LicenseExpiresAt,
+    int LicenseDaysLeft,
+    long? DeptId,
+    DateTime RegisteredAt,
+    string? DeptName,
+    string CpuSerial,
+    string MotherboardSerial,
+    string DiskSerial,
+    string MacAddress,
+    int UsbPortCount,
+    long ConfigVersion,
+    string? StationBaseUrl,
+    DateTime? LastHeartbeatAt,
+    bool IsOnline,
+    long FileCount,
+    long TotalSize,
+    long TodayFileCount,
+    long TodaySize,
+    long PendingAlertCount,
+    IReadOnlyList<CountItemView> AlertLevels,
+    int RecorderCount,
+    int WhitelistedRecorderCount,
+    IReadOnlyList<StorageUsageView> StorageUsage);

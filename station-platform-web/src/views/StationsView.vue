@@ -6,8 +6,10 @@ import { LICENSE_STATUS, fmtTime } from '../utils/format'
 import { downloadFile, downloadText } from '../utils/export'
 import { onRealtimeEvent } from '../utils/realtime'
 import { useAuthStore } from '../stores/auth'
+import { useRouter } from 'vue-router'
 
 const auth = useAuthStore()
+const router = useRouter()
 const loading = ref(false)
 const items = ref<StationItem[]>([])
 const total = ref(0)
@@ -150,7 +152,13 @@ onBeforeUnmount(() => offRealtime?.())
 
     <el-table v-loading="loading" :data="items" border stripe>
       <el-table-column prop="stationId" label="站ID" width="80" />
-      <el-table-column prop="stationCode" label="站编号" width="130" />
+      <el-table-column label="站编号" width="130">
+        <template #default="{ row }">
+          <el-button link type="primary" @click="router.push(`/stations/${(row as StationItem).stationId}`)">
+            {{ (row as StationItem).stationCode }}
+          </el-button>
+        </template>
+      </el-table-column>
       <el-table-column prop="osVersion" label="系统" width="100" />
       <el-table-column prop="cpuArch" label="架构" width="90" />
       <el-table-column prop="softwareVersion" label="版本" width="90" />

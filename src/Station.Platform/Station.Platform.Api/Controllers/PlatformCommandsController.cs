@@ -1,13 +1,16 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Station.Contracts;
 using Station.Contracts.Api;
 using Station.Contracts.Commands;
+using Station.Application.Authorization;
 using Station.Infrastructure.IdGenerators;
 using Station.Infrastructure.Repositories;
 using Station.Infrastructure.Security;
 using Station.Platform.Domain.Entities;
+using AuthService = Station.Application.Authorization.IAuthorizationService;
 
 namespace Station.Platform.Api.Controllers;
 
@@ -18,17 +21,26 @@ namespace Station.Platform.Api.Controllers;
 public class PlatformCommandsController : ControllerBase
 {
     private readonly IRepository<PlatformCommand> _commands;
+    private readonly IRepository<PlatformStation> _stations;
     private readonly IIdGenerator _idGenerator;
     private readonly IConfiguration _configuration;
+    private readonly AuthService _authorization;
+    private readonly IDataScopeProvider _dataScope;
 
     public PlatformCommandsController(
         IRepository<PlatformCommand> commands,
+        IRepository<PlatformStation> stations,
         IIdGenerator idGenerator,
-        IConfiguration configuration)
+        IConfiguration configuration,
+        AuthService authorization,
+        IDataScopeProvider dataScope)
     {
         _commands = commands;
+        _stations = stations;
         _idGenerator = idGenerator;
         _configuration = configuration;
+        _authorization = authorization;
+        _dataScope = dataScope;
     }
 
     /// <summary>下发指令（P0 六类）。</summary>
@@ -37,6 +49,18 @@ public class PlatformCommandsController : ControllerBase
         long stationId,
         DispatchCommandRequest request)
     {
+        var station = await _stations.GetByIdAsync(stationId);
+        if (station is null)
+        {
+            return NotFound(new { message = "采集站不存在" });
+        }
+
+        var scope = await DataScopeHelper.GetScopeAsync(User, _authorization, _dataScope);
+        if (!scope.IsAll && (station.DeptId is null || !scope.AllowedDeptIds.Contains(station.DeptId.Value)))
+        {
+            return StatusCode(403, new { message = "无权向该采集站下发指令" });
+        }
+
         var remote = new RemoteCommand
         {
             CommandId = _idGenerator.NextId(),

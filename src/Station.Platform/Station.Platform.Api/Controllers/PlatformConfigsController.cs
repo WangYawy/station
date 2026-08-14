@@ -16,6 +16,7 @@ namespace Station.Platform.Api.Controllers;
 
 /// <summary>平台配置发布与查询。</summary>
 [ApiController]
+[Authorize]
 [Route("api/v1/stations/{stationId:long}/configs")]
 public class PlatformConfigsController : ControllerBase
 {
@@ -68,6 +69,11 @@ public class PlatformConfigsController : ControllerBase
         long stationId,
         PublishConfigRequest request)
     {
+        if (!await HasPermissionAsync(PermissionCodes.StationManage))
+        {
+            return StatusCode(403, new { message = "无采集站配置下发权限" });
+        }
+
         var existing = await _changes.GetListAsync(c => c.StationId == stationId);
         var nextVersion = existing.Count == 0 ? 1 : existing.Max(c => c.Version) + 1;
         await _changes.InsertAsync(new PlatformConfigChange
@@ -86,6 +92,11 @@ public class PlatformConfigsController : ControllerBase
     [HttpGet]
     public async Task<ActionResult<ApiResponse<List<ConfigChangeItem>>>> List(long stationId)
     {
+        if (!await HasPermissionAsync(PermissionCodes.StationView))
+        {
+            return StatusCode(403, new { message = "无采集站查看权限" });
+        }
+
         var list = (await _changes.GetListAsync(c => c.StationId == stationId))
             .OrderBy(c => c.Version)
             .Select(ToItem)
@@ -227,6 +238,17 @@ public class PlatformConfigsController : ControllerBase
         });
 
         return Ok(ApiResponse<IReadOnlyList<PublishedConfigItem>>.Ok(published));
+    }
+
+    private async Task<bool> HasPermissionAsync(string code)
+    {
+        if (User.FindFirst("accountId") is not { } accountClaim ||
+            !long.TryParse(accountClaim.Value, out var accountId))
+        {
+            return false;
+        }
+
+        return await _authorization.HasPermissionAsync(accountId, code);
     }
 
     internal static ConfigChangeItem ToItem(PlatformConfigChange c) => new()

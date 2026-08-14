@@ -113,6 +113,52 @@ export interface StationStat {
   isOnline: boolean
 }
 
+export interface StorageUsage {
+  location: string
+  fileCount: number
+  totalSize: number
+}
+
+export interface StationDetail {
+  stationId: number
+  stationCode: string
+  osVersion: string
+  cpuArch: string
+  softwareVersion: string
+  operationalStatus: number
+  licenseStatus: number
+  licenseExpiresAt: string | null
+  licenseDaysLeft: number
+  deptId: number | null
+  registeredAt: string
+  deptName: string | null
+  cpuSerial: string
+  motherboardSerial: string
+  diskSerial: string
+  macAddress: string
+  usbPortCount: number
+  configVersion: number
+  stationBaseUrl: string | null
+  lastHeartbeatAt: string | null
+  isOnline: boolean
+  fileCount: number
+  totalSize: number
+  todayFileCount: number
+  todaySize: number
+  pendingAlertCount: number
+  alertLevels: CountItem[]
+  recorderCount: number
+  whitelistedRecorderCount: number
+  storageUsage: StorageUsage[]
+}
+
+export interface ConfigChangeItem {
+  entityType: string
+  operation: number
+  payloadJson: string
+  version: number
+}
+
 export interface CountItem {
   key: string
   count: number
