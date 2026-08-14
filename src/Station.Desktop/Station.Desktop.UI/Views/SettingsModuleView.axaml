@@ -1,0 +1,234 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Station.Desktop.UI.ViewModels"
+             xmlns:app="using:Station.Application.Settings"
+             x:Class="Station.Desktop.UI.Views.SettingsModuleView"
+             x:DataType="vm:SettingsModuleViewModel">
+  <Grid RowDefinitions="Auto,*,Auto" Margin="16" RowSpacing="10">
+    <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="12">
+      <TextBlock Text="系统设置" FontSize="18" FontWeight="Bold" Foreground="#0a2f6c"
+                 VerticalAlignment="Center" />
+      <Border Background="#fef3c7" CornerRadius="6" Padding="8,3" VerticalAlignment="Center"
+              IsVisible="{Binding IsReadOnly}">
+        <TextBlock Text="平台版配置由平台统一下发，本地只读" FontSize="12" Foreground="#b45309" />
+      </Border>
+    </StackPanel>
+
+    <TabControl Grid.Row="1" TabStripPlacement="Left" Background="Transparent">
+      <TabItem Header="📋 基本设置">
+        <StackPanel Spacing="10" Margin="8,4">
+          <Grid ColumnDefinitions="110,*" ColumnSpacing="8">
+            <TextBlock Text="本机编号" VerticalAlignment="Center" Foreground="#334155" />
+            <TextBox Grid.Column="1" Text="{Binding Basic.StationNo}" IsReadOnly="True" Width="220" HorizontalAlignment="Left" />
+          </Grid>
+          <Grid ColumnDefinitions="110,*" ColumnSpacing="8">
+            <TextBlock Text="安装位置" VerticalAlignment="Center" Foreground="#334155" />
+            <TextBox Grid.Column="1" Text="{Binding Basic.InstallLocation}" IsEnabled="{Binding CanEdit}"
+                     Width="320" HorizontalAlignment="Left" Watermark="如：一楼大厅东侧" />
+          </Grid>
+          <Grid ColumnDefinitions="110,*" ColumnSpacing="8">
+            <TextBlock Text="运行模式" VerticalAlignment="Center" Foreground="#334155" />
+            <ComboBox Grid.Column="1" SelectedIndex="{Binding RunModeIndex}" IsEnabled="{Binding CanEdit}"
+                      Width="160" HorizontalAlignment="Left">
+              <ComboBoxItem Content="单机版" />
+              <ComboBoxItem Content="平台版" />
+            </ComboBox>
+          </Grid>
+          <Grid ColumnDefinitions="110,*" ColumnSpacing="8">
+            <TextBlock Text="平台地址" VerticalAlignment="Center" Foreground="#334155" />
+            <TextBox Grid.Column="1" Text="{Binding Basic.PlatformBaseUrl}" IsEnabled="{Binding CanEdit}"
+                     Width="320" HorizontalAlignment="Left" Watermark="http://平台IP:端口（平台版）" />
+          </Grid>
+          <Grid ColumnDefinitions="110,*" ColumnSpacing="8">
+            <TextBlock Text="平台站点编号" VerticalAlignment="Center" Foreground="#334155" />
+            <TextBox Grid.Column="1" Text="{Binding Basic.PlatformStationCode}" IsEnabled="{Binding CanEdit}"
+                     Width="200" HorizontalAlignment="Left" />
+          </Grid>
+          <Button Content="保存基本设置" Command="{Binding SaveBasicCommand}" IsEnabled="{Binding CanEdit}"
+                  HorizontalAlignment="Left" Margin="0,6,0,0" />
+        </StackPanel>
+      </TabItem>
+
+      <TabItem Header="💾 存储策略">
+        <ScrollViewer>
+          <StackPanel Spacing="10" Margin="8,4">
+            <Grid ColumnDefinitions="150,*" ColumnSpacing="8">
+              <TextBlock Text="存储目标" VerticalAlignment="Center" Foreground="#334155" />
+              <ComboBox Grid.Column="1" SelectedIndex="{Binding StorageTargetIndex}" IsEnabled="{Binding CanEdit}"
+                        Width="160" HorizontalAlignment="Left">
+                <ComboBoxItem Content="本地磁盘" />
+                <ComboBoxItem Content="FTP" />
+                <ComboBoxItem Content="SFTP" />
+              </ComboBox>
+            </Grid>
+            <Grid ColumnDefinitions="150,*" ColumnSpacing="8" IsVisible="{Binding ShowLocalTarget}">
+              <TextBlock Text="本地根目录" VerticalAlignment="Center" Foreground="#334155" />
+              <TextBox Grid.Column="1" Text="{Binding Storage.LocalRoot}" IsEnabled="{Binding CanEdit}"
+                       Width="360" HorizontalAlignment="Left" />
+            </Grid>
+            <StackPanel IsVisible="{Binding ShowFtpTarget}" Spacing="8">
+              <Grid ColumnDefinitions="150,*,Auto" ColumnSpacing="8">
+                <TextBlock Text="FTP 主机" VerticalAlignment="Center" Foreground="#334155" />
+                <TextBox Grid.Column="1" Text="{Binding Storage.FtpHost}" IsEnabled="{Binding CanEdit}" Width="200" HorizontalAlignment="Left" />
+                <TextBlock Grid.Column="2" Text="端口" VerticalAlignment="Center" Margin="8,0,0,0" />
+              </Grid>
+              <Grid ColumnDefinitions="150,*,Auto" ColumnSpacing="8">
+                <TextBlock Text="FTP 端口" VerticalAlignment="Center" Foreground="#334155" />
+                <TextBox Grid.Column="1" Text="{Binding Storage.FtpPort}" IsEnabled="{Binding CanEdit}" Width="100" HorizontalAlignment="Left" />
+              </Grid>
+              <Grid ColumnDefinitions="150,*" ColumnSpacing="8">
+                <TextBlock Text="FTP 账号" VerticalAlignment="Center" Foreground="#334155" />
+                <TextBox Grid.Column="1" Text="{Binding Storage.FtpUser}" IsEnabled="{Binding CanEdit}" Width="200" HorizontalAlignment="Left" />
+              </Grid>
+              <Grid ColumnDefinitions="150,*" ColumnSpacing="8">
+                <TextBlock Text="FTP 密码" VerticalAlignment="Center" Foreground="#334155" />
+                <TextBox Grid.Column="1" Text="{Binding Storage.FtpPassword}" IsEnabled="{Binding CanEdit}"
+                         PasswordChar="●" Width="200" HorizontalAlignment="Left" Watermark="已设置（留空不修改）" />
+              </Grid>
+            </StackPanel>
+            <StackPanel IsVisible="{Binding ShowSftpTarget}" Spacing="8">
+              <Grid ColumnDefinitions="150,*" ColumnSpacing="8">
+                <TextBlock Text="SFTP 主机" VerticalAlignment="Center" Foreground="#334155" />
+                <TextBox Grid.Column="1" Text="{Binding Storage.SftpHost}" IsEnabled="{Binding CanEdit}" Width="200" HorizontalAlignment="Left" />
+              </Grid>
+              <Grid ColumnDefinitions="150,*" ColumnSpacing="8">
+                <TextBlock Text="SFTP 端口" VerticalAlignment="Center" Foreground="#334155" />
+                <TextBox Grid.Column="1" Text="{Binding Storage.SftpPort}" IsEnabled="{Binding CanEdit}" Width="100" HorizontalAlignment="Left" />
+              </Grid>
+              <Grid ColumnDefinitions="150,*" ColumnSpacing="8">
+                <TextBlock Text="SFTP 账号" VerticalAlignment="Center" Foreground="#334155" />
+                <TextBox Grid.Column="1" Text="{Binding Storage.SftpUser}" IsEnabled="{Binding CanEdit}" Width="200" HorizontalAlignment="Left" />
+              </Grid>
+              <Grid ColumnDefinitions="150,*" ColumnSpacing="8">
+                <TextBlock Text="SFTP 密码" VerticalAlignment="Center" Foreground="#334155" />
+                <TextBox Grid.Column="1" Text="{Binding Storage.SftpPassword}" IsEnabled="{Binding CanEdit}"
+                         PasswordChar="●" Width="200" HorizontalAlignment="Left" Watermark="已设置（留空不修改）" />
+              </Grid>
+              <Grid ColumnDefinitions="150,*" ColumnSpacing="8">
+                <TextBlock Text="SFTP 根目录" VerticalAlignment="Center" Foreground="#334155" />
+                <TextBox Grid.Column="1" Text="{Binding Storage.SftpRoot}" IsEnabled="{Binding CanEdit}"
+                         Width="220" HorizontalAlignment="Left" Watermark="留空使用用户主目录" />
+              </Grid>
+            </StackPanel>
+            <Grid ColumnDefinitions="150,*" ColumnSpacing="8">
+              <TextBlock Text="上传目录模板" VerticalAlignment="Center" Foreground="#334155" />
+              <TextBox Grid.Column="1" Text="{Binding Storage.DirectoryTemplate}" IsEnabled="{Binding CanEdit}"
+                       Width="420" HorizontalAlignment="Left" />
+            </Grid>
+            <Grid ColumnDefinitions="150,*,Auto" ColumnSpacing="8">
+              <TextBlock Text="熔断阈值" VerticalAlignment="Center" Foreground="#334155" />
+              <TextBox Grid.Column="1" Text="{Binding Storage.CircuitBreakerThreshold}" IsEnabled="{Binding CanEdit}" Width="80" HorizontalAlignment="Left" />
+              <TextBlock Grid.Column="2" Text="次 / 冷却（秒）" VerticalAlignment="Center" Margin="8,0,0,0" />
+            </Grid>
+            <Grid ColumnDefinitions="150,*,Auto" ColumnSpacing="8">
+              <TextBlock Text="熔断冷却" VerticalAlignment="Center" Foreground="#334155" />
+              <TextBox Grid.Column="1" Text="{Binding Storage.CircuitBreakerCooldownSeconds}" IsEnabled="{Binding CanEdit}" Width="80" HorizontalAlignment="Left" />
+            </Grid>
+            <Grid ColumnDefinitions="150,*,Auto" ColumnSpacing="8">
+              <TextBlock Text="保存天数" VerticalAlignment="Center" Foreground="#334155" />
+              <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+                <TextBox Text="{Binding Storage.VideoRetentionDays}" IsEnabled="{Binding CanEdit}" Width="70" />
+                <TextBlock Text="天（视频）" VerticalAlignment="Center" Foreground="#64748b" />
+                <TextBox Text="{Binding Storage.LogRetentionDays}" IsEnabled="{Binding CanEdit}" Width="70" />
+                <TextBlock Text="天（日志）" VerticalAlignment="Center" Foreground="#64748b" />
+              </StackPanel>
+            </Grid>
+            <Grid ColumnDefinitions="150,*" ColumnSpacing="8">
+              <TextBlock Text="清理执行时间" VerticalAlignment="Center" Foreground="#334155" />
+              <TextBox Grid.Column="1" Text="{Binding Storage.CleanupTime}" IsEnabled="{Binding CanEdit}"
+                       Width="100" HorizontalAlignment="Left" Watermark="HH:mm" />
+            </Grid>
+            <StackPanel Orientation="Horizontal" Spacing="12" Margin="0,6,0,0">
+              <Button Content="保存存储策略" Command="{Binding SaveStorageCommand}" IsEnabled="{Binding CanEdit}" />
+              <TextBlock Text="存储目标/连接参数修改需重启后生效" Foreground="#94a3b8" FontSize="12" VerticalAlignment="Center" />
+            </StackPanel>
+          </StackPanel>
+        </ScrollViewer>
+      </TabItem>
+
+      <TabItem Header="📡 采集策略">
+        <StackPanel Spacing="14" Margin="8,4">
+          <CheckBox Content="记录仪接入后自动开始采集" IsChecked="{Binding Collect.AutoCollectOnConnect}" IsEnabled="{Binding CanEdit}" />
+          <CheckBox Content="任务完成后擦除记录仪上已采集文件" IsChecked="{Binding Collect.EraseAfterComplete}" IsEnabled="{Binding CanEdit}" />
+          <CheckBox Content="已采集过的文件自动跳过" IsChecked="{Binding Collect.SkipCollected}" IsEnabled="{Binding CanEdit}" />
+          <CheckBox Content="采集附属文件（日志、图片、音频）" IsChecked="{Binding Collect.CollectAncillaryFiles}" IsEnabled="{Binding CanEdit}" />
+          <Button Content="保存采集策略" Command="{Binding SaveCollectCommand}" IsEnabled="{Binding CanEdit}"
+                  HorizontalAlignment="Left" Margin="0,6,0,0" />
+        </StackPanel>
+      </TabItem>
+
+      <TabItem Header="🔐 网络安全">
+        <ScrollViewer>
+          <StackPanel Spacing="10" Margin="8,4">
+            <Grid ColumnDefinitions="150,*,Auto" ColumnSpacing="8">
+              <TextBlock Text="Web 端口" VerticalAlignment="Center" Foreground="#334155" />
+              <TextBox Grid.Column="1" Text="{Binding Network.WebPort}" IsEnabled="{Binding CanEdit}" Width="100" HorizontalAlignment="Left" />
+              <TextBlock Grid.Column="2" Text="重启后生效" VerticalAlignment="Center" Margin="8,0,0,0" Foreground="#94a3b8" FontSize="12" />
+            </Grid>
+            <Grid ColumnDefinitions="150,*" ColumnSpacing="8">
+              <TextBlock Text="HTTPS 端口" VerticalAlignment="Center" Foreground="#334155" />
+              <TextBox Grid.Column="1" Text="{Binding Network.HttpsPort}" IsEnabled="{Binding CanEdit}" Width="100" HorizontalAlignment="Left" />
+            </Grid>
+            <CheckBox Content="开启局域网访问（监听 0.0.0.0，强制 HTTPS）" IsChecked="{Binding Network.EnableLan}" IsEnabled="{Binding CanEdit}" />
+            <CheckBox Content="允许 HTTP（关闭后局域网仅 HTTPS）" IsChecked="{Binding Network.AllowHttp}" IsEnabled="{Binding CanEdit}" />
+            <Grid ColumnDefinitions="150,*" ColumnSpacing="8">
+              <TextBlock Text="HTTPS 证书" VerticalAlignment="Center" Foreground="#334155" />
+              <TextBlock Grid.Column="1" Text="{Binding Network.CertificateStatus}" VerticalAlignment="Center"
+                         Foreground="#15803d" TextWrapping="Wrap" />
+            </Grid>
+            <Grid ColumnDefinitions="150,*" ColumnSpacing="8">
+              <TextBlock Text="登录锁定" VerticalAlignment="Center" Foreground="#334155" />
+              <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+                <TextBox Text="{Binding Network.MaxFailedAttempts}" IsEnabled="{Binding CanEdit}" Width="70" />
+                <TextBlock Text="次 /" VerticalAlignment="Center" Foreground="#64748b" />
+                <TextBox Text="{Binding Network.LockoutMinutes}" IsEnabled="{Binding CanEdit}" Width="70" />
+                <TextBlock Text="分钟锁定" VerticalAlignment="Center" Foreground="#64748b" />
+              </StackPanel>
+            </Grid>
+            <StackPanel Orientation="Horizontal" Spacing="12" Margin="0,6,0,0">
+              <Button Content="保存网络安全设置" Command="{Binding SaveNetworkCommand}" IsEnabled="{Binding CanEdit}" />
+              <TextBlock Text="证书上传请使用单机版 Web 后台（系统设置 → 网络安全）" Foreground="#94a3b8" FontSize="12" VerticalAlignment="Center" />
+            </StackPanel>
+          </StackPanel>
+        </ScrollViewer>
+      </TabItem>
+
+      <TabItem Header="🔑 授权与激活">
+        <StackPanel Spacing="12" Margin="8,4" MaxWidth="520">
+          <Grid ColumnDefinitions="110,*" ColumnSpacing="8">
+            <TextBlock Text="授权状态" VerticalAlignment="Center" Foreground="#334155" />
+            <TextBlock Grid.Column="1" Text="{Binding LicenseStatus}" FontWeight="SemiBold"
+                       Foreground="#15803d" TextWrapping="Wrap" />
+          </Grid>
+          <TextBox Text="{Binding LicenseText}" AcceptsReturn="True" TextWrapping="Wrap"
+                   Height="140" Watermark="粘贴授权文件内容（station.lic JSON）" IsEnabled="{Binding CanEdit}" />
+          <Button Content="激活授权" Command="{Binding ActivateLicenseCommand}" IsEnabled="{Binding CanEdit}"
+                  IsVisible="{Binding !IsReadOnly}" HorizontalAlignment="Left" />
+        </StackPanel>
+      </TabItem>
+
+      <TabItem Header="🛠️ 设备自检">
+        <StackPanel Spacing="12" Margin="8,4">
+          <StackPanel Orientation="Horizontal" Spacing="12">
+            <Button Content="一键自检" Command="{Binding RunSelfCheckCommand}" />
+            <TextBlock Text="检测 USB 端口、磁盘、网络、存储目标" Foreground="#94a3b8" FontSize="12" VerticalAlignment="Center" />
+          </StackPanel>
+          <TextBlock Text="{Binding SelfCheckTime}" Foreground="#94a3b8" FontSize="12" />
+          <ListBox ItemsSource="{Binding SelfCheckItems}" MinHeight="160" Background="White">
+            <ListBox.ItemTemplate>
+              <DataTemplate x:DataType="app:SelfCheckItemDto">
+                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10" Margin="4,6">
+                  <TextBlock Text="{Binding Name}" FontWeight="SemiBold" Foreground="#1e293b" />
+                  <TextBlock Grid.Column="1" Text="{Binding Detail}" Foreground="#64748b" TextWrapping="Wrap" />
+                </Grid>
+              </DataTemplate>
+            </ListBox.ItemTemplate>
+          </ListBox>
+        </StackPanel>
+      </TabItem>
+    </TabControl>
+
+    <TextBlock Grid.Row="2" Text="{Binding StatusMessage}" Foreground="#0f766e" FontSize="13"
+               TextWrapping="Wrap" />
+  </Grid>
+</UserControl>

@@ -27,7 +27,14 @@ public sealed class ScheduledCollectWorkerHostedService : BackgroundService
             var delay = next - DateTime.Now;
             if (delay > TimeSpan.Zero)
             {
-                await Task.Delay(delay, stoppingToken);
+                try
+                {
+                    await Task.Delay(delay, stoppingToken);
+                }
+                catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+                {
+                    return;
+                }
             }
 
             if (!_options.ScheduledCollectEnabled)

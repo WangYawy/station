@@ -5,6 +5,7 @@ using Microsoft.Extensions.Hosting;
 using Station.Desktop.Application;
 using Station.Desktop.Infrastructure;
 using Station.Desktop.WebHost;
+using Station.Desktop.Infrastructure.Settings;
 
 namespace Station.Desktop.Bootstrapper;
 
@@ -15,12 +16,15 @@ public static class HostBuilderFactory
     {
         var configuration = new ConfigurationBuilder()
             .AddJsonFile("appsettings.json", optional: true, reloadOnChange: true)
+            .AddJsonFile(RuntimeSettingsFile.ResolvePath(), optional: true, reloadOnChange: true)
             .AddEnvironmentVariables()
             .Build();
         return Host.CreateDefaultBuilder(args)
             .ConfigureAppConfiguration((_, configuration) =>
             {
                 configuration.AddJsonFile("appsettings.json", optional: true, reloadOnChange: true);
+                // 管理员在设置页/桌面端修改的配置：覆盖 appsettings.json，重启后生效
+                configuration.AddJsonFile(RuntimeSettingsFile.ResolvePath(), optional: true, reloadOnChange: true);
                 configuration.AddEnvironmentVariables();
             })
             .ConfigureServices((context, services) =>

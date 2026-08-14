@@ -26,7 +26,14 @@ public sealed class LocalBackupWorkerHostedService : BackgroundService
             var delay = NextRun() - DateTime.Now;
             if (delay > TimeSpan.Zero)
             {
-                await Task.Delay(delay, stoppingToken);
+                try
+                {
+                    await Task.Delay(delay, stoppingToken);
+                }
+                catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+                {
+                    return;
+                }
             }
 
             if (_options.Enabled)

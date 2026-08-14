@@ -31,8 +31,16 @@ public static class DependencyInjection
         services.AddSingleton(authSection.Get<AuthOptions>() ?? new AuthOptions());
 
         var collectSection = configuration.GetSection(CollectOptions.SectionName);
-        services.Configure<CollectOptions>(collectSection);
-        services.AddSingleton(collectSection.Get<CollectOptions>() ?? new CollectOptions());
+        var collectOptions = collectSection.Get<CollectOptions>() ?? new CollectOptions();
+        // .NET 配置绑定对 List 是"追加"而非替换：存在配置项时按配置整体重建白名单，避免与默认值叠加
+        if (collectSection.GetSection(nameof(CollectOptions.FileExtensions)).Exists())
+        {
+            collectOptions.FileExtensions =
+                collectSection.GetSection(nameof(CollectOptions.FileExtensions)).Get<List<string>>() ?? [];
+        }
+
+        services.AddSingleton(collectOptions);
+        services.AddSingleton(Options.Create(collectOptions));
         services.AddSingleton<ICollectSource>(sp =>
         {
             var collect = sp.GetRequiredService<CollectOptions>();

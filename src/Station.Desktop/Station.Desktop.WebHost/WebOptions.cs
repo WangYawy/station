@@ -17,6 +17,9 @@ public sealed class WebOptions
 
     public int HttpsPort { get; set; } = 5443;
 
+    /// <summary>局域网 HTTPS 模式下是否仍允许 HTTP 访问（推荐关闭）。</summary>
+    public bool AllowHttp { get; set; }
+
     public string? CertificatePath { get; set; }
 
     public string? CertificatePassword { get; set; }

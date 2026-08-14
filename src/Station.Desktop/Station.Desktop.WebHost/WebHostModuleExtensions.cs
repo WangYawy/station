@@ -19,6 +19,13 @@ public static class WebHostModuleExtensions
             var urls = new List<string> { $"http://{address}:{options.Port}" };
             if (options.EnableLan && options.EnableHttps)
             {
+                if (!options.AllowHttp)
+                {
+                    // 关闭允许 HTTP：局域网只暴露 HTTPS，本机 HTTP 仍保留用于本地访问
+                    urls.Clear();
+                    urls.Add($"http://{options.ListenAddress}:{options.Port}");
+                }
+
                 urls.Add($"https://{address}:{options.HttpsPort}");
             }
 

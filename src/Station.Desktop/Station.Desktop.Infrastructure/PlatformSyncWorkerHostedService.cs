@@ -47,12 +47,23 @@ public sealed class PlatformSyncWorkerHostedService : BackgroundService
                     await RunSyncAsync(stoppingToken);
                 }
             }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                return;
+            }
             catch
             {
                 // 平台不可达等异常不中断后台服务
             }
 
-            await Task.Delay(TimeSpan.FromSeconds(Math.Max(3, _options.SyncIntervalSeconds)), stoppingToken);
+            try
+            {
+                await Task.Delay(TimeSpan.FromSeconds(Math.Max(3, _options.SyncIntervalSeconds)), stoppingToken);
+            }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                return;
+            }
         }
     }
 

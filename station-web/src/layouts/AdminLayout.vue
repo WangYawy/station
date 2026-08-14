@@ -17,7 +17,8 @@ const menus = [
   { path: '/users', title: '用户管理', icon: User, perm: 'user:view' },
   { path: '/roles', title: '角色管理', icon: Setting, perm: 'role:view' },
   { path: '/recorders', title: '记录仪管理', icon: Monitor, perm: 'recorder:view' },
-  { path: '/audit', title: '审计日志', icon: List, perm: 'audit:view' }
+  { path: '/audit', title: '审计日志', icon: List, perm: 'audit:view' },
+  { path: '/settings', title: '系统设置', icon: Setting, perm: 'setting:view' }
 ]
 
 const visibleMenus = computed(() => menus.filter((m) => !m.perm || auth.hasPermission(m.perm)))

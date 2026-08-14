@@ -44,7 +44,14 @@ public sealed class LedgerAndReportWorkerHostedService : BackgroundService
                 // 单轮失败不中断
             }
 
-            await Task.Delay(TimeSpan.FromSeconds(5), stoppingToken);
+            try
+            {
+                await Task.Delay(TimeSpan.FromSeconds(5), stoppingToken);
+            }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                return;
+            }
         }
     }
 }

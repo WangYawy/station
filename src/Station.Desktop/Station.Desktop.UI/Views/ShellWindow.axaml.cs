@@ -8,10 +8,13 @@ using Station.Application.Authentication;
 using Station.Application.Collecting;
 using Station.Application.Licensing;
 using Station.Application.Recorders;
+using Station.Application.Settings;
 using Station.Application.Uploading;
 using Station.Contracts;
 using Station.Desktop.Application.OperationAccess;
+using Station.Desktop.Application.Settings;
 using Station.Desktop.Application.Session;
+using Station.Desktop.WebHost.Settings;
 using Station.Desktop.UI.Services;
 using Station.Desktop.UI.ViewModels;
 
@@ -173,6 +176,21 @@ public partial class ShellWindow : Window
         {
             var viewModel = new AlertModuleViewModel(_alertService, _sessions);
             ModuleContent.Content = new AlertModuleView { DataContext = viewModel };
+            _currentViewModel = viewModel;
+            return;
+        }
+
+        if (moduleKey == "settings" && overrideTitle is null)
+        {
+            var services = App.Services!;
+            var viewModel = new SettingsModuleViewModel(
+                services.GetRequiredService<ISystemSettingsService>(),
+                services.GetRequiredService<INetworkSettingsService>(),
+                services.GetRequiredService<ISystemSelfCheckService>(),
+                services.GetRequiredService<ILicenseService>(),
+                _sessions,
+                _operationAccess);
+            ModuleContent.Content = new SettingsModuleView { DataContext = viewModel };
             _currentViewModel = viewModel;
             return;
         }

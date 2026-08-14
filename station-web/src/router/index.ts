@@ -17,7 +17,8 @@ const router = createRouter({
         { path: 'roles', component: () => import('../views/RolesView.vue'), meta: { title: '角色管理' } },
         { path: 'recorders', component: () => import('../views/RecordersView.vue'), meta: { title: '记录仪管理' } },
         { path: 'alerts', component: () => import('../views/AlertsView.vue'), meta: { title: '报警中心' } },
-        { path: 'audit', component: () => import('../views/AuditView.vue'), meta: { title: '审计日志' } }
+        { path: 'audit', component: () => import('../views/AuditView.vue'), meta: { title: '审计日志' } },
+        { path: 'settings', component: () => import('../views/SettingsView.vue'), meta: { title: '系统设置' } }
       ]
     }
   ]

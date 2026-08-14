@@ -4,8 +4,10 @@ using Microsoft.Extensions.Options;
 using Station.Application.Collecting;
 using Station.Desktop.Infrastructure.Collecting;
 using Station.Desktop.Infrastructure.Recorders;
+using Station.Desktop.Infrastructure.Settings;
 using Station.Infrastructure;
 using Station.Infrastructure.Recorders;
+using Station.Application.Settings;
 
 namespace Station.Desktop.Infrastructure;
 
@@ -15,6 +17,8 @@ public static class DependencyInjection
     public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration configuration)
     {
         services.AddStationDatabase(configuration);
+
+        services.AddSingleton<IRuntimeSettingsFile, RuntimeSettingsFile>();
 
         // MTP 采集源（仅 Windows；Linux 上选择 mtp 时给出明确错误）
         if (OperatingSystem.IsWindows())

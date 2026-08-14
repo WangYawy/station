@@ -6,7 +6,10 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Station.Application.Audit;
+using Station.Application.Authentication;
 using Station.Domain.Entities;
+using Station.Application.Settings;
+using Station.Desktop.WebHost.Settings;
 
 namespace Station.Desktop.WebHost;
 
@@ -23,6 +26,10 @@ public class Startup
     public void ConfigureServices(IServiceCollection services)
     {
         services.Configure<WebOptions>(_configuration.GetSection(WebOptions.SectionName));
+        services.AddSingleton<INetworkSettingsService>(sp => new NetworkSettingsService(
+            _configuration.GetSection(WebOptions.SectionName).Get<WebOptions>() ?? new WebOptions(),
+            sp.GetRequiredService<AuthOptions>(),
+            sp.GetRequiredService<IRuntimeSettingsFile>()));
         services.AddControllers(options =>
         {
             options.InputFormatters.Insert(0, new TextPlainInputFormatter());
