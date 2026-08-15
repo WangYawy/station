@@ -24,8 +24,14 @@ public static class DependencyInjection
     {
         var section = configuration.GetSection(DbOptions.SectionName);
         var options = section.Get<DbOptions>() ?? new DbOptions();
+        // 默认 SQLite 相对路径重定位到应用数据目录（安装目录只读，避免 Program Files//usr 下不可写）
+        if (options.Provider == DbProvider.Sqlite)
+        {
+            options.ConnectionString = StationPaths.RebaseSqliteConnectionString(options.ConnectionString);
+            Directory.CreateDirectory(StationPaths.DataDirectory);
+        }
 
-        services.Configure<DbOptions>(section);
+        services.AddSingleton(Options.Create(options));
         services.AddSingleton(options);
         services.AddSingleton<ISqlSugarFactory, SqlSugarFactory>();
 

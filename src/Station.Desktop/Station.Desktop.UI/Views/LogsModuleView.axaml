@@ -1,0 +1,46 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Station.Desktop.UI.ViewModels"
+             x:Class="Station.Desktop.UI.Views.LogsModuleView"
+             x:DataType="vm:LogsModuleViewModel">
+  <Grid RowDefinitions="Auto,*,Auto" Margin="16" RowSpacing="12">
+    <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="12">
+      <TextBlock Text="日志中心" FontSize="18" FontWeight="Bold" Foreground="#0a2f6c" VerticalAlignment="Center" />
+      <TextBlock Text="{Binding Message}" FontSize="12" Foreground="#64748b" VerticalAlignment="Center" />
+    </StackPanel>
+
+    <Border Grid.Row="1" Background="White" CornerRadius="12" Padding="12"
+            BoxShadow="0 2 8 0 #14000000">
+      <DockPanel>
+        <Grid DockPanel.Dock="Top" ColumnDefinitions="150,90,110,130,*,70" Margin="4,2,4,6">
+          <TextBlock Text="时间" FontSize="12" Foreground="#94a3b8" />
+          <TextBlock Grid.Column="1" Text="操作人" FontSize="12" Foreground="#94a3b8" />
+          <TextBlock Grid.Column="2" Text="操作类型" FontSize="12" Foreground="#94a3b8" />
+          <TextBlock Grid.Column="3" Text="对象" FontSize="12" Foreground="#94a3b8" />
+          <TextBlock Grid.Column="4" Text="详情" FontSize="12" Foreground="#94a3b8" />
+          <TextBlock Grid.Column="5" Text="结果" FontSize="12" Foreground="#94a3b8" HorizontalAlignment="Right" />
+        </Grid>
+        <ListBox ItemsSource="{Binding Logs}" Background="Transparent" BorderThickness="0">
+          <ListBox.ItemTemplate>
+            <DataTemplate x:DataType="vm:AuditLogRow">
+              <Grid ColumnDefinitions="150,90,110,130,*,70" Margin="4,6">
+                <TextBlock Text="{Binding TimeText}" FontSize="12" Foreground="#64748b" />
+                <TextBlock Grid.Column="1" Text="{Binding Operator}" FontSize="12" Foreground="#334155"
+                           TextTrimming="CharacterEllipsis" />
+                <TextBlock Grid.Column="2" Text="{Binding Type}" FontSize="12" Foreground="#334155" />
+                <TextBlock Grid.Column="3" Text="{Binding Target}" FontSize="12" Foreground="#64748b"
+                           TextTrimming="CharacterEllipsis" />
+                <TextBlock Grid.Column="4" Text="{Binding Detail}" FontSize="12" Foreground="#64748b"
+                           TextTrimming="CharacterEllipsis" />
+                <TextBlock Grid.Column="5" Text="{Binding ResultText}" FontSize="12"
+                           Foreground="{Binding ResultColor}" HorizontalAlignment="Right" />
+              </Grid>
+            </DataTemplate>
+          </ListBox.ItemTemplate>
+        </ListBox>
+      </DockPanel>
+    </Border>
+
+    <TextBlock Grid.Row="2" Text="{Binding IsLoading, StringFormat={}{0}}" FontSize="0" />
+  </Grid>
+</UserControl>

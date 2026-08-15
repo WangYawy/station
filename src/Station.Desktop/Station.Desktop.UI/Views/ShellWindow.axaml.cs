@@ -4,6 +4,7 @@ using Avalonia.Interactivity;
 using Avalonia.Threading;
 using Microsoft.Extensions.DependencyInjection;
 using Station.Application.Alerts;
+using Station.Application.Audit;
 using Station.Application.Authentication;
 using Station.Application.Collecting;
 using Station.Application.Licensing;
@@ -14,9 +15,12 @@ using Station.Contracts;
 using Station.Desktop.Application.OperationAccess;
 using Station.Desktop.Application.Settings;
 using Station.Desktop.Application.Session;
+using Station.Desktop.Infrastructure.Collecting;
 using Station.Desktop.WebHost.Settings;
 using Station.Desktop.UI.Services;
 using Station.Desktop.UI.ViewModels;
+using Station.Domain.Entities;
+using Station.Infrastructure.Repositories;
 
 namespace Station.Desktop.UI.Views;
 
@@ -151,7 +155,10 @@ public partial class ShellWindow : Window
                 services.GetRequiredService<IAuthenticationService>(),
                 services.GetRequiredService<ICollectTaskService>(),
                 services.GetRequiredService<IUploadService>(),
-                services.GetRequiredService<CollectOptions>());
+                services.GetRequiredService<CollectOptions>(),
+                services.GetRequiredService<IRepository<CollectFile>>(),
+                services.GetRequiredService<ILicenseService>(),
+                services.GetServices<IRecorderDeviceDetector>());
             ModuleContent.Content = new WorkbenchView { DataContext = viewModel };
             _currentViewModel = viewModel;
             return;
@@ -176,6 +183,26 @@ public partial class ShellWindow : Window
         {
             var viewModel = new AlertModuleViewModel(_alertService, _sessions);
             ModuleContent.Content = new AlertModuleView { DataContext = viewModel };
+            _currentViewModel = viewModel;
+            return;
+        }
+
+        if (moduleKey == "history" && overrideTitle is null)
+        {
+            var services = App.Services!;
+            var viewModel = new HistoryModuleViewModel(
+                services.GetRequiredService<ICollectTaskService>());
+            ModuleContent.Content = new HistoryModuleView { DataContext = viewModel };
+            _currentViewModel = viewModel;
+            return;
+        }
+
+        if (moduleKey == "logs" && overrideTitle is null)
+        {
+            var services = App.Services!;
+            var viewModel = new LogsModuleViewModel(
+                services.GetRequiredService<IAuditLogService>());
+            ModuleContent.Content = new LogsModuleView { DataContext = viewModel };
             _currentViewModel = viewModel;
             return;
         }

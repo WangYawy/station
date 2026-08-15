@@ -1,0 +1,79 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Station.Desktop.UI.ViewModels"
+             x:Class="Station.Desktop.UI.Views.HistoryModuleView"
+             x:DataType="vm:HistoryModuleViewModel">
+  <Grid RowDefinitions="Auto,*,Auto" Margin="16" RowSpacing="12">
+    <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="12">
+      <TextBlock Text="历史记录" FontSize="18" FontWeight="Bold" Foreground="#0a2f6c" VerticalAlignment="Center" />
+      <TextBlock Text="{Binding Message}" FontSize="12" Foreground="#64748b" VerticalAlignment="Center" />
+    </StackPanel>
+
+    <Grid Grid.Row="1" ColumnDefinitions="*,*" ColumnSpacing="14">
+      <!-- 任务列表 -->
+      <Border Background="White" CornerRadius="12" Padding="12"
+              BoxShadow="0 2 8 0 #14000000">
+        <DockPanel>
+          <TextBlock DockPanel.Dock="Top" Text="📋 采集任务" FontSize="15" FontWeight="Bold"
+                     Foreground="#0a2f6c" Margin="0,0,0,8" />
+          <Grid DockPanel.Dock="Top" ColumnDefinitions="*,90" Margin="4,2,4,4">
+            <TextBlock Text="任务 / 记录仪" FontSize="12" Foreground="#94a3b8" />
+            <TextBlock Grid.Column="1" Text="状态" FontSize="12" Foreground="#94a3b8" HorizontalAlignment="Right" />
+          </Grid>
+          <ListBox ItemsSource="{Binding Tasks}" SelectedItem="{Binding SelectedTask}"
+                   Background="Transparent" BorderThickness="0">
+            <ListBox.ItemTemplate>
+              <DataTemplate x:DataType="vm:HistoryTaskRow">
+                <Grid ColumnDefinitions="*,90" Margin="4,6">
+                  <StackPanel Spacing="2">
+                    <TextBlock Text="{Binding TaskNo}" FontSize="14" FontWeight="SemiBold" Foreground="#1e293b" />
+                    <TextBlock Text="{Binding RecorderName}" FontSize="12" Foreground="#64748b" />
+                    <TextBlock Text="{Binding Summary}" FontSize="12" Foreground="#94a3b8" />
+                  </StackPanel>
+                  <StackPanel Grid.Column="1" Spacing="2" HorizontalAlignment="Right">
+                    <TextBlock Text="{Binding StatusText}" FontSize="13" Foreground="{Binding StatusColor}"
+                               HorizontalAlignment="Right" />
+                    <TextBlock Text="{Binding TimeText}" FontSize="11" Foreground="#94a3b8"
+                               HorizontalAlignment="Right" />
+                  </StackPanel>
+                </Grid>
+              </DataTemplate>
+            </ListBox.ItemTemplate>
+          </ListBox>
+        </DockPanel>
+      </Border>
+
+      <!-- 文件明细 -->
+      <Border Grid.Column="1" Background="White" CornerRadius="12" Padding="12"
+              BoxShadow="0 2 8 0 #14000000">
+        <DockPanel>
+          <TextBlock DockPanel.Dock="Top" Text="📁 任务文件" FontSize="15" FontWeight="Bold"
+                     Foreground="#0a2f6c" Margin="0,0,0,8" />
+          <Grid DockPanel.Dock="Top" ColumnDefinitions="*,80,90,150" Margin="4,2,4,4">
+            <TextBlock Text="文件名" FontSize="12" Foreground="#94a3b8" />
+            <TextBlock Grid.Column="1" Text="大小" FontSize="12" Foreground="#94a3b8" />
+            <TextBlock Grid.Column="2" Text="状态" FontSize="12" Foreground="#94a3b8" />
+            <TextBlock Grid.Column="3" Text="采集时间" FontSize="12" Foreground="#94a3b8" />
+          </Grid>
+          <ListBox ItemsSource="{Binding Files}" Background="Transparent" BorderThickness="0">
+            <ListBox.ItemTemplate>
+              <DataTemplate x:DataType="vm:HistoryFileRow">
+                <Grid ColumnDefinitions="*,80,90,150" Margin="4,6">
+                  <TextBlock Text="{Binding FileName}" FontSize="13" Foreground="#1e293b"
+                             TextTrimming="CharacterEllipsis" />
+                  <TextBlock Grid.Column="1" Text="{Binding SizeText}" FontSize="12" Foreground="#64748b" />
+                  <TextBlock Grid.Column="2" Text="{Binding StatusText}" FontSize="12" Foreground="#15803d" />
+                  <TextBlock Grid.Column="3" Text="{Binding TimeText}" FontSize="11" Foreground="#94a3b8" />
+                </Grid>
+              </DataTemplate>
+            </ListBox.ItemTemplate>
+          </ListBox>
+          <TextBlock DockPanel.Dock="Bottom" Text="选中左侧任务查看文件明细"
+                     FontSize="12" Foreground="#94a3b8" Margin="4,6,4,0" />
+        </DockPanel>
+      </Border>
+    </Grid>
+
+    <TextBlock Grid.Row="2" Text="{Binding IsLoading, StringFormat={}{0}}" FontSize="0" />
+  </Grid>
+</UserControl>

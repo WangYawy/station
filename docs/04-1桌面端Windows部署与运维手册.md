@@ -173,14 +173,15 @@ schtasks /Delete /TN "StationDesktop" /F
 
 | 内容 | 位置 |
 | :--- | :--- |
-| 本地数据库 | 进程工作目录下的 `station.db`（一般即安装目录） |
+| 本地数据库 | `%LOCALAPPDATA%\Station\station.db`（默认，可用 `STATION__DATA__DIR` 覆盖） | 
+| 运行时设置 | `%LOCALAPPDATA%\Station\appsettings.runtime.json`（系统设置页修改后落盘，重启生效） | 
 | 采集文件 | `Station:Storage:LocalRoot` 指定目录（默认相对工作目录） |
 | 日志 | 程序目录 `logs/`（Serilog 按天滚动） |
 
 ### 8.2 备份（建议每周）
 
 1. 关闭桌面端程序；
-2. 把安装目录下的 `station.db` 和采集文件目录整体复制到备份盘或服务器；
+2. 把数据目录（`%LOCALAPPDATA%\Station`）下的 `station.db` 和采集文件目录整体复制到备份盘或服务器；
 3. 恢复时把备份文件放回原目录即可。
 
 ### 8.3 升级

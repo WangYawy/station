@@ -24,7 +24,7 @@
           <Grid ColumnDefinitions="110,*" ColumnSpacing="8">
             <TextBlock Text="安装位置" VerticalAlignment="Center" Foreground="#334155" />
             <TextBox Grid.Column="1" Text="{Binding Basic.InstallLocation}" IsEnabled="{Binding CanEdit}"
-                     Width="320" HorizontalAlignment="Left" Watermark="如：一楼大厅东侧" />
+                     Width="320" HorizontalAlignment="Left" PlaceholderText="如：一楼大厅东侧" />
           </Grid>
           <Grid ColumnDefinitions="110,*" ColumnSpacing="8">
             <TextBlock Text="运行模式" VerticalAlignment="Center" Foreground="#334155" />
@@ -37,7 +37,7 @@
           <Grid ColumnDefinitions="110,*" ColumnSpacing="8">
             <TextBlock Text="平台地址" VerticalAlignment="Center" Foreground="#334155" />
             <TextBox Grid.Column="1" Text="{Binding Basic.PlatformBaseUrl}" IsEnabled="{Binding CanEdit}"
-                     Width="320" HorizontalAlignment="Left" Watermark="http://平台IP:端口（平台版）" />
+                     Width="320" HorizontalAlignment="Left" PlaceholderText="http://平台IP:端口（平台版）" />
           </Grid>
           <Grid ColumnDefinitions="110,*" ColumnSpacing="8">
             <TextBlock Text="平台站点编号" VerticalAlignment="Center" Foreground="#334155" />
@@ -83,7 +83,7 @@
               <Grid ColumnDefinitions="150,*" ColumnSpacing="8">
                 <TextBlock Text="FTP 密码" VerticalAlignment="Center" Foreground="#334155" />
                 <TextBox Grid.Column="1" Text="{Binding Storage.FtpPassword}" IsEnabled="{Binding CanEdit}"
-                         PasswordChar="●" Width="200" HorizontalAlignment="Left" Watermark="已设置（留空不修改）" />
+                         PasswordChar="●" Width="200" HorizontalAlignment="Left" PlaceholderText="已设置（留空不修改）" />
               </Grid>
             </StackPanel>
             <StackPanel IsVisible="{Binding ShowSftpTarget}" Spacing="8">
@@ -102,12 +102,12 @@
               <Grid ColumnDefinitions="150,*" ColumnSpacing="8">
                 <TextBlock Text="SFTP 密码" VerticalAlignment="Center" Foreground="#334155" />
                 <TextBox Grid.Column="1" Text="{Binding Storage.SftpPassword}" IsEnabled="{Binding CanEdit}"
-                         PasswordChar="●" Width="200" HorizontalAlignment="Left" Watermark="已设置（留空不修改）" />
+                         PasswordChar="●" Width="200" HorizontalAlignment="Left" PlaceholderText="已设置（留空不修改）" />
               </Grid>
               <Grid ColumnDefinitions="150,*" ColumnSpacing="8">
                 <TextBlock Text="SFTP 根目录" VerticalAlignment="Center" Foreground="#334155" />
                 <TextBox Grid.Column="1" Text="{Binding Storage.SftpRoot}" IsEnabled="{Binding CanEdit}"
-                         Width="220" HorizontalAlignment="Left" Watermark="留空使用用户主目录" />
+                         Width="220" HorizontalAlignment="Left" PlaceholderText="留空使用用户主目录" />
               </Grid>
             </StackPanel>
             <Grid ColumnDefinitions="150,*" ColumnSpacing="8">
@@ -136,7 +136,7 @@
             <Grid ColumnDefinitions="150,*" ColumnSpacing="8">
               <TextBlock Text="清理执行时间" VerticalAlignment="Center" Foreground="#334155" />
               <TextBox Grid.Column="1" Text="{Binding Storage.CleanupTime}" IsEnabled="{Binding CanEdit}"
-                       Width="100" HorizontalAlignment="Left" Watermark="HH:mm" />
+                       Width="100" HorizontalAlignment="Left" PlaceholderText="HH:mm" />
             </Grid>
             <StackPanel Orientation="Horizontal" Spacing="12" Margin="0,6,0,0">
               <Button Content="保存存储策略" Command="{Binding SaveStorageCommand}" IsEnabled="{Binding CanEdit}" />
@@ -201,7 +201,7 @@
                        Foreground="#15803d" TextWrapping="Wrap" />
           </Grid>
           <TextBox Text="{Binding LicenseText}" AcceptsReturn="True" TextWrapping="Wrap"
-                   Height="140" Watermark="粘贴授权文件内容（station.lic JSON）" IsEnabled="{Binding CanEdit}" />
+                   Height="140" PlaceholderText="粘贴授权文件内容（station.lic JSON）" IsEnabled="{Binding CanEdit}" />
           <Button Content="激活授权" Command="{Binding ActivateLicenseCommand}" IsEnabled="{Binding CanEdit}"
                   IsVisible="{Binding !IsReadOnly}" HorizontalAlignment="Left" />
         </StackPanel>

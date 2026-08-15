@@ -31,6 +31,11 @@ public static class DependencyInjection
         {
             services.AddSingleton<IRecorderRootFileStore, FileSystemRecorderRootFileStore>();
         }
+
+        // 记录仪接入监听：UMS/MTP 设备接入稳定后识别并自动采集（模拟源不工作）
+        services.AddSingleton<IRecorderDeviceDetector, UmsDeviceDetector>();
+        services.AddSingleton<IRecorderDeviceDetector, MtpDeviceDetector>();
+        services.AddHostedService<RecorderConnectWatcherHostedService>();
         services.AddSingleton<ICollectSource>(sp =>
         {
             var collect = sp.GetRequiredService<CollectOptions>();

@@ -1,4 +1,5 @@
 using Station.Application.Settings;
+using Station.Infrastructure;
 
 namespace Station.Desktop.Infrastructure.Settings;
 
@@ -15,7 +16,7 @@ public sealed class RuntimeSettingsFile : IRuntimeSettingsFile
     public static string ResolvePath() =>
         Environment.GetEnvironmentVariable(PathEnvName) is { Length: > 0 } overridePath
             ? overridePath
-            : System.IO.Path.Combine(AppContext.BaseDirectory, FileName);
+            : System.IO.Path.Combine(StationPaths.DataDirectory, FileName);
 
     private static string Path => ResolvePath();
 

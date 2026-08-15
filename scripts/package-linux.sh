@@ -85,6 +85,7 @@ Name=Station Desktop
 Name[zh_CN]=采集站桌面端
 Comment=Audio/video collection station desktop client
 Exec=/usr/bin/station-desktop
+Path=/usr/lib/station-desktop
 Terminal=false
 Categories=Utility;
 EOF

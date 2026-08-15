@@ -193,7 +193,8 @@ cp /usr/share/applications/station-desktop.desktop ~/.config/autostart/
 
 | 内容 | 位置 |
 | :--- | :--- |
-| 本地数据库 | 进程工作目录下的 `station.db` |
+| 本地数据库 | `~/.local/share/Station/station.db`（默认，可用 `STATION__DATA__DIR` 覆盖） | 
+| 运行时设置 | `~/.local/share/Station/appsettings.runtime.json`（系统设置页修改后落盘，重启生效） | 
 | 采集文件 | `Station:Storage:LocalRoot` 指定目录 |
 | 日志 | 程序目录 `logs/`（按天滚动） |
 
@@ -201,7 +202,7 @@ cp /usr/share/applications/station-desktop.desktop ~/.config/autostart/
 
 ```bash
 # 先关闭桌面端程序，再备份
-sudo cp /usr/lib/station-desktop/station.db /备份目录/station-$(date +%F).db
+cp ~/.local/share/Station/station.db /备份目录/station-$(date +%F).db
 ```
 
 采集文件目录按同样方式整体复制。

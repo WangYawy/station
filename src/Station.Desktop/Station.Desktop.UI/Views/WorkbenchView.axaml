@@ -9,7 +9,7 @@
       <Border Background="White" CornerRadius="12" Padding="16"
               BoxShadow="0 2 8 0 #14000000">
         <StackPanel Spacing="4">
-          <TextBlock Text="在线设备" Foreground="#64748b" FontSize="13" />
+          <TextBlock Text="本机运行" Foreground="#64748b" FontSize="13" />
           <TextBlock Text="{Binding OnlineText}" FontSize="24" FontWeight="Bold" Foreground="#0a2f6c" />
         </StackPanel>
       </Border>
