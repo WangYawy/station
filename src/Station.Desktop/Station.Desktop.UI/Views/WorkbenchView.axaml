@@ -3,137 +3,116 @@
              xmlns:vm="using:Station.Desktop.UI.ViewModels"
              x:Class="Station.Desktop.UI.Views.WorkbenchView"
              x:DataType="vm:WorkbenchViewModel">
-  <Grid RowDefinitions="Auto,*,Auto,Auto" Margin="16" RowSpacing="14">
+  <Grid RowDefinitions="Auto,Auto,*,Auto" Margin="16" RowSpacing="12">
     <!-- 统计卡片 -->
     <Grid Grid.Row="0" ColumnDefinitions="*,*,*,*" ColumnSpacing="14">
       <Border Background="White" CornerRadius="12" Padding="16"
               BoxShadow="0 2 8 0 #14000000">
         <StackPanel Spacing="4">
           <TextBlock Text="本机运行" Foreground="#64748b" FontSize="13" />
-          <TextBlock Text="{Binding OnlineText}" FontSize="24" FontWeight="Bold" Foreground="#0a2f6c" />
+          <TextBlock Text="{Binding OnlineText}" FontSize="18" FontWeight="Bold" Foreground="#0a2f6c"
+                     TextTrimming="CharacterEllipsis" MaxWidth="260" />
         </StackPanel>
       </Border>
       <Border Grid.Column="1" Background="White" CornerRadius="12" Padding="16"
               BoxShadow="0 2 8 0 #14000000">
         <StackPanel Spacing="4">
           <TextBlock Text="今日采集" Foreground="#64748b" FontSize="13" />
-          <TextBlock Text="{Binding TodayText}" FontSize="24" FontWeight="Bold" Foreground="#2563eb" />
+          <TextBlock Text="{Binding TodayText}" FontSize="18" FontWeight="Bold" Foreground="#2563eb" />
         </StackPanel>
       </Border>
       <Border Grid.Column="2" Background="White" CornerRadius="12" Padding="16"
               BoxShadow="0 2 8 0 #14000000">
         <StackPanel Spacing="4">
           <TextBlock Text="待上传" Foreground="#64748b" FontSize="13" />
-          <TextBlock Text="{Binding PendingUploadText}" FontSize="24" FontWeight="Bold" Foreground="#f59e0b" />
+          <TextBlock Text="{Binding PendingUploadText}" FontSize="18" FontWeight="Bold" Foreground="#f59e0b" />
         </StackPanel>
       </Border>
       <Border Grid.Column="3" Background="White" CornerRadius="12" Padding="16"
               BoxShadow="0 2 8 0 #14000000">
         <StackPanel Spacing="4">
-          <TextBlock Text="本机状态" Foreground="#64748b" FontSize="13" />
-          <TextBlock Text="{Binding SystemText}" FontSize="15" FontWeight="SemiBold" Foreground="#334155" />
+          <TextBlock Text="USB 端口（30 路）" Foreground="#64748b" FontSize="13" />
+          <TextBlock Text="{Binding PortStatsText}" FontSize="15" FontWeight="SemiBold" Foreground="#334155" />
         </StackPanel>
       </Border>
     </Grid>
 
-    <!-- 设备连接池 + 采集队列 -->
-    <Grid Grid.Row="1" ColumnDefinitions="*,*" ColumnSpacing="14">
-      <Border Background="White" CornerRadius="12" Padding="16"
-              BoxShadow="0 2 8 0 #14000000">
-        <DockPanel>
-          <TextBlock DockPanel.Dock="Top" Text="📡 设备连接池" FontSize="16" FontWeight="Bold"
-                     Foreground="#0a2f6c" Margin="0,0,0,10" />
-          <ListBox ItemsSource="{Binding DevicePool}" Background="Transparent" BorderThickness="0">
-            <ListBox.ItemTemplate>
-              <DataTemplate x:DataType="vm:DeviceItem">
-                <Grid ColumnDefinitions="*,Auto" Margin="4,6">
-                  <TextBlock Text="{Binding Name}" FontSize="14" Foreground="#1e293b" />
-                  <TextBlock Grid.Column="1" Text="{Binding State}" FontSize="13"
-                             Foreground="{Binding StateColor}" />
-                </Grid>
-              </DataTemplate>
-            </ListBox.ItemTemplate>
-          </ListBox>
-        </DockPanel>
-      </Border>
+    <!-- 本机监控 -->
+    <Border Grid.Row="1" Background="White" CornerRadius="12" Padding="12,8"
+            BoxShadow="0 2 8 0 #14000000">
+      <WrapPanel>
+        <Border Background="#f1f5f9" CornerRadius="8" Padding="12,5" Margin="0,2,10,2">
+          <TextBlock><Run Text="CPU：" /><Run Text="{Binding CpuText}" Foreground="#0a2f6c" FontWeight="SemiBold" /></TextBlock>
+        </Border>
+        <Border Background="#f1f5f9" CornerRadius="8" Padding="12,5" Margin="0,2,10,2">
+          <TextBlock><Run Text="内存：" /><Run Text="{Binding MemText}" Foreground="#0a2f6c" FontWeight="SemiBold" /></TextBlock>
+        </Border>
+        <Border Background="#f1f5f9" CornerRadius="8" Padding="12,5" Margin="0,2,10,2">
+          <TextBlock><Run Text="磁盘：" /><Run Text="{Binding DiskText}" Foreground="#0a2f6c" FontWeight="SemiBold" /></TextBlock>
+        </Border>
+        <Border Background="#f1f5f9" CornerRadius="8" Padding="12,5" Margin="0,2,10,2">
+          <TextBlock><Run Text="网络：" /><Run Text="{Binding NetText}" Foreground="#0a2f6c" FontWeight="SemiBold" /></TextBlock>
+        </Border>
+        <Border Background="#f1f5f9" CornerRadius="8" Padding="12,5" Margin="0,2,10,2">
+          <TextBlock><Run Text="监听端口：" /><Run Text="{Binding PortsText}" Foreground="#0a2f6c" FontWeight="SemiBold" /></TextBlock>
+        </Border>
+        <Border Background="#f1f5f9" CornerRadius="8" Padding="12,5" Margin="0,2,10,2">
+          <TextBlock><Run Text="设备：" /><Run Text="{Binding DeviceText}" Foreground="#0a2f6c" FontWeight="SemiBold" /></TextBlock>
+        </Border>
+      </WrapPanel>
+    </Border>
 
-      <Border Grid.Column="1" Background="White" CornerRadius="12" Padding="16"
-              BoxShadow="0 2 8 0 #14000000">
-        <DockPanel>
-          <TextBlock DockPanel.Dock="Top" Text="📋 采集队列（当前任务）" FontSize="16" FontWeight="Bold"
-                     Foreground="#0a2f6c" Margin="0,0,0,10" />
-          <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="8" Margin="0,0,0,10">
-            <Border Background="#dbeafe" CornerRadius="9999" Padding="8,3">
-              <TextBlock Text="全部状态" FontSize="12" Foreground="#1d4ed8" />
-            </Border>
-            <Border Background="#f1f5f9" CornerRadius="9999" Padding="8,3">
-              <TextBlock Text="已同步" FontSize="12" Foreground="#64748b" />
-            </Border>
-            <Border Background="#f1f5f9" CornerRadius="9999" Padding="8,3">
-              <TextBlock Text="同步中" FontSize="12" Foreground="#64748b" />
-            </Border>
-            <Border Background="#f1f5f9" CornerRadius="9999" Padding="8,3">
-              <TextBlock Text="失败" FontSize="12" Foreground="#64748b" />
-            </Border>
-          </StackPanel>
-          <ListBox ItemsSource="{Binding ActiveQueue}" Background="Transparent" BorderThickness="0">
-            <ListBox.ItemTemplate>
-              <DataTemplate x:DataType="vm:QueueItem">
-                <Grid ColumnDefinitions="*,Auto,Auto" Margin="4,6">
-                  <StackPanel Spacing="2">
-                    <TextBlock Text="{Binding Device}" FontSize="14" Foreground="#1e293b" />
-                    <TextBlock Text="{Binding Task}" FontSize="12" Foreground="#64748b" />
-                  </StackPanel>
-                  <TextBlock Grid.Column="1" Text="{Binding Progress}" FontSize="13" Foreground="#334155" Margin="0,0,12,0" />
-                  <Border Grid.Column="2" Background="#f1f5f9" CornerRadius="9999" Padding="8,3">
-                    <TextBlock Text="{Binding State}" FontSize="12" Foreground="{Binding StateColor}" />
+    <!-- 30 路 USB 采集卡片 -->
+    <ScrollViewer Grid.Row="2">
+      <ItemsControl ItemsSource="{Binding PortCards}">
+        <ItemsControl.ItemsPanel>
+          <ItemsPanelTemplate>
+            <UniformGrid Columns="5" />
+          </ItemsPanelTemplate>
+        </ItemsControl.ItemsPanel>
+        <ItemsControl.ItemTemplate>
+          <DataTemplate x:DataType="vm:UsbPortCardViewModel">
+            <Border Background="White" CornerRadius="12" Margin="4" MinHeight="178" Padding="12"
+                    BoxShadow="0 2 8 0 #14000000" Opacity="{Binding Opacity}">
+              <StackPanel Spacing="4">
+                <Grid ColumnDefinitions="*,Auto">
+                  <TextBlock Text="{Binding PortText}" FontSize="18" FontWeight="Bold" Foreground="#0a2f6c" />
+                  <Border Grid.Column="1" Background="{Binding StatusBadgeBrush}" CornerRadius="9999" Padding="10,2">
+                    <TextBlock Text="{Binding StatusText}" FontSize="11" FontWeight="Bold"
+                               Foreground="{Binding StatusForeground}" />
                   </Border>
                 </Grid>
-              </DataTemplate>
-            </ListBox.ItemTemplate>
-          </ListBox>
-        </DockPanel>
-      </Border>
-    </Grid>
-
-    <!-- 状态监控 -->
-    <Border Grid.Row="2" Background="White" CornerRadius="12" Padding="16"
-            BoxShadow="0 2 8 0 #14000000">
-      <StackPanel Spacing="8">
-        <TextBlock Text="状态监控" FontSize="16" FontWeight="Bold" Foreground="#0a2f6c" />
-        <WrapPanel>
-          <Border Background="#f1f5f9" CornerRadius="8" Padding="12,6" Margin="0,0,10,8">
-            <TextBlock>
-              <Run Text="CPU：" /><Run Text="{Binding MonitorLines[0].Value}" Foreground="#0a2f6c" FontWeight="SemiBold" />
-            </TextBlock>
-          </Border>
-          <Border Background="#f1f5f9" CornerRadius="8" Padding="12,6" Margin="0,0,10,8">
-            <TextBlock>
-              <Run Text="内存：" /><Run Text="{Binding MonitorLines[1].Value}" Foreground="#0a2f6c" FontWeight="SemiBold" />
-            </TextBlock>
-          </Border>
-          <Border Background="#f1f5f9" CornerRadius="8" Padding="12,6" Margin="0,0,10,8">
-            <TextBlock>
-              <Run Text="磁盘：" /><Run Text="{Binding MonitorLines[2].Value}" Foreground="#0a2f6c" FontWeight="SemiBold" />
-            </TextBlock>
-          </Border>
-          <Border Background="#f1f5f9" CornerRadius="8" Padding="12,6" Margin="0,0,10,8">
-            <TextBlock>
-              <Run Text="网络：" /><Run Text="{Binding MonitorLines[3].Value}" Foreground="#0a2f6c" FontWeight="SemiBold" />
-            </TextBlock>
-          </Border>
-          <Border Background="#f1f5f9" CornerRadius="8" Padding="12,6" Margin="0,0,10,8">
-            <TextBlock>
-              <Run Text="监听端口：" /><Run Text="{Binding MonitorLines[4].Value}" Foreground="#0a2f6c" FontWeight="SemiBold" />
-            </TextBlock>
-          </Border>
-          <Border Background="#f1f5f9" CornerRadius="8" Padding="12,6" Margin="0,0,10,8">
-            <TextBlock>
-              <Run Text="设备：" /><Run Text="{Binding MonitorLines[5].Value}" Foreground="#0a2f6c" FontWeight="SemiBold" />
-            </TextBlock>
-          </Border>
-        </WrapPanel>
-      </StackPanel>
-    </Border>
+                <TextBlock Text="{Binding DeviceText}" FontSize="14" FontWeight="SemiBold" Foreground="#1e293b"
+                           TextTrimming="CharacterEllipsis" />
+                <TextBlock Text="{Binding MetaText}" FontSize="12" Foreground="#64748b"
+                           TextTrimming="CharacterEllipsis" />
+                <TextBlock Text="{Binding StorageText}" FontSize="12" Foreground="#64748b"
+                           TextTrimming="CharacterEllipsis" />
+                <ProgressBar Minimum="0" Maximum="100" Value="{Binding Progress}" Height="8"
+                             Foreground="#2563eb" Background="#e2e8f0" />
+                <Grid ColumnDefinitions="*,Auto">
+                  <TextBlock Text="{Binding SpeedText}" FontSize="12" Foreground="#2563eb" />
+                  <TextBlock Grid.Column="1" Text="{Binding ProgressText}" FontSize="12" FontWeight="SemiBold"
+                             Foreground="#475569" />
+                </Grid>
+                <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,4,0,0">
+                  <Button Content="暂停" Command="{Binding PauseCommand}" IsVisible="{Binding CanPause}"
+                          Padding="10,3" FontSize="12" Background="#f59e0b" Foreground="White" />
+                  <Button Content="恢复" Command="{Binding ResumeCommand}" IsVisible="{Binding CanResume}"
+                          Padding="10,3" FontSize="12" Background="#2563eb" Foreground="White" />
+                  <Button Content="取消" Command="{Binding CancelCommand}" IsVisible="{Binding CanCancel}"
+                          Padding="10,3" FontSize="12" Background="#ef4444" Foreground="White" />
+                  <Button Content="重试" Command="{Binding RetryCommand}" IsVisible="{Binding CanRetry}"
+                          Padding="10,3" FontSize="12" Background="#ef4444" Foreground="White" />
+                  <Button Content="明细" Tag="{Binding TaskId}" IsVisible="{Binding !IsIdle}"
+                          Padding="10,3" FontSize="12" Background="#f1f5f9" Foreground="#334155"
+                          Click="OnCardDetailsClick" />
+                </StackPanel>
+              </StackPanel>
+            </Border>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+    </ScrollViewer>
   </Grid>
 </UserControl>

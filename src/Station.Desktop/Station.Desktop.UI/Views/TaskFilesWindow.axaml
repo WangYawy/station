@@ -1,0 +1,27 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:app="using:Station.Application.Collecting"
+        x:Class="Station.Desktop.UI.Views.TaskFilesWindow"
+        Width="640" Height="500"
+        WindowStartupLocation="CenterOwner"
+        Title="任务文件明细">
+  <Grid RowDefinitions="Auto,*,Auto" Margin="16" RowSpacing="10">
+    <TextBlock Grid.Row="0" x:Name="TitleText" FontSize="16" FontWeight="Bold" Foreground="#0a2f6c" />
+    <ListBox Grid.Row="1" x:Name="FileList" Background="Transparent" BorderThickness="0">
+      <ListBox.ItemTemplate>
+        <DataTemplate x:DataType="app:CollectFileDto">
+          <Grid ColumnDefinitions="*,90,90,140" Margin="4,6">
+            <TextBlock Text="{Binding FileName}" FontSize="13" Foreground="#1e293b"
+                       TextTrimming="CharacterEllipsis" />
+            <TextBlock Grid.Column="1" Text="{Binding Size, StringFormat={}{0} B}" FontSize="12"
+                       Foreground="#64748b" />
+            <TextBlock Grid.Column="2" Text="{Binding Status}" FontSize="12" Foreground="#15803d" />
+            <TextBlock Grid.Column="3" Text="{Binding CollectedAt, StringFormat={}{0:yyyy-MM-dd HH:mm:ss}}"
+                       FontSize="11" Foreground="#94a3b8" />
+          </Grid>
+        </DataTemplate>
+      </ListBox.ItemTemplate>
+    </ListBox>
+    <TextBlock Grid.Row="2" x:Name="SummaryText" FontSize="12" Foreground="#94a3b8" />
+  </Grid>
+</Window>

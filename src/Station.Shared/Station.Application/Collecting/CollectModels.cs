@@ -16,6 +16,7 @@ public sealed record CollectTaskDto(
     string TaskNo,
     string RecorderName,
     string? RecorderSerial,
+    Station.Contracts.ProtocolType Protocol,
     long? OperatorUserId,
     long? DeptId,
     CollectTaskStatus Status,

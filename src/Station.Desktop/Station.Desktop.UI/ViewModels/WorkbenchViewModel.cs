@@ -1,14 +1,12 @@
 using System.Collections.ObjectModel;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
-using CommunityToolkit.Mvvm.Input;
-using Station.Application.Authentication;
 using Station.Application.Collecting;
 using Station.Application.Licensing;
 using Station.Application.Uploading;
 using Station.Desktop.Application.Monitoring;
+using Station.Desktop.Application.OperationAccess;
 using Station.Desktop.Application.Session;
-using Station.Desktop.Infrastructure.Collecting;
 using Station.Domain.Entities;
 using Station.Domain.Enums;
 using Station.Infrastructure.Repositories;
@@ -16,23 +14,27 @@ using SqlSugar;
 
 namespace Station.Desktop.UI.ViewModels;
 
-public sealed record DeviceItem(string Name, string State, string StateColor);
-
-public sealed record QueueItem(string Device, string Task, string Progress, string State, string StateColor);
-
+/// <summary>
+/// 工作台：30 路 USB 采集通道卡片 + 统计（本机运行/今日采集/待上传/端口状态）+ 本机监控。
+/// 卡片实时反映各端口当前任务（采集中/已暂停/空闲），支持暂停/恢复/取消/重试/查看明细。
+/// </summary>
 public partial class WorkbenchViewModel : ObservableObject, IDisposable
 {
+    public const int PortCount = 30;
+
     private readonly ISessionManager _sessions;
-    private readonly IAuthenticationService _authentication;
     private readonly ICollectTaskService _collectService;
     private readonly IUploadService _uploadService;
-    private readonly SystemMonitorService _monitor;
     private readonly IRepository<CollectFile> _files;
     private readonly ILicenseService _license;
-    private readonly IReadOnlyList<IRecorderDeviceDetector> _detectors;
+    private readonly IOperationAccessService _operationAccess;
+    private readonly SystemMonitorService _monitor;
     private readonly DispatcherTimer _timer;
+    private readonly Dictionary<int, long> _portTaskIds = [];
     private int _monitorTicks;
     private int _licenseTicks;
+
+    public ObservableCollection<UsbPortCardViewModel> PortCards { get; }
 
     [ObservableProperty]
     private string _onlineText = "加载中…";
@@ -41,35 +43,60 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
     private string _todayText = "—";
 
     [ObservableProperty]
-    private string _pendingUploadText = "12";
+    private string _pendingUploadText = "—";
 
     [ObservableProperty]
-    private string _systemText = "CPU 23% · 磁盘 320GB/1TB";
+    private string _portStatsText = "采集中 0 · 已暂停 0 · 空闲 30";
 
-    public ObservableCollection<DeviceItem> DevicePool { get; } = [];
+    [ObservableProperty]
+    private string _cpuText = "—";
 
-    public ObservableCollection<QueueItem> ActiveQueue { get; } = [];
+    [ObservableProperty]
+    private string _memText = "—";
 
-    public ObservableCollection<MonitorLine> MonitorLines { get; } = [];
+    [ObservableProperty]
+    private string _diskText = "—";
+
+    [ObservableProperty]
+    private string _netText = "—";
+
+    [ObservableProperty]
+    private string _portsText = "—";
+
+    [ObservableProperty]
+    private string _deviceText = "—";
+
+    [ObservableProperty]
+    private bool _canOperate;
 
     public WorkbenchViewModel(
         ISessionManager sessions,
-        IAuthenticationService authentication,
         ICollectTaskService collectService,
         IUploadService uploadService,
         CollectOptions collectOptions,
         IRepository<CollectFile> files,
         ILicenseService license,
-        IEnumerable<IRecorderDeviceDetector> detectors)
+        IOperationAccessService operationAccess)
     {
         _sessions = sessions;
-        _authentication = authentication;
         _collectService = collectService;
         _uploadService = uploadService;
         _files = files;
         _license = license;
-        _detectors = detectors.ToList();
+        _operationAccess = operationAccess;
         _monitor = new SystemMonitorService(collectOptions);
+
+        PortCards = new ObservableCollection<UsbPortCardViewModel>(
+            Enumerable.Range(1, PortCount).Select(i => new UsbPortCardViewModel(
+                i,
+                c => _ = OperateAsync(c, s => s.PauseAsync(c.TaskId!.Value)),
+                c => _ = OperateAsync(c, s => s.ResumeAsync(c.TaskId!.Value)),
+                c => _ = OperateAsync(c, s => s.CancelAsync(c.TaskId!.Value)),
+                c => _ = OperateAsync(c, s => s.StartAsync(c.TaskId!.Value)))));
+
+        _sessions.SessionChanged += OnSessionChanged;
+        OnSessionChanged();
+
         _timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
         _timer.Tick += async (_, _) =>
         {
@@ -83,47 +110,103 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
                 await RefreshLicenseAsync();
             }
 
-            await RefreshQueueAsync();
-            await RefreshDevicePoolAsync();
+            if (_monitorTicks % 2 == 0)
+            {
+                await RefreshDataAsync();
+            }
         };
         _timer.Start();
+        RefreshMonitor();
         _ = RefreshLicenseAsync();
-        _ = RefreshTodayAsync();
+        _ = RefreshDataAsync();
+    }
+
+    private void OnSessionChanged()
+    {
+        CanOperate = _sessions.IsAuthenticated &&
+                     _operationAccess.HasPermission(_sessions.Current, "collect");
     }
 
     private void RefreshMonitor()
     {
         var lines = _monitor.Snapshot();
-        MonitorLines.Clear();
-        foreach (var line in lines)
-        {
-            MonitorLines.Add(line);
-        }
-
-        SystemText = string.Join(" · ", lines.Take(3).Select(l => $"{l.Label} {l.Value}"));
+        CpuText = ValueOf(lines, 0);
+        MemText = ValueOf(lines, 1);
+        DiskText = ValueOf(lines, 2);
+        NetText = ValueOf(lines, 3);
+        PortsText = ValueOf(lines, 4);
+        DeviceText = ValueOf(lines, 5);
     }
 
-    private async Task RefreshQueueAsync()
+    private static string ValueOf(IReadOnlyList<MonitorLine> lines, int index) =>
+        lines.Count > index ? lines[index].Value : "—";
+
+    private async Task RefreshDataAsync()
     {
         try
         {
             var tasks = await _collectService.GetActiveTasksAsync();
+            RefreshPorts(tasks);
+            await RefreshTodayAsync();
             PendingUploadText = (await _uploadService.CountPendingUploadsAsync()).ToString();
-            ActiveQueue.Clear();
-            foreach (var task in tasks)
-            {
-                ActiveQueue.Add(new QueueItem(
-                    task.RecorderName,
-                    task.TaskNo,
-                    $"{task.CollectedFiles}/{task.TotalFiles}",
-                    CollectTaskStatusText.Of(task.Status),
-                    QueueStatusColor(task.Status)));
-            }
         }
         catch
         {
-            // 采集服务暂不可用时忽略
+            // 数据刷新失败不阻塞界面
         }
+    }
+
+    private void RefreshPorts(IReadOnlyList<CollectTaskDto> tasks)
+    {
+        var byId = tasks.ToDictionary(t => t.TaskId, t => t);
+        var collecting = 0;
+        var paused = 0;
+
+        // 1) 更新已占用端口：任务仍在运行则刷新，否则清空为空闲
+        foreach (var (port, taskId) in _portTaskIds.ToList())
+        {
+            if (byId.TryGetValue(taskId, out var task))
+            {
+                PortCards[port - 1].UpdateFromTask(task);
+                if (task.Status == CollectTaskStatus.Paused)
+                {
+                    paused++;
+                }
+                else
+                {
+                    collecting++;
+                }
+            }
+            else
+            {
+                _portTaskIds.Remove(port);
+                PortCards[port - 1].SetIdle();
+            }
+        }
+
+        // 2) 新任务分配到第一个空闲端口（端口映射保持稳定）
+        var assigned = _portTaskIds.Values.ToHashSet();
+        foreach (var task in tasks.Where(t => !assigned.Contains(t.TaskId)))
+        {
+            var port = Enumerable.Range(1, PortCount).FirstOrDefault(p => !_portTaskIds.ContainsKey(p));
+            if (port == 0)
+            {
+                break;
+            }
+
+            _portTaskIds[port] = task.TaskId;
+            PortCards[port - 1].UpdateFromTask(task);
+            if (task.Status == CollectTaskStatus.Paused)
+            {
+                paused++;
+            }
+            else
+            {
+                collecting++;
+            }
+        }
+
+        PortStatsText = $"采集中 {collecting} · 已暂停 {paused} · 空闲 {PortCount - collecting - paused}";
     }
 
     private async Task RefreshTodayAsync()
@@ -156,39 +239,26 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
         }
     }
 
-    private async Task RefreshDevicePoolAsync()
+    private async Task OperateAsync(UsbPortCardViewModel card, Func<ICollectTaskService, Task> action)
     {
+        if (!CanOperate || card.TaskId is null)
+        {
+            return;
+        }
+
         try
         {
-            var tasks = await _collectService.GetActiveTasksAsync();
-            var busy = tasks.Select(t => t.RecorderName).ToHashSet();
-            DevicePool.Clear();
-            foreach (var task in tasks)
-            {
-                DevicePool.Add(new DeviceItem(
-                    task.RecorderName,
-                    CollectTaskStatusText.Of(task.Status),
-                    QueueStatusColor(task.Status)));
-            }
-
-            foreach (var device in _detectors.SelectMany(d => d.Detect()))
-            {
-                if (!busy.Contains(device.Name))
-                {
-                    DevicePool.Add(new DeviceItem(device.Name, "已连接 · 待采集", "#2563eb"));
-                }
-            }
-
-            if (DevicePool.Count == 0)
-            {
-                DevicePool.Add(new DeviceItem("暂无设备接入", "—", "#94a3b8"));
-            }
+            await action(_collectService);
+            await RefreshDataAsync();
         }
         catch
         {
-            // 设备池刷新失败不阻塞
+            // 操作失败由采集服务写入状态
         }
     }
+
+    public async Task<IReadOnlyList<CollectFileDto>> GetTaskFilesAsync(long taskId) =>
+        await _collectService.GetTaskFilesAsync(taskId);
 
     private static string FormatSize(long bytes)
     {
@@ -209,26 +279,9 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
         return $"{value:F1} {units[unit]}";
     }
 
-    [RelayCommand]
-    private async Task LogoutAsync()
-    {
-        if (_sessions.Current is { } session)
-        {
-            await _authentication.LogoutAsync(session.AccountId);
-        }
-
-        _sessions.Clear();
-    }
-
     public void Dispose()
     {
+        _sessions.SessionChanged -= OnSessionChanged;
         _timer.Stop();
     }
-
-    private static string QueueStatusColor(CollectTaskStatus status) => status switch
-    {
-        CollectTaskStatus.Collecting or CollectTaskStatus.Scanning => "#2563eb",
-        CollectTaskStatus.Paused => "#f59e0b",
-        _ => "#94a3b8"
-    };
 }

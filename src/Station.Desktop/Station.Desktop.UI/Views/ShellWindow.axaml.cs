@@ -15,7 +15,6 @@ using Station.Contracts;
 using Station.Desktop.Application.OperationAccess;
 using Station.Desktop.Application.Settings;
 using Station.Desktop.Application.Session;
-using Station.Desktop.Infrastructure.Collecting;
 using Station.Desktop.WebHost.Settings;
 using Station.Desktop.UI.Services;
 using Station.Desktop.UI.ViewModels;
@@ -152,13 +151,12 @@ public partial class ShellWindow : Window
             var services = App.Services!;
             var viewModel = new WorkbenchViewModel(
                 _sessions,
-                services.GetRequiredService<IAuthenticationService>(),
                 services.GetRequiredService<ICollectTaskService>(),
                 services.GetRequiredService<IUploadService>(),
                 services.GetRequiredService<CollectOptions>(),
                 services.GetRequiredService<IRepository<CollectFile>>(),
                 services.GetRequiredService<ILicenseService>(),
-                services.GetServices<IRecorderDeviceDetector>());
+                _operationAccess);
             ModuleContent.Content = new WorkbenchView { DataContext = viewModel };
             _currentViewModel = viewModel;
             return;

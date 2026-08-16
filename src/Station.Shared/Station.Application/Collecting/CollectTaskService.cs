@@ -487,7 +487,7 @@ public sealed class CollectTaskService : ICollectTaskService
         await _tasks.GetByIdAsync(taskId) ?? throw new InvalidOperationException($"任务 {taskId} 不存在");
 
     private static CollectTaskDto ToDto(CollectTask t) => new(
-        t.Id, t.TaskNo, t.RecorderName, t.RecorderSerial, t.OperatorUserId, t.DeptId,
+        t.Id, t.TaskNo, t.RecorderName, t.RecorderSerial, (Station.Contracts.ProtocolType)t.Protocol, t.OperatorUserId, t.DeptId,
         t.Status, t.IsAuto,
         t.TotalFiles, t.CollectedFiles, t.SkippedFiles, t.FailedFiles,
         t.TotalBytes, t.CollectedBytes, t.SpeedBytesPerSecond,
