@@ -44,6 +44,7 @@ const storage = reactive({
   cleanupTime: '04:00'
 })
 const collect = reactive({ autoCollectOnConnect: true, eraseAfterComplete: false, skipCollected: true, collectAncillaryFiles: true })
+const workbench = reactive({ rows: 6, columns: 5, cardWidth: 240, cardHeight: 200, maxEmergencyTasks: 3 })
 const network = reactive({
   webPort: 5000,
   httpsPort: 5443,
@@ -73,6 +74,7 @@ async function loadSettings() {
       basic: typeof basic
       storage: typeof storage
       collect: typeof collect
+      workbench: typeof workbench
       license: LicenseInfo
       network: typeof network
       readOnly: boolean
@@ -80,6 +82,7 @@ async function loadSettings() {
     Object.assign(basic, data.basic)
     Object.assign(storage, data.storage)
     Object.assign(collect, data.collect)
+    Object.assign(workbench, data.workbench)
     Object.assign(network, data.network)
     Object.assign(license, data.license)
     readOnly.value = data.readOnly
@@ -119,6 +122,10 @@ function saveStorage() {
 
 function saveCollect() {
   saveGroup('collect', { ...collect })
+}
+
+function saveWorkbench() {
+  saveGroup('workbench', { ...workbench })
 }
 
 function saveNetwork() {
@@ -213,6 +220,7 @@ onMounted(loadSettings)
       <div class="nav-item" :class="{ active: activeGroup === 'storage' }" @click="activeGroup = 'storage'">存储策略</div>
       <div class="nav-item" :class="{ active: activeGroup === 'license' }" @click="activeGroup = 'license'">授权与激活</div>
       <div class="nav-item" :class="{ active: activeGroup === 'collect' }" @click="activeGroup = 'collect'">采集策略</div>
+      <div class="nav-item" :class="{ active: activeGroup === 'workbench' }" @click="activeGroup = 'workbench'">工作台显示</div>
       <div class="nav-item" :class="{ active: activeGroup === 'network' }" @click="activeGroup = 'network'">网络安全</div>
       <div class="nav-item" :class="{ active: activeGroup === 'selfcheck' }" @click="activeGroup = 'selfcheck'">设备自检</div>
     </div>
@@ -359,6 +367,34 @@ onMounted(loadSettings)
           </el-form-item>
         </el-form>
         <el-button v-if="!readOnly" type="primary" :disabled="!canManage()" @click="saveCollect">保存采集策略</el-button>
+      </div>
+
+      <!-- 工作台显示 -->
+      <div v-show="activeGroup === 'workbench'">
+        <div class="group-title">🖥️ 工作台显示</div>
+        <el-form label-width="150px" label-position="left">
+          <el-form-item label="卡片行数">
+            <el-input-number v-model="workbench.rows" :disabled="disabled()" :min="1" :max="10" style="width:120px" />
+            <span class="hint" style="margin-left:8px">工作台采集通道行数</span>
+          </el-form-item>
+          <el-form-item label="每行卡片数">
+            <el-input-number v-model="workbench.columns" :disabled="disabled()" :min="1" :max="10" style="width:120px" />
+            <span class="hint" style="margin-left:8px">每行采集卡片数（总通道 = 行数 × 每行数）</span>
+          </el-form-item>
+          <el-form-item label="卡片宽度">
+            <el-input-number v-model="workbench.cardWidth" :disabled="disabled()" :min="120" :max="500" style="width:120px" />
+            <span class="hint" style="margin-left:8px">px</span>
+          </el-form-item>
+          <el-form-item label="卡片高度">
+            <el-input-number v-model="workbench.cardHeight" :disabled="disabled()" :min="100" :max="400" style="width:120px" />
+            <span class="hint" style="margin-left:8px">px</span>
+          </el-form-item>
+          <el-form-item label="紧急优先上限">
+            <el-input-number v-model="workbench.maxEmergencyTasks" :disabled="disabled()" :min="0" :max="30" style="width:120px" />
+            <span class="hint" style="margin-left:8px">操作员在卡片上标记"优先"的最大任务数</span>
+          </el-form-item>
+        </el-form>
+        <el-button v-if="!readOnly" type="primary" :disabled="!canManage()" @click="saveWorkbench">保存工作台显示设置</el-button>
       </div>
 
       <!-- 网络安全 -->

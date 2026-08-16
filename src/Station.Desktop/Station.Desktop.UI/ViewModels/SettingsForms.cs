@@ -92,6 +92,25 @@ public partial class CollectSettingsForm : ObservableObject
     private bool _collectAncillaryFiles = true;
 }
 
+/// <summary>工作台显示表单（卡片布局 + 紧急优先上限）。</summary>
+public partial class WorkbenchSettingsForm : ObservableObject
+{
+    [ObservableProperty]
+    private int _rows = 6;
+
+    [ObservableProperty]
+    private int _columns = 5;
+
+    [ObservableProperty]
+    private int _cardWidth = 240;
+
+    [ObservableProperty]
+    private int _cardHeight = 200;
+
+    [ObservableProperty]
+    private int _maxEmergencyTasks = 3;
+}
+
 /// <summary>网络安全表单。</summary>
 public partial class NetworkSettingsForm : ObservableObject
 {

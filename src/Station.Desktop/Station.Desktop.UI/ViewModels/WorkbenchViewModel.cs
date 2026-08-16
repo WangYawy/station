@@ -3,6 +3,7 @@ using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Station.Application.Collecting;
 using Station.Application.Licensing;
+using Station.Application.Settings;
 using Station.Application.Uploading;
 using Station.Desktop.Application.Monitoring;
 using Station.Desktop.Application.OperationAccess;
@@ -15,19 +16,19 @@ using SqlSugar;
 namespace Station.Desktop.UI.ViewModels;
 
 /// <summary>
-/// 工作台：30 路 USB 采集通道卡片 + 统计（本机运行/今日采集/待上传/端口状态）+ 本机监控。
+/// 工作台：USB 采集通道卡片（行数/每行卡片数/卡片宽高可配置）+ 统计 + 本机监控。
 /// 卡片实时反映各端口当前任务（采集中/已暂停/空闲），支持暂停/恢复/取消/重试/查看明细。
 /// </summary>
 public partial class WorkbenchViewModel : ObservableObject, IDisposable
 {
-    public const int PortCount = 30;
-
     private readonly ISessionManager _sessions;
     private readonly ICollectTaskService _collectService;
     private readonly IUploadService _uploadService;
     private readonly IRepository<CollectFile> _files;
     private readonly ILicenseService _license;
     private readonly IOperationAccessService _operationAccess;
+    private readonly CollectOptions _collectOptions;
+    private readonly WorkbenchOptions _workbench;
     private readonly SystemMonitorService _monitor;
     private readonly DispatcherTimer _timer;
     private readonly Dictionary<int, long> _portTaskIds = [];
@@ -35,6 +36,15 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
     private int _licenseTicks;
 
     public ObservableCollection<UsbPortCardViewModel> PortCards { get; }
+
+    [ObservableProperty]
+    private int _columns = 5;
+
+    [ObservableProperty]
+    private double _cardWidth = 240;
+
+    [ObservableProperty]
+    private double _cardHeight = 200;
 
     [ObservableProperty]
     private string _onlineText = "加载中…";
@@ -47,6 +57,9 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
 
     [ObservableProperty]
     private string _portStatsText = "采集中 0 · 已暂停 0 · 空闲 30";
+
+    [ObservableProperty]
+    private string _statusMessage = string.Empty;
 
     [ObservableProperty]
     private string _cpuText = "—";
@@ -76,7 +89,8 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
         CollectOptions collectOptions,
         IRepository<CollectFile> files,
         ILicenseService license,
-        IOperationAccessService operationAccess)
+        IOperationAccessService operationAccess,
+        WorkbenchOptions workbench)
     {
         _sessions = sessions;
         _collectService = collectService;
@@ -84,15 +98,12 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
         _files = files;
         _license = license;
         _operationAccess = operationAccess;
+        _collectOptions = collectOptions;
+        _workbench = workbench;
         _monitor = new SystemMonitorService(collectOptions);
 
-        PortCards = new ObservableCollection<UsbPortCardViewModel>(
-            Enumerable.Range(1, PortCount).Select(i => new UsbPortCardViewModel(
-                i,
-                c => _ = OperateAsync(c, s => s.PauseAsync(c.TaskId!.Value)),
-                c => _ = OperateAsync(c, s => s.ResumeAsync(c.TaskId!.Value)),
-                c => _ = OperateAsync(c, s => s.CancelAsync(c.TaskId!.Value)),
-                c => _ = OperateAsync(c, s => s.StartAsync(c.TaskId!.Value)))));
+        PortCards = [];
+        EnsureCardLayout();
 
         _sessions.SessionChanged += OnSessionChanged;
         OnSessionChanged();
@@ -145,6 +156,7 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
     {
         try
         {
+            EnsureCardLayout();
             var tasks = await _collectService.GetActiveTasksAsync();
             RefreshPorts(tasks);
             await RefreshTodayAsync();
@@ -188,7 +200,7 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
         var assigned = _portTaskIds.Values.ToHashSet();
         foreach (var task in tasks.Where(t => !assigned.Contains(t.TaskId)))
         {
-            var port = Enumerable.Range(1, PortCount).FirstOrDefault(p => !_portTaskIds.ContainsKey(p));
+            var port = Enumerable.Range(1, PortCards.Count).FirstOrDefault(p => !_portTaskIds.ContainsKey(p));
             if (port == 0)
             {
                 break;
@@ -206,7 +218,75 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
             }
         }
 
-        PortStatsText = $"采集中 {collecting} · 已暂停 {paused} · 空闲 {PortCount - collecting - paused}";
+        PortStatsText = $"采集中 {collecting} · 已暂停 {paused} · 空闲 {PortCards.Count - collecting - paused}";
+    }
+
+    /// <summary>按配置（行数/每行卡片数/宽高）重建卡片网格；配置变更时保留端口→任务映射。</summary>
+    private void EnsureCardLayout()
+    {
+        var total = Math.Clamp(_workbench.Rows, 1, 10) * Math.Clamp(_workbench.Columns, 1, 10);
+        var width = (double)Math.Clamp(_workbench.CardWidth, 120, 500);
+        var height = (double)Math.Clamp(_workbench.CardHeight, 100, 400);
+        if (PortCards.Count == total && Columns == _workbench.Columns && CardWidth == width && CardHeight == height)
+        {
+            return;
+        }
+
+        Columns = Math.Clamp(_workbench.Columns, 1, 10);
+        CardWidth = width;
+        CardHeight = height;
+
+        var existing = PortCards.ToList();
+        var rebuilt = new List<UsbPortCardViewModel>();
+        for (var i = 1; i <= total; i++)
+        {
+            var card = i <= existing.Count ? existing[i - 1] : CreateCard(i);
+            card.SetCardSize(width, height);
+            rebuilt.Add(card);
+        }
+
+        foreach (var port in _portTaskIds.Keys.Where(p => p > total).ToList())
+        {
+            _portTaskIds.Remove(port);
+        }
+
+        PortCards.Clear();
+        foreach (var card in rebuilt)
+        {
+            PortCards.Add(card);
+        }
+    }
+
+    private UsbPortCardViewModel CreateCard(int portIndex) => new(
+        portIndex,
+        c => _ = OperateAsync(c, s => s.PauseAsync(c.TaskId!.Value)),
+        c => _ = OperateAsync(c, s => s.ResumeAsync(c.TaskId!.Value)),
+        c => _ = OperateAsync(c, s => s.CancelAsync(c.TaskId!.Value)),
+        c => _ = OperateAsync(c, s => s.StartAsync(c.TaskId!.Value)),
+        c => _ = ToggleEmergencyAsync(c),
+        CardWidth,
+        CardHeight);
+
+    private async Task ToggleEmergencyAsync(UsbPortCardViewModel card)
+    {
+        if (!CanOperate || card.TaskId is null)
+        {
+            return;
+        }
+
+        try
+        {
+            var target = !card.IsEmergency;
+            var ok = await _collectService.SetEmergencyAsync(card.TaskId.Value, target);
+            StatusMessage = ok
+                ? target ? $"已设为紧急优先（上限 {_collectOptions.MaxEmergencyTasks}）" : "已取消紧急优先"
+                : $"紧急优先已达上限（{_collectOptions.MaxEmergencyTasks}），请先取消其他优先任务";
+            await RefreshDataAsync();
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"操作失败：{ex.Message}";
+        }
     }
 
     private async Task RefreshTodayAsync()

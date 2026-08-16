@@ -48,6 +48,9 @@ public sealed class CollectOptions
     /// <summary>已采集过的文件自动跳过（按指纹）。</summary>
     public bool SkipCollected { get; set; } = true;
 
+    /// <summary>紧急优先任务上限（操作员在工作台卡片上标记"优先"的数量限制）。</summary>
+    public int MaxEmergencyTasks { get; set; } = 3;
+
     /// <summary>任务完成后自动擦除记录仪上已采集文件（需求：策略默认关闭）。</summary>
     public bool EraseAfterComplete { get; set; }
 

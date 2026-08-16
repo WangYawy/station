@@ -53,6 +53,30 @@ public partial class UsbPortCardViewModel : ObservableObject
     private double _opacity = 0.55;
 
     [ObservableProperty]
+    private double _cardWidth;
+
+    [ObservableProperty]
+    private double _cardHeight;
+
+    [ObservableProperty]
+    private bool _isEmergency;
+
+    [ObservableProperty]
+    private string _accentBrush = "#2563eb";
+
+    [ObservableProperty]
+    private string _cardBackground = "White";
+
+    [ObservableProperty]
+    private bool _canPriority;
+
+    [ObservableProperty]
+    private string _priorityButtonText = "优先";
+
+    [ObservableProperty]
+    private string _priorityButtonBrush = "#ea580c";
+
+    [ObservableProperty]
     private bool _canPause;
 
     [ObservableProperty]
@@ -72,18 +96,26 @@ public partial class UsbPortCardViewModel : ObservableObject
 
     public IRelayCommand RetryCommand { get; }
 
+    public IRelayCommand PriorityCommand { get; }
+
     public UsbPortCardViewModel(
         int portIndex,
         Action<UsbPortCardViewModel> pause,
         Action<UsbPortCardViewModel> resume,
         Action<UsbPortCardViewModel> cancel,
-        Action<UsbPortCardViewModel> retry)
+        Action<UsbPortCardViewModel> retry,
+        Action<UsbPortCardViewModel> priority,
+        double cardWidth,
+        double cardHeight)
     {
         PortText = $"#{portIndex:D2}";
+        CardWidth = cardWidth;
+        CardHeight = cardHeight;
         PauseCommand = new RelayCommand(() => pause(this), () => CanPause);
         ResumeCommand = new RelayCommand(() => resume(this), () => CanResume);
         CancelCommand = new RelayCommand(() => cancel(this), () => CanCancel);
         RetryCommand = new RelayCommand(() => retry(this), () => CanRetry);
+        PriorityCommand = new RelayCommand(() => priority(this), () => CanPriority);
     }
 
     public void SetIdle()
@@ -101,8 +133,19 @@ public partial class UsbPortCardViewModel : ObservableObject
         SpeedText = "-- MB/s";
         IsIdle = true;
         Opacity = 0.55;
-        CanPause = CanResume = CanCancel = CanRetry = false;
+        IsEmergency = false;
+        AccentBrush = "#2563eb";
+        CardBackground = "White";
+        PriorityButtonText = "优先";
+        PriorityButtonBrush = "#ea580c";
+        CanPause = CanResume = CanCancel = CanRetry = CanPriority = false;
         NotifyCommands();
+    }
+
+    public void SetCardSize(double width, double height)
+    {
+        CardWidth = width;
+        CardHeight = height;
     }
 
     public void UpdateFromTask(CollectTaskDto task)
@@ -111,6 +154,11 @@ public partial class UsbPortCardViewModel : ObservableObject
         TaskNo = task.TaskNo;
         IsIdle = false;
         Opacity = 1;
+        IsEmergency = task.IsEmergency;
+        AccentBrush = task.IsEmergency ? "#ef4444" : "#2563eb";
+        CardBackground = task.IsEmergency ? "#fef2f2" : "White";
+        PriorityButtonText = task.IsEmergency ? "取消优先" : "优先";
+        PriorityButtonBrush = task.IsEmergency ? "#ef4444" : "#ea580c";
         DeviceText = task.RecorderName;
         MetaText = $"{ProtocolText(task)} · {(task.IsAuto ? "自动采集" : "手动采集")}";
         StorageText = $"文件 {task.CollectedFiles}/{task.TotalFiles} · 已采集 {FormatSize(task.CollectedBytes)}";
@@ -135,6 +183,7 @@ public partial class UsbPortCardViewModel : ObservableObject
                 StatusForeground = "#1d4ed8";
                 CanPause = true;
                 CanCancel = true;
+                CanPriority = true;
                 break;
             case CollectTaskStatus.Paused:
                 StatusText = "已暂停";
@@ -142,22 +191,26 @@ public partial class UsbPortCardViewModel : ObservableObject
                 StatusForeground = "#b45309";
                 CanResume = true;
                 CanCancel = true;
+                CanPriority = true;
                 break;
             case CollectTaskStatus.Failed:
                 StatusText = "故障";
                 StatusBadgeBrush = "#fee2e2";
                 StatusForeground = "#b91c1c";
                 CanRetry = true;
+                CanPriority = false;
                 break;
             case CollectTaskStatus.Completed:
                 StatusText = "已完成";
                 StatusBadgeBrush = "#dcfce7";
                 StatusForeground = "#15803d";
+                CanPriority = false;
                 break;
             default:
                 StatusText = "待开始";
                 StatusBadgeBrush = "#f1f5f9";
                 StatusForeground = "#64748b";
+                CanPriority = false;
                 break;
         }
 
@@ -170,6 +223,7 @@ public partial class UsbPortCardViewModel : ObservableObject
         ResumeCommand.NotifyCanExecuteChanged();
         CancelCommand.NotifyCanExecuteChanged();
         RetryCommand.NotifyCanExecuteChanged();
+        PriorityCommand.NotifyCanExecuteChanged();
     }
 
     private static string ProtocolText(CollectTaskDto task) => task.Protocol switch

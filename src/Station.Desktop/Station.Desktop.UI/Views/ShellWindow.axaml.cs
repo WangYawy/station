@@ -156,7 +156,8 @@ public partial class ShellWindow : Window
                 services.GetRequiredService<CollectOptions>(),
                 services.GetRequiredService<IRepository<CollectFile>>(),
                 services.GetRequiredService<ILicenseService>(),
-                _operationAccess);
+                _operationAccess,
+                services.GetRequiredService<WorkbenchOptions>());
             ModuleContent.Content = new WorkbenchView { DataContext = viewModel };
             _currentViewModel = viewModel;
             return;

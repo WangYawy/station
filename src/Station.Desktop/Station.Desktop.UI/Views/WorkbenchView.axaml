@@ -67,14 +67,16 @@
       <ItemsControl ItemsSource="{Binding PortCards}">
         <ItemsControl.ItemsPanel>
           <ItemsPanelTemplate>
-            <UniformGrid Columns="5" />
+            <UniformGrid Columns="{Binding Columns}" />
           </ItemsPanelTemplate>
         </ItemsControl.ItemsPanel>
         <ItemsControl.ItemTemplate>
           <DataTemplate x:DataType="vm:UsbPortCardViewModel">
-            <Border Background="White" CornerRadius="12" Margin="4" MinHeight="178" Padding="12"
+            <Border Background="{Binding CardBackground}" CornerRadius="12" Margin="4"
+                    Width="{Binding CardWidth}" Height="{Binding CardHeight}" Padding="12"
                     BoxShadow="0 2 8 0 #14000000" Opacity="{Binding Opacity}">
               <StackPanel Spacing="4">
+                <Border Background="{Binding AccentBrush}" Height="4" CornerRadius="2" />
                 <Grid ColumnDefinitions="*,Auto">
                   <TextBlock Text="{Binding PortText}" FontSize="18" FontWeight="Bold" Foreground="#0a2f6c" />
                   <Border Grid.Column="1" Background="{Binding StatusBadgeBrush}" CornerRadius="9999" Padding="10,2">
@@ -104,6 +106,9 @@
                           Padding="10,3" FontSize="12" Background="#ef4444" Foreground="White" />
                   <Button Content="重试" Command="{Binding RetryCommand}" IsVisible="{Binding CanRetry}"
                           Padding="10,3" FontSize="12" Background="#ef4444" Foreground="White" />
+                  <Button Content="{Binding PriorityButtonText}" Command="{Binding PriorityCommand}"
+                          IsVisible="{Binding CanPriority}" Padding="10,3" FontSize="12"
+                          Background="{Binding PriorityButtonBrush}" Foreground="White" />
                   <Button Content="明细" Tag="{Binding TaskId}" IsVisible="{Binding !IsIdle}"
                           Padding="10,3" FontSize="12" Background="#f1f5f9" Foreground="#334155"
                           Click="OnCardDetailsClick" />
@@ -114,5 +119,8 @@
         </ItemsControl.ItemTemplate>
       </ItemsControl>
     </ScrollViewer>
+
+    <TextBlock Grid.Row="3" Text="{Binding StatusMessage}" FontSize="13" Foreground="#0f766e"
+               TextTrimming="CharacterEllipsis" />
   </Grid>
 </UserControl>

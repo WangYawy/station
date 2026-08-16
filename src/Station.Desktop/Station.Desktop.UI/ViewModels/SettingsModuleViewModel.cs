@@ -29,6 +29,8 @@ public partial class SettingsModuleViewModel : ObservableObject, IDisposable
 
     public CollectSettingsForm Collect { get; } = new();
 
+    public WorkbenchSettingsForm Workbench { get; } = new();
+
     public NetworkSettingsForm Network { get; } = new();
 
     public ObservableCollection<SelfCheckItemDto> SelfCheckItems { get; } = [];
@@ -147,6 +149,12 @@ public partial class SettingsModuleViewModel : ObservableObject, IDisposable
             Collect.SkipCollected = core.Collect.SkipCollected;
             Collect.CollectAncillaryFiles = core.Collect.CollectAncillaryFiles;
 
+            Workbench.Rows = core.Workbench.Rows;
+            Workbench.Columns = core.Workbench.Columns;
+            Workbench.CardWidth = core.Workbench.CardWidth;
+            Workbench.CardHeight = core.Workbench.CardHeight;
+            Workbench.MaxEmergencyTasks = core.Workbench.MaxEmergencyTasks;
+
             Network.WebPort = network.WebPort;
             Network.HttpsPort = network.HttpsPort;
             Network.EnableLan = network.EnableLan;
@@ -226,6 +234,19 @@ public partial class SettingsModuleViewModel : ObservableObject, IDisposable
             ["eraseAfterComplete"] = Collect.EraseAfterComplete.ToString(),
             ["skipCollected"] = Collect.SkipCollected.ToString(),
             ["collectAncillaryFiles"] = Collect.CollectAncillaryFiles.ToString()
+        });
+    }
+
+    [RelayCommand]
+    private async Task SaveWorkbenchAsync()
+    {
+        await SaveCoreAsync("workbench", new Dictionary<string, string>
+        {
+            ["rows"] = Workbench.Rows.ToString(),
+            ["columns"] = Workbench.Columns.ToString(),
+            ["cardWidth"] = Workbench.CardWidth.ToString(),
+            ["cardHeight"] = Workbench.CardHeight.ToString(),
+            ["maxEmergencyTasks"] = Workbench.MaxEmergencyTasks.ToString()
         });
     }
 

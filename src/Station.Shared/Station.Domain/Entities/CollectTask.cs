@@ -38,6 +38,9 @@ public sealed class CollectTask
     /// <summary>是否自动触发（记录仪接入即采）。</summary>
     public bool IsAuto { get; set; }
 
+    /// <summary>紧急优先：操作员在卡片上直接标记（上限由 CollectOptions.MaxEmergencyTasks 控制）。</summary>
+    public bool IsEmergency { get; set; }
+
     public int TotalFiles { get; set; }
 
     public int CollectedFiles { get; set; }

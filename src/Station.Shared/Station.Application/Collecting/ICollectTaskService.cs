@@ -15,6 +15,9 @@ public interface ICollectTaskService
 
     Task CancelAsync(long taskId);
 
+    /// <summary>标记/取消紧急优先；达到上限返回 false（不生效）。</summary>
+    Task<bool> SetEmergencyAsync(long taskId, bool isEmergency);
+
     /// <summary>设备拔出/断线：任务中断，未完成文件标异常/取消。</summary>
     Task InterruptAsync(long taskId, string reason);
 

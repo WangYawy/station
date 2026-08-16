@@ -60,6 +60,7 @@ public class SettingsController : ControllerBase
             core.Basic,
             core.Storage,
             core.Collect,
+            core.Workbench,
             core.License,
             Network = network,
             core.ReadOnly
@@ -87,7 +88,7 @@ public class SettingsController : ControllerBase
             var hints = group switch
             {
                 "network" => _network.Update(request.Values),
-                "basic" or "storage" or "collect" => await _settings.UpdateAsync(group, request.Values, User.Identity?.Name),
+                "basic" or "storage" or "collect" or "workbench" => await _settings.UpdateAsync(group, request.Values, User.Identity?.Name),
                 _ => throw new ArgumentException($"未知设置分组: {group}")
             };
             await WriteAuditAsync("settings.update", group, $"更新 {string.Join(", ", request.Values.Keys)}", 1);

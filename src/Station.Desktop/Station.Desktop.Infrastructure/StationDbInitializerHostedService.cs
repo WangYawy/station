@@ -22,6 +22,8 @@ public sealed class StationDbInitializerHostedService : IHostedService
         _initializer.EnsureCreated(
             typeof(CollectTask), typeof(CollectFile), typeof(Recorder), typeof(Alert),
             typeof(SyncOutbox), typeof(VideoFile), typeof(LicenseInfo), typeof(ClockState));
+        // 存量库补列：紧急优先标记（新库由 CodeFirst 自动创建）
+        _initializer.EnsureColumn("station_collect_task", "IsEmergency", "int");
         await _authSeeder.EnsureAsync();
     }
 

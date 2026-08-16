@@ -33,6 +33,14 @@ public sealed record CollectSettingsDto(
     bool SkipCollected,
     bool CollectAncillaryFiles);
 
+/// <summary>工作台显示（卡片布局 + 紧急优先上限）。</summary>
+public sealed record WorkbenchSettingsDto(
+    int Rows,
+    int Columns,
+    int CardWidth,
+    int CardHeight,
+    int MaxEmergencyTasks);
+
 /// <summary>授权状态（只读）。</summary>
 public sealed record LicenseSettingsDto(
     string Status,
@@ -48,6 +56,7 @@ public sealed record SystemSettingsCoreDto(
     BasicSettingsDto Basic,
     StorageSettingsDto Storage,
     CollectSettingsDto Collect,
+    WorkbenchSettingsDto Workbench,
     LicenseSettingsDto License,
     bool ReadOnly);
 

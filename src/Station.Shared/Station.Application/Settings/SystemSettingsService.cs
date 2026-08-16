@@ -23,6 +23,7 @@ public sealed class SystemSettingsService : ISystemSettingsService
     private readonly AuthOptions _auth;
     private readonly PlatformOptions _platform;
     private readonly StationOptions _station;
+    private readonly WorkbenchOptions _workbench;
     private readonly IRuntimeSettingsFile _runtimeFile;
     private readonly ILicenseService _license;
     private readonly IAuditLogService _audit;
@@ -38,6 +39,7 @@ public sealed class SystemSettingsService : ISystemSettingsService
         AuthOptions auth,
         PlatformOptions platform,
         StationOptions station,
+        WorkbenchOptions workbench,
         IRuntimeSettingsFile runtimeFile,
         ILicenseService license,
         IAuditLogService audit)
@@ -47,6 +49,7 @@ public sealed class SystemSettingsService : ISystemSettingsService
         _auth = auth;
         _platform = platform;
         _station = station;
+        _workbench = workbench;
         _runtimeFile = runtimeFile;
         _license = license;
         _audit = audit;
@@ -83,6 +86,12 @@ public sealed class SystemSettingsService : ISystemSettingsService
                 _collect.EraseAfterComplete,
                 _collect.SkipCollected,
                 _collect.FileExtensions.Any(e => AncillaryExtensions.Contains(e, StringComparer.OrdinalIgnoreCase))),
+            new WorkbenchSettingsDto(
+                _workbench.Rows,
+                _workbench.Columns,
+                _workbench.CardWidth,
+                _workbench.CardHeight,
+                _collect.MaxEmergencyTasks),
             new LicenseSettingsDto(
                 license.Status.ToString(),
                 license.Message,
@@ -101,6 +110,7 @@ public sealed class SystemSettingsService : ISystemSettingsService
             "basic" => ApplyBasic(values),
             "storage" => ApplyStorage(values),
             "collect" => ApplyCollect(values),
+            "workbench" => ApplyWorkbench(values),
             _ => throw new ArgumentException($"未知设置分组: {group}")
         };
 
@@ -252,6 +262,36 @@ public sealed class SystemSettingsService : ISystemSettingsService
         return [];
     }
 
+    private List<string> ApplyWorkbench(IReadOnlyDictionary<string, string> values)
+    {
+        if (values.TryGetValue("rows", out var rows) && int.TryParse(rows, out var r))
+        {
+            _workbench.Rows = Math.Clamp(r, 1, 10);
+        }
+
+        if (values.TryGetValue("columns", out var columns) && int.TryParse(columns, out var c))
+        {
+            _workbench.Columns = Math.Clamp(c, 1, 10);
+        }
+
+        if (values.TryGetValue("cardWidth", out var width) && int.TryParse(width, out var w))
+        {
+            _workbench.CardWidth = Math.Clamp(w, 120, 500);
+        }
+
+        if (values.TryGetValue("cardHeight", out var height) && int.TryParse(height, out var h))
+        {
+            _workbench.CardHeight = Math.Clamp(h, 100, 400);
+        }
+
+        if (values.TryGetValue("maxEmergencyTasks", out var emergency) && int.TryParse(emergency, out var e))
+        {
+            _collect.MaxEmergencyTasks = Math.Clamp(e, 0, 30);
+        }
+
+        return [];
+    }
+
     // ==================== 运行时文件持久化 ====================
 
     private void PersistRuntime()
@@ -287,9 +327,17 @@ public sealed class SystemSettingsService : ISystemSettingsService
             _collect.EraseAfterComplete,
             _collect.SkipCollected,
             _collect.FileExtensions,
+            _collect.MaxEmergencyTasks,
             _collect.CacheRetentionDays,
             _collect.CacheCleanupHour,
             _collect.CacheCleanupMinute
+        });
+        station["Workbench"] = JsonSerializer.SerializeToNode(new
+        {
+            _workbench.Rows,
+            _workbench.Columns,
+            _workbench.CardWidth,
+            _workbench.CardHeight
         });
         station["Auth"] = JsonSerializer.SerializeToNode(new
         {

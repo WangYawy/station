@@ -24,6 +24,9 @@ public static class DependencyInjection
         var basicSection = configuration.GetSection(StationOptions.SectionName);
         services.Configure<StationOptions>(basicSection);
         services.AddSingleton(basicSection.Get<StationOptions>() ?? new StationOptions());
+        var workbenchSection = configuration.GetSection(WorkbenchOptions.SectionName);
+        services.Configure<WorkbenchOptions>(workbenchSection);
+        services.AddSingleton(workbenchSection.Get<WorkbenchOptions>() ?? new WorkbenchOptions());
         services.AddScoped<ISystemSettingsService, SystemSettingsService>();
         services.AddScoped<ISystemSelfCheckService, SystemSelfCheckService>();
         return services;

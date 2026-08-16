@@ -1,9 +1,16 @@
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.DependencyInjection;
+using System.Net;
+using System.Net.Http.Json;
 using Station.Application.Collecting;
+using Station.Application.Settings;
 using Station.Contracts;
 using Station.Desktop.Bootstrapper;
 using Station.Desktop.Infrastructure.Collecting;
 using Station.Desktop.Infrastructure.Settings;
+using Station.Domain.Entities;
+using Station.Domain.Enums;
+using Station.Infrastructure.IdGenerators;
 using Station.Infrastructure;
 
 // ---------------------------------------------------------------------------
@@ -102,6 +109,20 @@ Environment.SetEnvironmentVariable("STATION__WEB__PORT", "5130");
 Environment.SetEnvironmentVariable("STATION__WEB__ENABLELAN", "false");
 Environment.SetEnvironmentVariable("STATION__COLLECT__CACHEDIRECTORY", Path.Combine(tempRoot, "cache"));
 Environment.SetEnvironmentVariable("STATION__COLLECT__SIMULATEDSOURCEDIRECTORY", Path.Combine(tempRoot, "sim"));
+const int WebPort = 5130;
+
+static async Task<HttpClient> Login(int port, string user, string pass)
+{
+    var handler = new HttpClientHandler { UseCookies = true, CookieContainer = new CookieContainer() };
+    var http = new HttpClient(handler) { BaseAddress = new Uri($"http://127.0.0.1:{port}") };
+    var resp = await http.PostAsJsonAsync("/api/v1/auth/login", new { userName = user, password = pass });
+    if (!resp.IsSuccessStatusCode)
+    {
+        throw new InvalidOperationException($"登录失败 {(int)resp.StatusCode}");
+    }
+
+    return http;
+}
 
 using (var host = HostBuilderFactory.Create().Build())
 {
@@ -112,6 +133,85 @@ using (var host = HostBuilderFactory.Create().Build())
     Pass("运行时设置文件路径为数据目录",
         RuntimeSettingsFile.ResolvePath() == Path.Combine(dbDir, "appsettings.runtime.json"),
         RuntimeSettingsFile.ResolvePath());
+
+    // ---------- 4. 工作台显示设置分组（Web API + 热应用） ----------
+    using (var admin = await Login(WebPort, "admin", "Admin@123"))
+    {
+        var settings = (await admin.GetFromJsonAsync<Resp<SettingsData>>("/api/v1/settings"))?.Data;
+        Pass("设置包含工作台分组（默认）",
+            settings?.Workbench is { Rows: 6, Columns: 5, CardWidth: 240, CardHeight: 200, MaxEmergencyTasks: 3 },
+            settings?.Workbench?.ToString() ?? "null");
+
+        var put = await admin.PutAsJsonAsync("/api/v1/settings/workbench", new
+        {
+            group = "workbench",
+            values = new Dictionary<string, string>
+            {
+                ["rows"] = "4",
+                ["columns"] = "6",
+                ["cardWidth"] = "260",
+                ["cardHeight"] = "210",
+                ["maxEmergencyTasks"] = "2"
+            }
+        });
+        var after = (await admin.GetFromJsonAsync<Resp<SettingsData>>("/api/v1/settings"))?.Data;
+        Pass("工作台显示设置修改生效（含紧急上限）",
+            put.IsSuccessStatusCode &&
+            after?.Workbench is { Rows: 4, Columns: 6, CardWidth: 260, CardHeight: 210, MaxEmergencyTasks: 2 },
+            after?.Workbench?.ToString() ?? "null");
+    }
+
+    var runtimeJson = new RuntimeSettingsFile().ReadJson() ?? string.Empty;
+    Pass("运行时文件含工作台配置", runtimeJson.Contains("Workbench") && runtimeJson.Contains("MaxEmergencyTasks"),
+        $"len={runtimeJson.Length}");
+
+    // ---------- 5. 紧急优先上限（服务层强制） ----------
+    long id1, id2, id3;
+    using (var db = new SqlSugar.SqlSugarClient(new SqlSugar.ConnectionConfig
+    {
+        ConnectionString = $"Data Source={Path.Combine(dbDir, "station.db")}",
+        DbType = SqlSugar.DbType.Sqlite,
+        IsAutoCloseConnection = true
+    }))
+    {
+        var gen = new SnowflakeIdGenerator();
+        id1 = gen.NextId();
+        id2 = gen.NextId();
+        id3 = gen.NextId();
+        var now = DateTime.Now;
+        db.Insertable(new CollectTask
+        {
+            Id = id1, TaskNo = "EM-1", RecorderName = "紧急测试1", Status = CollectTaskStatus.Collecting,
+            IsAuto = true, CreatedAt = now
+        }).ExecuteCommand();
+        db.Insertable(new CollectTask
+        {
+            Id = id2, TaskNo = "EM-2", RecorderName = "紧急测试2", Status = CollectTaskStatus.Collecting,
+            IsAuto = true, CreatedAt = now
+        }).ExecuteCommand();
+        db.Insertable(new CollectTask
+        {
+            Id = id3, TaskNo = "EM-3", RecorderName = "紧急测试3", Status = CollectTaskStatus.Collecting,
+            IsAuto = true, CreatedAt = now
+        }).ExecuteCommand();
+    }
+
+    var collect = host.Services.GetRequiredService<ICollectTaskService>();
+    var e1 = await collect.SetEmergencyAsync(id1, true);
+    var e2 = await collect.SetEmergencyAsync(id2, true);
+    var e3Blocked = await collect.SetEmergencyAsync(id3, true);
+    var e2Off = await collect.SetEmergencyAsync(id2, false);
+    var e3On = await collect.SetEmergencyAsync(id3, true);
+    Pass("紧急优先上限控制",
+        e1 && e2 && !e3Blocked && e2Off && e3On,
+        $"e1={e1}, e2={e2}, e3(上限2)={e3Blocked}, 取消后重标={e3On}");
+
+    var active = await collect.GetActiveTasksAsync();
+    Pass("任务 DTO 含紧急标记",
+        active.Any(t => t.TaskId == id1 && t.IsEmergency) &&
+        active.Any(t => t.TaskId == id3 && t.IsEmergency),
+        $"emergency={active.Count(t => t.IsEmergency)}");
+
     await host.StopAsync();
 }
 
@@ -146,3 +246,14 @@ internal sealed class FakeDetector : IRecorderDeviceDetector
 
     public IReadOnlyList<DetectedDevice> Detect() => Current.ToList();
 }
+
+internal sealed record Resp<T>(bool Success, int Code, string Message, T? Data);
+
+internal sealed record SettingsData(
+    object? Basic,
+    object? Storage,
+    object? Collect,
+    WorkbenchSettingsDto? Workbench,
+    object? License,
+    object? Network,
+    bool ReadOnly);

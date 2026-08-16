@@ -28,6 +28,7 @@ public sealed record CollectTaskDto(
     long TotalBytes,
     long CollectedBytes,
     double SpeedBytesPerSecond,
+    bool IsEmergency,
     UploadStatus SyncStatus,
     int UploadedFiles,
     long UploadedBytes,

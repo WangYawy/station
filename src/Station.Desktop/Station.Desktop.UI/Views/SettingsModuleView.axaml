@@ -157,6 +157,40 @@
         </StackPanel>
       </TabItem>
 
+      <TabItem Header="🖥️ 工作台显示">
+        <StackPanel Spacing="10" Margin="8,4">
+          <Grid ColumnDefinitions="150,*" ColumnSpacing="8">
+            <TextBlock Text="卡片行数" VerticalAlignment="Center" Foreground="#334155" />
+            <TextBox Grid.Column="1" Text="{Binding Workbench.Rows}" IsEnabled="{Binding CanEdit}"
+                     Width="90" HorizontalAlignment="Left" />
+          </Grid>
+          <Grid ColumnDefinitions="150,*" ColumnSpacing="8">
+            <TextBlock Text="每行卡片数" VerticalAlignment="Center" Foreground="#334155" />
+            <TextBox Grid.Column="1" Text="{Binding Workbench.Columns}" IsEnabled="{Binding CanEdit}"
+                     Width="90" HorizontalAlignment="Left" />
+          </Grid>
+          <Grid ColumnDefinitions="150,*" ColumnSpacing="8">
+            <TextBlock Text="卡片宽度（px）" VerticalAlignment="Center" Foreground="#334155" />
+            <TextBox Grid.Column="1" Text="{Binding Workbench.CardWidth}" IsEnabled="{Binding CanEdit}"
+                     Width="90" HorizontalAlignment="Left" />
+          </Grid>
+          <Grid ColumnDefinitions="150,*" ColumnSpacing="8">
+            <TextBlock Text="卡片高度（px）" VerticalAlignment="Center" Foreground="#334155" />
+            <TextBox Grid.Column="1" Text="{Binding Workbench.CardHeight}" IsEnabled="{Binding CanEdit}"
+                     Width="90" HorizontalAlignment="Left" />
+          </Grid>
+          <Grid ColumnDefinitions="150,*" ColumnSpacing="8">
+            <TextBlock Text="紧急优先上限" VerticalAlignment="Center" Foreground="#334155" />
+            <TextBox Grid.Column="1" Text="{Binding Workbench.MaxEmergencyTasks}" IsEnabled="{Binding CanEdit}"
+                     Width="90" HorizontalAlignment="Left" />
+          </Grid>
+          <TextBlock Text="总通道数 = 行数 × 每行卡片数；卡片宽高按配置动态排布。紧急优先由操作员在卡片上标记，达到上限后需先取消其他优先任务。"
+                     Foreground="#94a3b8" FontSize="12" TextWrapping="Wrap" MaxWidth="420" />
+          <Button Content="保存工作台显示设置" Command="{Binding SaveWorkbenchCommand}" IsEnabled="{Binding CanEdit}"
+                  HorizontalAlignment="Left" Margin="0,6,0,0" />
+        </StackPanel>
+      </TabItem>
+
       <TabItem Header="🔐 网络安全">
         <ScrollViewer>
           <StackPanel Spacing="10" Margin="8,4">

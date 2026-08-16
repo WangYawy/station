@@ -187,6 +187,27 @@ public sealed class CollectTaskService : ICollectTaskService
     public Task InterruptAsync(long taskId, string reason) =>
         SetFinalAsync(taskId, CollectTaskStatus.Interrupted, reason);
 
+    public async Task<bool> SetEmergencyAsync(long taskId, bool isEmergency)
+    {
+        var task = await RequireTaskAsync(taskId);
+        if (isEmergency && !task.IsEmergency)
+        {
+            var current = await _tasks.CountAsync(t =>
+                t.IsEmergency &&
+                (t.Status == CollectTaskStatus.Scanning ||
+                 t.Status == CollectTaskStatus.Collecting ||
+                 t.Status == CollectTaskStatus.Paused));
+            if (current >= _options.MaxEmergencyTasks)
+            {
+                return false;
+            }
+        }
+
+        task.IsEmergency = isEmergency;
+        await _tasks.UpdateAsync(task);
+        return true;
+    }
+
     public async Task<CollectTaskDto?> GetTaskAsync(long taskId)
     {
         var task = await _tasks.GetByIdAsync(taskId);
@@ -490,7 +511,7 @@ public sealed class CollectTaskService : ICollectTaskService
         t.Id, t.TaskNo, t.RecorderName, t.RecorderSerial, (Station.Contracts.ProtocolType)t.Protocol, t.OperatorUserId, t.DeptId,
         t.Status, t.IsAuto,
         t.TotalFiles, t.CollectedFiles, t.SkippedFiles, t.FailedFiles,
-        t.TotalBytes, t.CollectedBytes, t.SpeedBytesPerSecond,
+        t.TotalBytes, t.CollectedBytes, t.SpeedBytesPerSecond, t.IsEmergency,
         t.SyncStatus, t.UploadedFiles, t.UploadedBytes, t.UploadError,
         t.StartedAt, t.CompletedAt, t.ErrorMessage);
 
