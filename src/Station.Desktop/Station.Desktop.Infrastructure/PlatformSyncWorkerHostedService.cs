@@ -3,6 +3,7 @@ using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
+using Station.Application.Collecting;
 using Station.Application.Licensing;
 using Station.Application.PlatformSync;
 using Station.Contracts.Registration;
@@ -141,6 +142,42 @@ public sealed class PlatformSyncWorkerHostedService : BackgroundService
                 await commands.PollAndExecuteAsync(stationId);
                 _lastCommandPoll = DateTime.Now;
             }
+
+            await ReportEmergencyTasksAsync(scope, stationId, ct);
         }
+    }
+
+    private async Task ReportEmergencyTasksAsync(IServiceScope scope, long stationId, CancellationToken ct)
+    {
+        try
+        {
+            var collect = scope.ServiceProvider.GetRequiredService<ICollectTaskService>();
+            var client = scope.ServiceProvider.GetRequiredService<IPlatformClient>();
+            var tasks = (await collect.GetActiveTasksAsync())
+                .Where(t => t.IsEmergency)
+                .Select(t => new EmergencyTaskItem(
+                    t.TaskNo,
+                    t.RecorderName,
+                    t.RecorderSerial,
+                    (int)t.Protocol,
+                    TaskProgress(t),
+                    t.StartedAt))
+                .ToList();
+            await client.ReportEmergencyTasksAsync(stationId, tasks, ct);
+        }
+        catch
+        {
+            // 紧急任务上报失败不影响主同步（下轮重试）
+        }
+    }
+
+    private static double TaskProgress(CollectTaskDto task)
+    {
+        var percent = task.TotalFiles > 0
+            ? (double)task.CollectedFiles / task.TotalFiles
+            : task.TotalBytes > 0
+                ? (double)task.CollectedBytes / task.TotalBytes
+                : 0d;
+        return Math.Clamp(percent, 0, 1);
     }
 }

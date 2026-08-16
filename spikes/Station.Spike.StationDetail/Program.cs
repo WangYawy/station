@@ -255,6 +255,28 @@ try
                            items.All(r => r.LastStationId == stationId),
         $"count={recorders?.Data?.Items?.Count}");
 
+    // ---------- 3.5 紧急优先任务上报 → 详情展示 → 空快照清零 ----------
+    var emt = await admin.PostAsJsonAsync($"/api/v1/stations/{stationId}/emergency-tasks", new
+    {
+        stationId,
+        tasks = new[]
+        {
+            new { taskNo = "CT-EM-1", recorderName = "记录仪-紧急A", recorderSerial = "R-EM-1", protocol = 0, progress = 0.42, startedAt = DateTime.Now.AddMinutes(-5) },
+            new { taskNo = "CT-EM-2", recorderName = "记录仪-紧急B", recorderSerial = "R-EM-2", protocol = 1, progress = 0.8, startedAt = DateTime.Now.AddMinutes(-3) }
+        }
+    });
+    var detailEm = (await admin.GetFromJsonAsync<Resp<StationDetailData>>($"/api/v1/stations/{stationId}"))?.Data;
+    Pass("紧急优先任务上报与详情展示",
+        emt.IsSuccessStatusCode &&
+        detailEm is { EmergencyTaskCount: 2, EmergencyTasks.Count: 2 } &&
+        detailEm.EmergencyTasks.Any(t => t.TaskNo == "CT-EM-1" && t.Progress > 0.4),
+        $"count={detailEm?.EmergencyTaskCount}, tasks={detailEm?.EmergencyTasks?.Count}");
+
+    await admin.PostAsJsonAsync($"/api/v1/stations/{stationId}/emergency-tasks",
+        new { stationId, tasks = Array.Empty<object>() });
+    var detailEmpty = (await admin.GetFromJsonAsync<Resp<StationDetailData>>($"/api/v1/stations/{stationId}"))?.Data;
+    Pass("紧急优先空快照清零", detailEmpty?.EmergencyTaskCount == 0, $"count={detailEmpty?.EmergencyTaskCount}");
+
     // ---------- 4. 配置接口鉴权（原无鉴权，本次补齐） ----------
     using (var anon = new HttpClient { BaseAddress = new Uri($"http://127.0.0.1:{PlatformPort}") })
     {
@@ -283,6 +305,18 @@ try
     Pass("配置下发权限（管理员 200 / 操作员 403）",
         publish.StatusCode == HttpStatusCode.OK && opPublish.StatusCode == HttpStatusCode.Forbidden,
         $"admin={(int)publish.StatusCode}, op={(int)opPublish.StatusCode}");
+
+    var collectPublish = await admin.PostAsJsonAsync($"/api/v1/stations/{stationId}/configs", new
+    {
+        entityType = "CollectPolicy",
+        operation = 0,
+        payloadJson = "{\"autoCollectOnConnect\":true,\"maxEmergencyTasks\":5}"
+    });
+    var configsAfter = (await admin.GetFromJsonAsync<Resp<List<ConfigItemData>>>($"/api/v1/stations/{stationId}/configs"))?.Data;
+    Pass("策略下发含紧急优先上限",
+        collectPublish.StatusCode == HttpStatusCode.OK &&
+        configsAfter?.Any(c => c.EntityType == "CollectPolicy" && c.PayloadJson.Contains("maxEmergencyTasks")) == true,
+        $"configs={configsAfter?.Count}");
 
     // ---------- 5. 指令下发（数据范围） ----------
     var cmd = await admin.PostAsJsonAsync($"/api/v1/stations/{stationId}/commands", new { type = 1 });
@@ -315,6 +349,7 @@ finally
             clean.Ado.ExecuteCommand("delete from platform_file_metadata where StationId=@id", new { id = stationId });
             clean.Ado.ExecuteCommand("delete from platform_command where StationId=@id", new { id = stationId });
             clean.Ado.ExecuteCommand("delete from platform_config_change where StationId=@id", new { id = stationId });
+            clean.Ado.ExecuteCommand("delete from platform_emergency_task where StationId=@id", new { id = stationId });
             clean.Ado.ExecuteCommand("delete from platform_recorder where LastStationId=@id", new { id = stationId });
             clean.Ado.ExecuteCommand("delete from platform_station where Id=@id", new { id = stationId });
         }
@@ -358,7 +393,18 @@ internal sealed record StationDetailData(
     string DiskSerial, string MacAddress, int UsbPortCount, long ConfigVersion, string? StationBaseUrl,
     string? LastHeartbeatAt, bool IsOnline, long FileCount, long TotalSize, long TodayFileCount,
     long TodaySize, long PendingAlertCount, List<CountItemView> AlertLevels, int RecorderCount,
-    int WhitelistedRecorderCount, List<StorageUsageView> StorageUsage);
+    int WhitelistedRecorderCount, List<StorageUsageView> StorageUsage, int EmergencyTaskCount,
+    List<EmergencyTaskItemData> EmergencyTasks);
+
+internal sealed record EmergencyTaskItemData(
+    string TaskNo,
+    string RecorderName,
+    string? RecorderSerial,
+    int Protocol,
+    double Progress,
+    string? StartedAt);
+
+internal sealed record ConfigItemData(string EntityType, int Operation, string PayloadJson, long Version);
 
 internal sealed record RecorderRow(long Id, string RecorderSerial, long? LastStationId, bool IsWhitelisted);
 

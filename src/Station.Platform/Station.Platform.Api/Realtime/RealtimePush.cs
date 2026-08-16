@@ -15,6 +15,7 @@ public static class RealtimeEventTypes
     public const string LicenseStatus = "station.license";
     public const string StationStatus = "station.status";
     public const string RecorderWhitelist = "recorder.whitelist";
+    public const string EmergencyUpdated = "emergency.updated";
 }
 
 /// <summary>实时事件总线：业务写入点发布，Hub 广播。</summary>

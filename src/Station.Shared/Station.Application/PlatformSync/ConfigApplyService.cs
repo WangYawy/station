@@ -117,7 +117,12 @@ public sealed class ConfigApplyService : IConfigApplyService
             _collectOptions.SkipCollected = skip.ValueKind == JsonValueKind.True;
         }
 
-        return $"采集策略已热更新（AutoCollect={_collectOptions.AutoCollectOnConnect}, Erase={_collectOptions.EraseAfterComplete}, Skip={_collectOptions.SkipCollected}）";
+        if (root.TryGetProperty("maxEmergencyTasks", out var emergency) && emergency.TryGetInt32(out var maxEmergency))
+        {
+            _collectOptions.MaxEmergencyTasks = Math.Max(0, maxEmergency);
+        }
+
+        return $"采集策略已热更新（AutoCollect={_collectOptions.AutoCollectOnConnect}, Erase={_collectOptions.EraseAfterComplete}, Skip={_collectOptions.SkipCollected}, 紧急上限={_collectOptions.MaxEmergencyTasks}）";
     }
 
     private string ApplyStoragePolicy(ConfigChangeItem change)

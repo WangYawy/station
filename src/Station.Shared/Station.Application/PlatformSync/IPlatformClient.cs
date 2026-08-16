@@ -22,4 +22,6 @@ public interface IPlatformClient
     Task<IReadOnlyList<RemoteCommand>> PollCommandsAsync(long stationId, CancellationToken ct);
 
     Task<bool> ReportCommandResultAsync(long stationId, CommandExecutionResult result, CancellationToken ct);
+
+    Task<bool> ReportEmergencyTasksAsync(long stationId, IReadOnlyList<EmergencyTaskItem> tasks, CancellationToken ct);
 }

@@ -12,4 +12,5 @@ public static class ApiRoutes
     public const string ReportAlert = Base + "/stations/{stationId}/alerts";
     public const string PollCommands = Base + "/stations/{stationId}/commands/poll";
     public const string ReportCommandResult = Base + "/stations/{stationId}/commands/{commandId}/result";
+    public const string ReportEmergencyTasks = Base + "/stations/{stationId}/emergency-tasks";
 }

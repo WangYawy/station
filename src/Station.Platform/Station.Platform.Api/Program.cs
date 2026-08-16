@@ -64,6 +64,7 @@ using (var scope = app.Services.CreateScope())
         typeof(PlatformFileCorrection),
         typeof(PlatformCommand),
         typeof(PlatformConfigChange),
+        typeof(PlatformEmergencyTask),
         typeof(Account), typeof(User), typeof(Dept), typeof(Role),
         typeof(Permission), typeof(RolePermission), typeof(UserRole), typeof(AuditLog));
     initializer.EnsureColumn("platform_station", "LastHeartbeatAt");

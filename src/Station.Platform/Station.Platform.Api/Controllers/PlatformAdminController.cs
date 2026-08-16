@@ -26,6 +26,7 @@ public class PlatformAdminController : ControllerBase
     private readonly IRepository<PlatformStation> _stations;
     private readonly IRepository<PlatformFileMetadata> _files;
     private readonly IRepository<PlatformRecorder> _recorders;
+    private readonly IRepository<PlatformEmergencyTask> _emergencyTasks;
     private readonly IRepository<Dept> _depts;
     private readonly IAuditLogService _audit;
     private readonly AppAuthorization _authorization;
@@ -38,6 +39,7 @@ public class PlatformAdminController : ControllerBase
         IRepository<PlatformStation> stations,
         IRepository<PlatformFileMetadata> files,
         IRepository<PlatformRecorder> recorders,
+        IRepository<PlatformEmergencyTask> emergencyTasks,
         IRepository<Dept> depts,
         IAuditLogService audit,
         AppAuthorization authorization,
@@ -49,6 +51,7 @@ public class PlatformAdminController : ControllerBase
         _stations = stations;
         _files = files;
         _recorders = recorders;
+        _emergencyTasks = emergencyTasks;
         _depts = depts;
         _audit = audit;
         _authorization = authorization;
@@ -239,6 +242,7 @@ public class PlatformAdminController : ControllerBase
         var fileRows = await _files.GetListAsync(f => f.StationId == stationId);
         var alertRows = await _alerts.GetListAsync(a => a.StationId == stationId);
         var recorderRows = await _recorders.GetListAsync(r => r.LastStationId == stationId && r.IsActive);
+        var emergencyRows = await _emergencyTasks.GetListAsync(t => t.StationId == stationId);
         var deptName = station.DeptId is { } deptId
             ? (await _depts.GetByIdAsync(deptId))?.Name
             : null;
@@ -285,7 +289,15 @@ public class PlatformAdminController : ControllerBase
                 .ToList(),
             recorderRows.Count,
             recorderRows.Count(r => r.IsWhitelisted),
-            storageUsage);
+            storageUsage,
+            emergencyRows.Count,
+            emergencyRows.OrderBy(t => t.TaskNo).Select(t => new EmergencyTaskView(
+                t.TaskNo,
+                t.RecorderName,
+                t.RecorderSerial,
+                t.Protocol,
+                t.Progress,
+                t.StartedAt)).ToList());
         return Ok(ApiResponse<StationDetailView>.Ok(detail));
     }
 
@@ -343,6 +355,14 @@ public sealed record DeptView(long Id, string Code, string Name, long? ParentId,
 
 public sealed record StorageUsageView(string Location, long FileCount, long TotalSize);
 
+public sealed record EmergencyTaskView(
+    string TaskNo,
+    string RecorderName,
+    string? RecorderSerial,
+    int Protocol,
+    double Progress,
+    DateTime? StartedAt);
+
 public sealed record StationDetailView(
     long StationId,
     string StationCode,
@@ -373,4 +393,6 @@ public sealed record StationDetailView(
     IReadOnlyList<CountItemView> AlertLevels,
     int RecorderCount,
     int WhitelistedRecorderCount,
-    IReadOnlyList<StorageUsageView> StorageUsage);
+    IReadOnlyList<StorageUsageView> StorageUsage,
+    int EmergencyTaskCount,
+    IReadOnlyList<EmergencyTaskView> EmergencyTasks);

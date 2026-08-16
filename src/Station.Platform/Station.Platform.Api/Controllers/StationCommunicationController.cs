@@ -26,6 +26,7 @@ public class StationCommunicationController : ControllerBase
     private readonly IRepository<PlatformAlertReport> _alerts;
     private readonly IRepository<PlatformCommand> _commands;
     private readonly IRepository<PlatformConfigChange> _configChanges;
+    private readonly IRepository<PlatformEmergencyTask> _emergencyTasks;
     private readonly IConfiguration _configuration;
     private readonly IIdGenerator _idGenerator;
     private readonly IRealtimeEventBus _realtime;
@@ -37,6 +38,7 @@ public class StationCommunicationController : ControllerBase
         IRepository<PlatformAlertReport> alerts,
         IRepository<PlatformCommand> commands,
         IRepository<PlatformConfigChange> configChanges,
+        IRepository<PlatformEmergencyTask> emergencyTasks,
         IIdGenerator idGenerator,
         IConfiguration configuration,
         IRealtimeEventBus realtime)
@@ -47,6 +49,7 @@ public class StationCommunicationController : ControllerBase
         _alerts = alerts;
         _commands = commands;
         _configChanges = configChanges;
+        _emergencyTasks = emergencyTasks;
         _idGenerator = idGenerator;
         _configuration = configuration;
         _realtime = realtime;
@@ -245,6 +248,45 @@ public class StationCommunicationController : ControllerBase
         await _stations.UpdateAsync(station);
         await _realtime.PublishAsync(new StationRealtimeEvent(
             RealtimeEventTypes.LicenseStatus, station.Id, station.DeptId, DateTime.Now));
+        return Ok(ApiResponse<bool>.Ok(true));
+    }
+
+    /// <summary>紧急优先任务快照上报：整表替换该站当前紧急任务（空列表=无紧急任务）。</summary>
+    [HttpPost("stations/{stationId:long}/emergency-tasks")]
+    public async Task<ActionResult<ApiResponse<bool>>> ReportEmergencyTasks(
+        long stationId,
+        EmergencyTaskReport report)
+    {
+        var station = await _stations.GetByIdAsync(stationId);
+        if (station is null)
+        {
+            return NotFound(ApiResponse<bool>.Fail(404, "采集站未注册"));
+        }
+
+        var now = DateTime.Now;
+        await _emergencyTasks.DeleteAsync(t => t.StationId == stationId);
+        var rows = report.Tasks.Select(item => new PlatformEmergencyTask
+        {
+            Id = _idGenerator.NextId(),
+            StationId = stationId,
+            DeptId = station.DeptId,
+            TaskNo = item.TaskNo,
+            RecorderName = item.RecorderName,
+            RecorderSerial = item.RecorderSerial,
+            Protocol = item.Protocol,
+            Progress = item.Progress,
+            StartedAt = item.StartedAt,
+            UpdatedAt = now
+        }).ToList();
+        if (rows.Count > 0)
+        {
+            await _emergencyTasks.InsertRangeAsync(rows);
+        }
+
+        station.LastHeartbeatAt = now;
+        await _stations.UpdateAsync(station);
+        await _realtime.PublishAsync(new StationRealtimeEvent(
+            RealtimeEventTypes.EmergencyUpdated, stationId, station.DeptId, now));
         return Ok(ApiResponse<bool>.Ok(true));
     }
 

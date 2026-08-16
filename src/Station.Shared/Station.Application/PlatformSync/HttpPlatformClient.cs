@@ -65,6 +65,25 @@ public sealed class HttpPlatformClient : IPlatformClient
         return response.IsSuccessStatusCode;
     }
 
+    public async Task<bool> ReportEmergencyTasksAsync(
+        long stationId,
+        IReadOnlyList<EmergencyTaskItem> tasks,
+        CancellationToken ct)
+    {
+        try
+        {
+            var response = await _http.PostAsJsonAsync(
+                ApiRoutes.ReportEmergencyTasks.Replace("{stationId}", stationId.ToString()),
+                new EmergencyTaskReport(stationId, tasks),
+                _json, ct);
+            return response.IsSuccessStatusCode;
+        }
+        catch
+        {
+            return false; // 平台不可达等下轮同步重试
+        }
+    }
+
     public async Task<ConfigSyncResponse?> SyncConfigAsync(ConfigSyncRequest request, CancellationToken ct)
     {
         var response = await _http.PostAsJsonAsync(

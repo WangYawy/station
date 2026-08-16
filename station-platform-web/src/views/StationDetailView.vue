@@ -46,7 +46,7 @@ const canManageRecorder = computed(() => auth.hasPermission('recorder:manage'))
 const canManageUser = computed(() => auth.hasPermission('user:manage'))
 
 // ---------- 采集/存储策略表单（下发用） ----------
-const collectPolicy = ref({ autoCollectOnConnect: true, eraseAfterComplete: false, skipCollected: true })
+const collectPolicy = ref({ autoCollectOnConnect: true, eraseAfterComplete: false, skipCollected: true, maxEmergencyTasks: 3 })
 const storagePolicy = ref({ circuitBreakerThreshold: 5, retryCount: 3 })
 const publishing = ref(false)
 
@@ -103,6 +103,7 @@ async function loadAll() {
         if (typeof payload.autoCollectOnConnect === 'boolean') collectPolicy.value.autoCollectOnConnect = payload.autoCollectOnConnect
         if (typeof payload.eraseAfterComplete === 'boolean') collectPolicy.value.eraseAfterComplete = payload.eraseAfterComplete
         if (typeof payload.skipCollected === 'boolean') collectPolicy.value.skipCollected = payload.skipCollected
+        if (typeof payload.maxEmergencyTasks === 'number') collectPolicy.value.maxEmergencyTasks = payload.maxEmergencyTasks
       } catch {
         // 忽略非法载荷
       }
@@ -262,7 +263,7 @@ onMounted(() => {
   chart = echarts.init(chartEl.value!)
   window.addEventListener('resize', onResize)
   loadAll()
-  const offs = ['station.registered', 'station.status', 'station.license', 'file.reported', 'alert.created', 'command.result'].map((t) =>
+  const offs = ['station.registered', 'station.status', 'station.license', 'file.reported', 'alert.created', 'command.result', 'emergency.updated'].map((t) =>
     onRealtimeEvent(t, loadAll))
   offRealtime = () => offs.forEach((off) => off())
 })
@@ -343,6 +344,25 @@ onBeforeUnmount(() => {
       <el-tab-pane label="设备信息" name="info">
         <el-row :gutter="12">
           <el-col :span="14">
+            <el-card shadow="never">
+              <template #header>🚨 紧急优先任务（{{ detail?.emergencyTaskCount ?? 0 }}）</template>
+              <el-table v-if="detail?.emergencyTasks?.length" :data="detail.emergencyTasks" size="small">
+                <el-table-column prop="taskNo" label="任务号" width="150" />
+                <el-table-column prop="recorderName" label="记录仪" min-width="130" show-overflow-tooltip />
+                <el-table-column label="协议" width="80">
+                  <template #default="{ row }">{{ ['UMS', 'MTP', '私有SDK'][row.protocol ?? 0] }}</template>
+                </el-table-column>
+                <el-table-column label="进度" width="130">
+                  <template #default="{ row }">
+                    <el-progress :percentage="Math.round((row.progress ?? 0) * 100)" :stroke-width="10" />
+                  </template>
+                </el-table-column>
+                <el-table-column label="开始时间" width="150">
+                  <template #default="{ row }">{{ fmtTime(row.startedAt) }}</template>
+                </el-table-column>
+              </el-table>
+              <el-empty v-else description="当前无紧急优先任务（操作员在采集站工作台卡片上标记）" :image-size="60" />
+            </el-card>
             <el-card shadow="never">
               <template #header>📊 近 14 天采集趋势</template>
               <div ref="chartEl" style="height: 260px" />
@@ -467,6 +487,10 @@ onBeforeUnmount(() => {
                 </el-form-item>
                 <el-form-item label="跳过已采集">
                   <el-switch v-model="collectPolicy.skipCollected" :disabled="!canManageStation" />
+                </el-form-item>
+                <el-form-item label="紧急优先上限">
+                  <el-input-number v-model="collectPolicy.maxEmergencyTasks" :disabled="!canManageStation" :min="0" :max="30" style="width:120px" />
+                  <span class="hint" style="margin-left:8px">操作员在采集站工作台标记"优先"的最大任务数</span>
                 </el-form-item>
               </el-form>
               <el-button v-if="canManageStation" type="primary" :loading="publishing" @click="publishCollectPolicy">下发采集策略</el-button>

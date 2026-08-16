@@ -119,6 +119,15 @@ export interface StorageUsage {
   totalSize: number
 }
 
+export interface EmergencyTaskItem {
+  taskNo: string
+  recorderName: string
+  recorderSerial: string | null
+  protocol: number
+  progress: number
+  startedAt: string | null
+}
+
 export interface StationDetail {
   stationId: number
   stationCode: string
@@ -150,6 +159,8 @@ export interface StationDetail {
   recorderCount: number
   whitelistedRecorderCount: number
   storageUsage: StorageUsage[]
+  emergencyTaskCount: number
+  emergencyTasks: EmergencyTaskItem[]
 }
 
 export interface ConfigChangeItem {
