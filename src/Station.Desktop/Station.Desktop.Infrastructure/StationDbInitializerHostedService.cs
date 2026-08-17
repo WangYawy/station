@@ -24,6 +24,8 @@ public sealed class StationDbInitializerHostedService : IHostedService
             typeof(SyncOutbox), typeof(VideoFile), typeof(LicenseInfo), typeof(ClockState));
         // 存量库补列：紧急优先标记（新库由 CodeFirst 自动创建）
         _initializer.EnsureColumn("station_collect_task", "IsEmergency", "int");
+        // 存量库补列：设备根路径（多设备/混合协议按任务路由）
+        _initializer.EnsureColumn("station_collect_task", "SourceRoot", "varchar(512)");
         await _authSeeder.EnsureAsync();
     }
 

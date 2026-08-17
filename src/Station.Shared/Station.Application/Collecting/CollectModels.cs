@@ -9,7 +9,8 @@ public sealed record CollectDeviceInfo(
     string? Serial,
     ProtocolType Protocol,
     long? UserId = null,
-    long? DeptId = null);
+    long? DeptId = null,
+    string? RootPath = null);
 
 public sealed record CollectTaskDto(
     long TaskId,

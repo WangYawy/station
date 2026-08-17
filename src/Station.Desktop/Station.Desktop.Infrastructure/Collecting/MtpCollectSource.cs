@@ -46,6 +46,7 @@ public sealed class MtpCollectSource : ICollectSource, IRecorderRootFileStore
     }
 
     public async Task CopyAsync(
+        CollectDeviceInfo device,
         SourceFileInfo file,
         string destinationPath,
         Func<double, Task>? onProgress,

@@ -32,6 +32,17 @@ public static class DependencyInjection
             services.AddSingleton<IRecorderRootFileStore, FileSystemRecorderRootFileStore>();
         }
 
+        // 按设备协议路由采集源（UMS/MTP 混合接入）：覆盖共享层默认实现
+        services.AddSingleton<ICollectSourceProvider>(sp =>
+        {
+            var collect = sp.GetRequiredService<CollectOptions>();
+            var ums = sp.GetRequiredService<UmsCollectSource>();
+            var simulated = sp.GetRequiredService<SimulatedCollectSource>();
+            return OperatingSystem.IsWindows()
+                ? new CollectSourceProvider(collect, ums, simulated, sp.GetRequiredService<MtpCollectSource>())
+                : new CollectSourceProvider(collect, ums, simulated);
+        });
+
         // 记录仪接入监听：UMS/MTP 设备接入稳定后识别并自动采集（模拟源不工作）
         services.AddSingleton<IRecorderDeviceDetector, UmsDeviceDetector>();
         services.AddSingleton<IRecorderDeviceDetector, MtpDeviceDetector>();
@@ -43,8 +54,8 @@ public static class DependencyInjection
             {
                 "mtp" when OperatingSystem.IsWindows() => sp.GetRequiredService<MtpCollectSource>(),
                 "mtp" => throw new PlatformNotSupportedException("MTP 采集源仅支持 Windows"),
-                "ums" => new UmsCollectSource(collect),
-                _ => new SimulatedCollectSource(collect)
+                "ums" => sp.GetRequiredService<UmsCollectSource>(),
+                _ => sp.GetRequiredService<SimulatedCollectSource>()
             };
         });
 

@@ -48,6 +48,7 @@ public sealed class SimulatedCollectSource : ICollectSource
     }
 
     public async Task CopyAsync(
+        CollectDeviceInfo device,
         SourceFileInfo file,
         string destinationPath,
         Func<double, Task>? onProgress,

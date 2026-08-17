@@ -23,7 +23,7 @@ public sealed class UmsCollectSource : ICollectSource
         CollectDeviceInfo device,
         CancellationToken cancellationToken)
     {
-        var root = ResolveRoot();
+        var root = device.RootPath ?? ResolveRoot();
         if (!Directory.Exists(root))
         {
             return Task.FromResult<IReadOnlyList<SourceFileInfo>>([]);
@@ -41,12 +41,13 @@ public sealed class UmsCollectSource : ICollectSource
     }
 
     public async Task CopyAsync(
+        CollectDeviceInfo device,
         SourceFileInfo file,
         string destinationPath,
         Func<double, Task>? onProgress,
         CancellationToken cancellationToken)
     {
-        var sourcePath = Path.Combine(ResolveRoot(), file.FileName);
+        var sourcePath = Path.Combine(device.RootPath ?? ResolveRoot(), file.FileName);
         Directory.CreateDirectory(Path.GetDirectoryName(destinationPath)!);
 
         await using var input = File.OpenRead(sourcePath);
@@ -64,7 +65,7 @@ public sealed class UmsCollectSource : ICollectSource
 
     public Task EraseAsync(CollectDeviceInfo device, CancellationToken cancellationToken)
     {
-        var root = ResolveRoot();
+        var root = device.RootPath ?? ResolveRoot();
         if (Directory.Exists(root))
         {
             foreach (var file in Directory.GetFiles(root))

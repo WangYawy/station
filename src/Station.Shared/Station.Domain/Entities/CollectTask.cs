@@ -27,6 +27,10 @@ public sealed class CollectTask
     /// <summary>接入协议（ProtocolType）。</summary>
     public int Protocol { get; set; }
 
+    /// <summary>设备根路径（UMS=盘符根，MTP=MTP://PnP）；多设备/混合协议时按任务路由读取。</summary>
+    [SugarColumn(IsNullable = true, Length = 512)]
+    public string? SourceRoot { get; set; }
+
     [SugarColumn(IsNullable = true)]
     public long? OperatorUserId { get; set; }
 

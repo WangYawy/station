@@ -26,7 +26,7 @@ public sealed class CollectTaskService : ICollectTaskService
     private readonly IRepository<CollectTask> _tasks;
     private readonly IRepository<CollectFile> _files;
     private readonly IIdGenerator _idGenerator;
-    private readonly ICollectSource _source;
+    private readonly ICollectSourceProvider _sources;
     private readonly CollectOptions _options;
     private readonly ICollectControl _collectControl;
     private readonly ILicenseService _licenseService;
@@ -38,7 +38,7 @@ public sealed class CollectTaskService : ICollectTaskService
         IRepository<CollectTask> tasks,
         IRepository<CollectFile> files,
         IIdGenerator idGenerator,
-        ICollectSource source,
+        ICollectSourceProvider sources,
         CollectOptions options,
         ICollectControl collectControl,
         ILicenseService licenseService,
@@ -48,7 +48,7 @@ public sealed class CollectTaskService : ICollectTaskService
         _tasks = tasks;
         _files = files;
         _idGenerator = idGenerator;
-        _source = source;
+        _sources = sources;
         _options = options;
         _collectControl = collectControl;
         _licenseService = licenseService;
@@ -67,6 +67,7 @@ public sealed class CollectTaskService : ICollectTaskService
             RecorderName = device.Name,
             RecorderSerial = device.Serial,
             Protocol = (int)device.Protocol,
+            SourceRoot = device.RootPath,
             OperatorUserId = device.UserId,
             DeptId = device.DeptId,
             Status = CollectTaskStatus.Created,
@@ -106,8 +107,11 @@ public sealed class CollectTaskService : ICollectTaskService
         task.ErrorMessage = null;
         await _tasks.UpdateAsync(task);
 
-        var device = new CollectDeviceInfo(task.RecorderName, task.RecorderSerial, (Station.Contracts.ProtocolType)task.Protocol);
-        var sources = await _source.ScanAsync(device, CancellationToken.None);
+        var device = new CollectDeviceInfo(
+            task.RecorderName, task.RecorderSerial, (Station.Contracts.ProtocolType)task.Protocol,
+            RootPath: task.SourceRoot);
+        var collectSource = _sources.GetFor(device.Protocol);
+        var sources = await collectSource.ScanAsync(device, CancellationToken.None);
         var accepted = sources
             .Where(f => _options.FileExtensions.Contains(Path.GetExtension(f.FileName), StringComparer.OrdinalIgnoreCase))
             .OrderBy(f => f.FileName)
@@ -284,6 +288,10 @@ public sealed class CollectTaskService : ICollectTaskService
                 return;
             }
 
+            var device = new CollectDeviceInfo(
+                task.RecorderName, task.RecorderSerial, (Station.Contracts.ProtocolType)task.Protocol,
+                RootPath: task.SourceRoot);
+            var source = _sources.GetFor(device.Protocol);
             var speedWindow = new Queue<(DateTime Time, long Bytes)>();
 
             while (!ct.IsCancellationRequested)
@@ -312,7 +320,8 @@ public sealed class CollectTaskService : ICollectTaskService
 
                 var destination = Path.Combine(_options.CacheDirectory, task.TaskNo, file.RelativePath);
                 double lastPersistedProgress = -1;
-                await _source.CopyAsync(
+                await source.CopyAsync(
+                    device,
                     new SourceFileInfo(file.RelativePath, file.FileName, file.Size, file.OriginalModifiedAt ?? DateTime.UtcNow),
                     destination,
                     async progress =>
@@ -493,8 +502,13 @@ public sealed class CollectTaskService : ICollectTaskService
 
         try
         {
-            var device = new CollectDeviceInfo(task.RecorderName, task.RecorderSerial, (Station.Contracts.ProtocolType)task.Protocol);
-            _source.EraseAsync(device, CancellationToken.None).GetAwaiter().GetResult();
+            var device = new CollectDeviceInfo(
+                task.RecorderName, task.RecorderSerial, (Station.Contracts.ProtocolType)task.Protocol,
+                RootPath: task.SourceRoot);
+            _sources.GetFor(device.Protocol)
+                .EraseAsync(device, CancellationToken.None)
+                .GetAwaiter()
+                .GetResult();
             task.ErrorMessage = task.ErrorMessage is null ? "已擦除记录仪已采集文件" : task.ErrorMessage + "；已擦除记录仪已采集文件";
         }
         catch (Exception ex)

@@ -59,7 +59,12 @@ try
     {
         var files = await source.ScanAsync(new CollectDeviceInfo("U盘", "USB-001", ProtocolType.Ums), CancellationToken.None);
         var video = files.First(f => f.FileName == "video_1.mp4");
-        await source.CopyAsync(video, Path.Combine(dest, "copy.mp4"), null, CancellationToken.None);
+        await source.CopyAsync(
+            new CollectDeviceInfo("U盘", "USB-001", ProtocolType.Ums, RootPath: root),
+            video,
+            Path.Combine(dest, "copy.mp4"),
+            null,
+            CancellationToken.None);
         Pass("UMS复制", new FileInfo(Path.Combine(dest, "copy.mp4")).Length == 1024 * 1024,
             $"目标大小={new FileInfo(Path.Combine(dest, "copy.mp4")).Length}");
     }

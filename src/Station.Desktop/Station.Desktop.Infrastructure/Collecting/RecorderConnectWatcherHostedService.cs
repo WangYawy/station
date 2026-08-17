@@ -65,7 +65,7 @@ public sealed class RecorderConnectWatcherHostedService : BackgroundService
         var collect = scope.ServiceProvider.GetRequiredService<ICollectTaskService>();
         var alerts = scope.ServiceProvider.GetRequiredService<IAlertService>();
 
-        var deviceInfo = new CollectDeviceInfo(device.Name, device.Serial, device.Protocol);
+        var deviceInfo = new CollectDeviceInfo(device.Name, device.Serial, device.Protocol, RootPath: device.Root);
         var result = await identification.IdentifyAsync(deviceInfo, device.Root);
         if (result.Status != RecorderIdentifyStatus.Bound)
         {

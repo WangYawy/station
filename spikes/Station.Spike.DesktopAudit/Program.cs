@@ -71,13 +71,22 @@ var simulatedMonitor = new RecorderConnectMonitor(
 await simulatedMonitor.CheckAsync();
 Pass("模拟源不触发监听", handled.Count == 0, $"handled={handled.Count}");
 
-var mtpOnlyMonitor = new RecorderConnectMonitor(
-    new CollectOptions { SourceMode = "mtp" },
-    new IRecorderDeviceDetector[] { fake }, // 只有 UMS 检测器
-    d => { handled.Add("mtp:" + d.Key); return Task.CompletedTask; },
+// 混合协议：UMS + MTP 两个检测器同时监听（真实模式下按设备实际协议处理）
+var mtpFake = new FakeMtpDetector();
+var mixedMonitor = new RecorderConnectMonitor(
+    new CollectOptions { SourceMode = "ums" },
+    new IRecorderDeviceDetector[] { fake, mtpFake },
+    d => { handled.Add("mixed:" + d.Key); return Task.CompletedTask; },
     settlePolls: 1);
-await mtpOnlyMonitor.CheckAsync();
-Pass("协议不匹配不触发", handled.Count == 0, $"handled={handled.Count}");
+mtpFake.Current.Add(new DetectedDevice("MTP:DEV\\1", "MTP相机", null, ProtocolType.Mtp, "MTP://DEV\\1"));
+fake.Current.Add(new DetectedDevice("UMS:Y:\\", "第二个U盘", null, ProtocolType.Ums, "Y:\\"));
+await mixedMonitor.CheckAsync();
+Pass("混合协议设备同时识别",
+    handled.Count == 2 && handled.Contains("mixed:UMS:Y:\\") && handled.Contains("mixed:MTP:DEV\\1"),
+    string.Join(",", handled));
+handled.Clear();
+fake.Current.Clear();
+mtpFake.Current.Clear();
 
 var device = new DetectedDevice("UMS:X:\\", "测试U盘", null, ProtocolType.Ums, "X:\\");
 fake.Current.Add(device);
@@ -241,6 +250,15 @@ return failed == 0 ? 0 : 1;
 internal sealed class FakeDetector : IRecorderDeviceDetector
 {
     public string Protocol => "ums";
+
+    public List<DetectedDevice> Current { get; } = [];
+
+    public IReadOnlyList<DetectedDevice> Detect() => Current.ToList();
+}
+
+internal sealed class FakeMtpDetector : IRecorderDeviceDetector
+{
+    public string Protocol => "mtp";
 
     public List<DetectedDevice> Current { get; } = [];
 

@@ -29,18 +29,22 @@ public sealed class RecorderConnectMonitor
 
     public async Task CheckAsync()
     {
-        if (_options.SourceMode is not ("ums" or "mtp"))
+        if (_options.SourceMode == "simulated")
         {
             return;
         }
 
-        var detector = _detectors.FirstOrDefault(d => d.Protocol == _options.SourceMode);
-        if (detector is null)
+        if (_detectors.Count == 0)
         {
             return;
         }
 
-        var current = detector.Detect();
+        // 真实模式下同时监听 UMS 与 MTP：混合协议设备分别按各自协议处理
+        var current = _detectors
+            .SelectMany(d => d.Detect())
+            .GroupBy(d => d.Key, StringComparer.Ordinal)
+            .Select(g => g.First())
+            .ToList();
         var keys = current.Select(d => d.Key).ToHashSet(StringComparer.Ordinal);
         foreach (var key in keys)
         {

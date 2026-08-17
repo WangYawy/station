@@ -68,7 +68,8 @@ services.AddStationDatabase(config);
 services.AddStationApplication(config);
 await using var sp = services.BuildServiceProvider();
 
-sp.GetRequiredService<IDatabaseInitializer>().EnsureCreated(typeof(CollectTask), typeof(CollectFile));
+sp.GetRequiredService<IDatabaseInitializer>().EnsureCreated(
+    typeof(CollectTask), typeof(CollectFile), typeof(ClockState), typeof(LicenseInfo));
 
 var collect = sp.GetRequiredService<ICollectTaskService>();
 var sim = (SimulatedCollectSource)sp.GetRequiredService<ICollectSource>();
@@ -227,7 +228,8 @@ try
     eraseServices.AddStationDatabase(eraseConfig);
     eraseServices.AddStationApplication(eraseConfig);
     await using var eraseSp = eraseServices.BuildServiceProvider();
-    eraseSp.GetRequiredService<IDatabaseInitializer>().EnsureCreated(typeof(CollectTask), typeof(CollectFile));
+    eraseSp.GetRequiredService<IDatabaseInitializer>().EnsureCreated(
+        typeof(CollectTask), typeof(CollectFile), typeof(ClockState), typeof(LicenseInfo));
     var eraseCollect = eraseSp.GetRequiredService<ICollectTaskService>();
 
     var task = await eraseCollect.CreateTaskAsync(new CollectDeviceInfo("记录仪-F", "SIM-F", ProtocolType.Ums), isAuto: true);

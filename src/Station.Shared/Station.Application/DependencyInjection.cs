@@ -41,12 +41,15 @@ public static class DependencyInjection
 
         services.AddSingleton(collectOptions);
         services.AddSingleton(Options.Create(collectOptions));
+        services.AddSingleton<UmsCollectSource>();
+        services.AddSingleton<SimulatedCollectSource>();
+        services.AddSingleton<ICollectSourceProvider, DefaultCollectSourceProvider>();
         services.AddSingleton<ICollectSource>(sp =>
         {
             var collect = sp.GetRequiredService<CollectOptions>();
             return collect.SourceMode == "ums"
-                ? new UmsCollectSource(collect)
-                : new SimulatedCollectSource(collect);
+                ? sp.GetRequiredService<UmsCollectSource>()
+                : sp.GetRequiredService<SimulatedCollectSource>();
         });
         services.AddScoped<ICacheCleanupService, CacheCleanupService>();
         services.AddScoped<ICollectTaskService, CollectTaskService>();
