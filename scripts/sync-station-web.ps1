@@ -3,13 +3,13 @@ param(
 )
 
 <#
-Builds station-web and syncs the dist output into the desktop WebHost wwwroot
-folder, so the next desktop publish embeds the freshest frontend.
+Builds station-web (pnpm workspace) and verifies the built assets landed in the
+desktop WebHost wwwroot, so the next desktop publish embeds the freshest
+frontend. Vite writes directly to WebHost\wwwroot (build.outDir), which is
+tracked in git; after running this script the changed assets should be
+committed together with the frontend change.
 
-The desktop publish copies WebHost\wwwroot into the output (see
-Station.Desktop.WebHost.csproj). WebHost\wwwroot is tracked in git, so after
-running this script the changed assets should be committed together with the
-frontend change.
+Requires pnpm (npm install -g pnpm or corepack enable).
 
 Usage:
   powershell -File scripts/sync-station-web.ps1
@@ -19,35 +19,30 @@ $ErrorActionPreference = 'Stop'
 
 $root = Split-Path $PSScriptRoot -Parent
 $webDir = Join-Path $root 'station-web'
-$distDir = Join-Path $webDir 'dist'
 $wwwrootDir = Join-Path $root 'src\Station.Desktop\Station.Desktop.WebHost\wwwroot'
 
 if (-not (Test-Path (Join-Path $webDir 'package.json'))) {
     throw "station-web not found: $webDir"
 }
+if (-not (Get-Command pnpm -ErrorAction SilentlyContinue)) {
+    throw 'pnpm not found. Install it first: npm install -g pnpm (or corepack enable)'
+}
 
 Push-Location $webDir
 try {
     if (-not $SkipInstall) {
-        npm ci
-        if ($LASTEXITCODE -ne 0) { throw 'npm ci failed' }
+        pnpm install --frozen-lockfile
+        if ($LASTEXITCODE -ne 0) { throw 'pnpm install failed' }
     }
-    npm run build
-    if ($LASTEXITCODE -ne 0) { throw 'npm run build failed' }
+    pnpm run build
+    if ($LASTEXITCODE -ne 0) { throw 'pnpm run build failed' }
 }
 finally {
     Pop-Location
 }
 
-if (-not (Test-Path (Join-Path $distDir 'index.html'))) {
-    throw "station-web build output missing index.html under $distDir"
+if (-not (Test-Path (Join-Path $wwwrootDir 'index.html'))) {
+    throw "station-web build output missing index.html under $wwwrootDir"
 }
 
-# Replace the old hashed assets to avoid stale files accumulating.
-$assetsDir = Join-Path $wwwrootDir 'assets'
-if (Test-Path $assetsDir) {
-    Remove-Item -LiteralPath $assetsDir -Recurse -Force
-}
-Copy-Item -Path (Join-Path $distDir '*') -Destination $wwwrootDir -Recurse -Force
-
-Write-Host "Synced station-web dist -> $wwwrootDir"
+Write-Host "Synced station-web build -> $wwwrootDir"

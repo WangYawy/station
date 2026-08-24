@@ -6,16 +6,24 @@ on:
       - 'src/Station.Shared/**'
       - 'src/Station.Desktop/**'
       - 'station-web/**'
+      - 'packages/**'
       - 'Station.Desktop.sln'
       - 'Directory.Build.props'
+      - 'package.json'
+      - 'pnpm-workspace.yaml'
+      - 'pnpm-lock.yaml'
       - '.github/workflows/desktop.yml'
   pull_request:
     paths:
       - 'src/Station.Shared/**'
       - 'src/Station.Desktop/**'
       - 'station-web/**'
+      - 'packages/**'
       - 'Station.Desktop.sln'
       - 'Directory.Build.props'
+      - 'package.json'
+      - 'pnpm-workspace.yaml'
+      - 'pnpm-lock.yaml'
 
 jobs:
   build-windows:
@@ -42,12 +50,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
       - uses: actions/setup-node@v4
         with:
           node-version: 20.x
-          cache: npm
-          cache-dependency-path: station-web/package-lock.json
-      - run: npm ci
-        working-directory: station-web
-      - run: npm run build
-        working-directory: station-web
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter station-web build

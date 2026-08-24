@@ -12,18 +12,21 @@ public sealed class CollectSourceProvider : ICollectSourceProvider
     private readonly CollectOptions _options;
     private readonly UmsCollectSource _ums;
     private readonly MtpCollectSource? _mtp;
+    private readonly LinuxMtpCollectSource? _mtpLinux;
     private readonly SimulatedCollectSource _simulated;
 
     public CollectSourceProvider(
         CollectOptions options,
         UmsCollectSource ums,
         SimulatedCollectSource simulated,
-        MtpCollectSource? mtp = null)
+        MtpCollectSource? mtp = null,
+        LinuxMtpCollectSource? mtpLinux = null)
     {
         _options = options;
         _ums = ums;
         _simulated = simulated;
         _mtp = mtp;
+        _mtpLinux = mtpLinux;
     }
 
     public ICollectSource GetFor(ProtocolType protocol)
@@ -35,7 +38,11 @@ public sealed class CollectSourceProvider : ICollectSourceProvider
 
         return protocol switch
         {
-            ProtocolType.Mtp => _mtp ?? throw new PlatformNotSupportedException("MTP 采集源仅支持 Windows"),
+            ProtocolType.Mtp => OperatingSystem.IsWindows()
+                ? _mtp ?? throw new PlatformNotSupportedException("MTP 采集源仅支持 Windows")
+                : OperatingSystem.IsLinux()
+                    ? _mtpLinux ?? throw new PlatformNotSupportedException("未安装 libmtp（Linux 真实 MTP 采集源）")
+                    : throw new PlatformNotSupportedException("当前平台不支持 MTP 采集源"),
             _ => _ums // Ums / PrivateSdk（私有加密 SDK 转 U 盘模式）
         };
     }

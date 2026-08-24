@@ -107,11 +107,12 @@ sudo apt-get remove station-desktop
 
 ## 四、依赖与中文字体（缺失时安装）
 
-```bash
-sudo apt-get update
-sudo apt-get install -y libx11-6 libxcb1 libxkbcommon0 libfontconfig1 libxrandr2 libxcursor1 libxi6 libice6 libsm6 libgl1
-sudo apt-get install -y fonts-wqy-microhei
-```
+  ```bash
+  sudo apt-get update
+  sudo apt-get install -y libx11-6 libxcb1 libxkbcommon0 libfontconfig1 libxrandr2 libxcursor1 libxi6 libice6 libsm6 libgl1
+  sudo apt-get install -y fonts-wqy-microhei
+  sudo apt-get install -y libmtp9 libmtp-common   # 接 MTP 记录仪必装（真实 MTP 模式）；仅 UMS 可跳过
+  ```
 
 ✅ 安装后重新执行 2.3 检查，应能列出库文件。
 
@@ -119,7 +120,7 @@ sudo apt-get install -y fonts-wqy-microhei
 
 ```bash
 # 有网机器：下载依赖 deb
-apt-get download libx11-6 libxcb1 libxkbcommon0 libfontconfig1 libxrandr2 libxcursor1 libxi6 libice6 libsm6 libgl1 fonts-wqy-microhei
+apt-get download libx11-6 libxcb1 libxkbcommon0 libfontconfig1 libxrandr2 libxcursor1 libxi6 libice6 libsm6 libgl1 fonts-wqy-microhei libmtp9 libmtp-common
 
 # 目标机：本地安装（不要 apt-get update）
 sudo dpkg -i *.deb

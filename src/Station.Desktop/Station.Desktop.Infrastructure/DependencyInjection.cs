@@ -30,6 +30,13 @@ public static class DependencyInjection
         else
         {
             services.AddSingleton<IRecorderRootFileStore, FileSystemRecorderRootFileStore>();
+            if (OperatingSystem.IsLinux())
+            {
+                // Linux 真实 MTP（libmtp）：与 UMS 一起参与"真实设备模式"混合路由
+                services.AddSingleton<LinuxMtpCollectSource>();
+                services.AddSingleton<IRecorderRootFileStore>(sp =>
+                    new CompositeRecorderRootFileStore(sp.GetRequiredService<LinuxMtpCollectSource>()));
+            }
         }
 
         // 按设备协议路由采集源（UMS/MTP 混合接入）：覆盖共享层默认实现
@@ -38,9 +45,17 @@ public static class DependencyInjection
             var collect = sp.GetRequiredService<CollectOptions>();
             var ums = sp.GetRequiredService<UmsCollectSource>();
             var simulated = sp.GetRequiredService<SimulatedCollectSource>();
-            return OperatingSystem.IsWindows()
-                ? new CollectSourceProvider(collect, ums, simulated, sp.GetRequiredService<MtpCollectSource>())
-                : new CollectSourceProvider(collect, ums, simulated);
+            if (OperatingSystem.IsWindows())
+            {
+                return new CollectSourceProvider(collect, ums, simulated, sp.GetRequiredService<MtpCollectSource>());
+            }
+
+            if (OperatingSystem.IsLinux())
+            {
+                return new CollectSourceProvider(collect, ums, simulated, mtpLinux: sp.GetRequiredService<LinuxMtpCollectSource>());
+            }
+
+            return new CollectSourceProvider(collect, ums, simulated);
         });
 
         // 记录仪接入监听：UMS/MTP 设备接入稳定后识别并自动采集（模拟源不工作）

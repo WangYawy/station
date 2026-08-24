@@ -64,10 +64,21 @@ public sealed class UmsDeviceDetector : IRecorderDeviceDetector
 /// <summary>MTP 检测：Windows 便携设备 API（WPD）；非 Windows 恒为空（MTP 采集源仅支持 Windows）。</summary>
 public sealed class MtpDeviceDetector : IRecorderDeviceDetector
 {
+    private readonly CollectOptions _options;
+
+    public MtpDeviceDetector(CollectOptions options)
+    {
+        _options = options;
+    }
+
     public string Protocol => "mtp";
 
     public IReadOnlyList<DetectedDevice> Detect() =>
-        OperatingSystem.IsWindows() ? DetectWindows() : [];
+        OperatingSystem.IsWindows()
+            ? DetectWindows()
+            : OperatingSystem.IsLinux()
+                ? LinuxMtpCollectSource.DetectDevices(_options)
+                : [];
 
     [SupportedOSPlatform("windows")]
     private static IReadOnlyList<DetectedDevice> DetectWindows()

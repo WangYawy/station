@@ -1,4 +1,10 @@
 <Project>
+  <!--
+    公共编译基线。产品版本号已拆分为两端各自独立：
+      - 桌面端：src/Station.Desktop/Directory.Build.props
+      - 平台端：src/Station.Platform/Directory.Build.props
+    新增公共属性时需同步检查两端子目录的 Directory.Build.props（它们 import 本文件）。
+  -->
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
     <Nullable>enable</Nullable>
@@ -6,6 +12,5 @@
     <LangVersion>latest</LangVersion>
     <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
     <Product>视音频数据采集站与监控管理平台</Product>
-    <Version>0.1.0</Version>
   </PropertyGroup>
 </Project>

@@ -8,10 +8,10 @@ namespace Station.Desktop.Infrastructure.Recorders;
 /// </summary>
 public sealed class CompositeRecorderRootFileStore : IRecorderRootFileStore
 {
-    private readonly MtpCollectSource _mtp;
+    private readonly IRecorderRootFileStore _mtp;
     private readonly FileSystemRecorderRootFileStore _fileSystem = new();
 
-    public CompositeRecorderRootFileStore(MtpCollectSource mtp)
+    public CompositeRecorderRootFileStore(IRecorderRootFileStore mtp)
     {
         _mtp = mtp;
     }

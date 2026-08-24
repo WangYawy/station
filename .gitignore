@@ -12,6 +12,14 @@ node_modules/
 dist/
 .vite/
 
+# pnpm
+.pnpm-store/
+.pnpm-tool/
+.npm-cache-local/
+
+# 本地 NuGet 缓存（沙箱环境用）
+.nuget-packages/
+
 # 运行产物
 logs/
 *.db

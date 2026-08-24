@@ -1,0 +1,13 @@
+{
+  "name": "station-monorepo",
+  "private": true,
+  "version": "0.1.0",
+  "packageManager": "pnpm@9.15.9",
+  "scripts": {
+    "dev:station-web": "pnpm --filter station-web dev",
+    "dev:platform-web": "pnpm --filter station-platform-web dev",
+    "build:station-web": "pnpm --filter station-web build",
+    "build:platform-web": "pnpm --filter station-platform-web build",
+    "typecheck": "pnpm -r typecheck"
+  }
+}

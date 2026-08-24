@@ -1,0 +1,10 @@
+<Project>
+  <!--
+    桌面端产品版本号（独立于平台端）。
+    发布时递增本文件中的 <Version>，并打标签 desktop-vX.Y.Z（见 release.yml）。
+  -->
+  <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)..\'))" />
+  <PropertyGroup>
+    <Version>0.1.0</Version>
+  </PropertyGroup>
+</Project>

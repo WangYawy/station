@@ -1,28 +1,9 @@
-export interface ApiResponse<T> {
-  success: boolean
-  code: number
-  message: string
-  data: T
-}
-
-export interface PagedResult<T> {
-  pageIndex: number
-  pageSize: number
-  totalCount: number
-  items: T[]
-}
-
-export interface AuthSession {
-  accountId: number
-  userId: number | null
-  userName: string
-  userNo: string | null
-  name: string | null
-  deptId: number | null
-  dataScope: number
-  roles: string[]
-  permissions: string[]
-}
+/**
+ * 公共类型（ApiResponse/PagedResult/AuthSession/PermissionItem/AuditLogItem/
+ * ImportResult 等）来自 @station/shared；本文件只保留桌面端产品特有类型。
+ * 新增与平台端一致的类型时优先下沉到共享包。
+ */
+export * from '@station/shared'
 
 export interface DeptItem {
   id: number
@@ -48,13 +29,6 @@ export interface RoleItem {
   dataScope: number
   isSystem: boolean
   isActive: boolean
-}
-
-export interface PermissionItem {
-  id: number
-  code: string
-  name: string
-  module: string
 }
 
 export interface RecorderItem {
@@ -86,19 +60,6 @@ export interface FileItem {
   errorMessage: string | null
 }
 
-export interface AuditLogItem {
-  id: number
-  operatorAccount: string | null
-  operatorName: string | null
-  deptId: number | null
-  sourceIp: string | null
-  operationType: string
-  target: string | null
-  detail: string | null
-  result: number
-  createdAt: string
-}
-
 export interface AlertItem {
   id: number
   type: number
@@ -108,16 +69,4 @@ export interface AlertItem {
   detail: string | null
   source: string | null
   createdAt: string
-}
-
-export interface ImportErrorItem {
-  line: number
-  message: string
-}
-
-export interface ImportResult {
-  total: number
-  success: number
-  failed: number
-  errors: ImportErrorItem[]
 }

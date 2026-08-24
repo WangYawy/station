@@ -1,54 +1,129 @@
-name: Desktop Release
+name: Release
 
+# 桌面端与平台端是独立交付的标准产品，各自独立版本号、独立发版：
+#   git tag desktop-vX.Y.Z  → 只构建/发布桌面端（MSI + DEB）
+#   git tag platform-vX.Y.Z → 只构建/发布平台端（Docker 镜像 tar.gz）
+# 手动触发（workflow_dispatch）可勾选本次要发布的产品，版本留空则读取对应
+# 目录 Directory.Build.props 的 <Version>。
 on:
   push:
     tags:
-      - 'v*'
+      - 'desktop-v*'
+      - 'platform-v*'
   workflow_dispatch:
+    inputs:
+      products:
+        description: '本次要发布的产品'
+        type: choice
+        options:
+          - desktop
+          - platform
+          - both
+        default: both
+      desktop_version:
+        description: '桌面端版本号（留空=读取 src/Station.Desktop/Directory.Build.props）'
+        required: false
+        type: string
+      platform_version:
+        description: '平台端版本号（留空=读取 src/Station.Platform/Directory.Build.props）'
+        required: false
+        type: string
 
 permissions:
   contents: write
 
 jobs:
-  package-windows:
+  resolve:
+    runs-on: ubuntu-latest
+    outputs:
+      desktop: ${{ steps.set.outputs.desktop }}
+      platform: ${{ steps.set.outputs.platform }}
+      desktop_version: ${{ steps.set.outputs.desktop_version }}
+      platform_version: ${{ steps.set.outputs.platform_version }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: set
+        shell: bash
+        run: |
+          desktop=false
+          platform=false
+          dv=""
+          pv=""
+          if [ "$GITHUB_REF_TYPE" = "tag" ]; then
+            # 标签名决定本次只发对应产品：desktop-v* / platform-v*
+            case "$GITHUB_REF_NAME" in
+              desktop-v*) desktop=true; dv="${GITHUB_REF_NAME#desktop-v}" ;;
+              platform-v*) platform=true; pv="${GITHUB_REF_NAME#platform-v}" ;;
+              *) echo "unsupported tag: $GITHUB_REF_NAME (expect desktop-v* or platform-v*)"; exit 1 ;;
+            esac
+          else
+            case "${{ inputs.products }}" in
+              desktop) desktop=true ;;
+              platform) platform=true ;;
+              both) desktop=true; platform=true ;;
+              *) echo "unsupported products input"; exit 1 ;;
+            esac
+            dv="${{ inputs.desktop_version }}"
+            pv="${{ inputs.platform_version }}"
+          fi
+          if [ "$desktop" = "true" ] && [ -z "$dv" ]; then
+            dv="$(grep -oE '<Version>[^<]+' src/Station.Desktop/Directory.Build.props | sed 's/<Version>//')"
+          fi
+          if [ "$platform" = "true" ] && [ -z "$pv" ]; then
+            pv="$(grep -oE '<Version>[^<]+' src/Station.Platform/Directory.Build.props | sed 's/<Version>//')"
+          fi
+          if [ "$desktop" = "true" ]; then
+            if ! [[ "$dv" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+              echo "invalid desktop version: $dv" >&2
+              exit 1
+            fi
+          fi
+          if [ "$platform" = "true" ]; then
+            if ! [[ "$pv" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+              echo "invalid platform version: $pv" >&2
+              exit 1
+            fi
+          fi
+          echo "desktop=$desktop" >> "$GITHUB_OUTPUT"
+          echo "platform=$platform" >> "$GITHUB_OUTPUT"
+          echo "desktop_version=$dv" >> "$GITHUB_OUTPUT"
+          echo "platform_version=$pv" >> "$GITHUB_OUTPUT"
+
+  package-desktop:
+    needs: resolve
+    if: needs.resolve.outputs.desktop == 'true'
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 8.0.x
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
       - uses: actions/setup-node@v4
         with:
           node-version: 20.x
-          cache: npm
-          cache-dependency-path: station-web/package-lock.json
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
 
-      - name: Resolve version
-        id: version
-        shell: pwsh
-        run: |
-          if ($env:GITHUB_REF_TYPE -eq 'tag') {
-            $v = $env:GITHUB_REF_NAME.TrimStart('v')
-          }
-          else {
-            $m = Select-String -Path Directory.Build.props -Pattern '<Version>([^<]+)<'
-            $v = $m.Matches[0].Groups[1].Value
-          }
-          if ($v -notmatch '^\d+\.\d+\.\d+$') { throw "invalid version: $v" }
-          "version=$v" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding ascii
+      - name: Install frontend deps
+        run: pnpm install --frozen-lockfile
 
       - name: Sync embedded web assets
-        run: pwsh -File scripts/sync-station-web.ps1
+        run: pwsh -File scripts/sync-station-web.ps1 -SkipInstall
 
       - name: Package MSI
-        run: pwsh -File scripts/package-windows.ps1 -Version ${{ steps.version.outputs.version }} -SkipWebSync
+        run: pwsh -File scripts/package-windows.ps1 -Version ${{ needs.resolve.outputs.desktop_version }} -SkipWebSync
 
       - uses: actions/upload-artifact@v4
         with:
           name: msi
           path: publish/packages/*.msi
 
-  package-linux:
+  package-desktop-linux:
+    needs: resolve
+    if: needs.resolve.outputs.desktop == 'true'
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -58,46 +133,79 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 8.0.x
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
       - uses: actions/setup-node@v4
         with:
           node-version: 20.x
-          cache: npm
-          cache-dependency-path: station-web/package-lock.json
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
 
-      - name: Resolve version
-        id: version
-        run: |
-          if [ "$GITHUB_REF_TYPE" = "tag" ]; then
-            v="${GITHUB_REF_NAME#v}"
-          else
-            v="$(grep -oE '<Version>[^<]+' Directory.Build.props | sed 's/<Version>//')"
-          fi
-          echo "version=$v" >> "$GITHUB_OUTPUT"
+      - name: Install frontend deps
+        run: pnpm install --frozen-lockfile
 
       - name: Sync embedded web assets
-        run: pwsh -File scripts/sync-station-web.ps1
+        run: pwsh -File scripts/sync-station-web.ps1 -SkipInstall
 
       - name: Package DEB
-        run: bash scripts/package-linux.sh "${{ steps.version.outputs.version }}" "${{ matrix.rid }}"
+        run: bash scripts/package-linux.sh "${{ needs.resolve.outputs.desktop_version }}" "${{ matrix.rid }}"
 
       - uses: actions/upload-artifact@v4
         with:
           name: deb-${{ matrix.rid }}
           path: publish/packages/*.deb
 
+  package-platform:
+    needs: resolve
+    if: needs.resolve.outputs.platform == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20.x
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Build platform web
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm --filter station-platform-web build
+
+      - name: Publish platform API
+        run: dotnet publish src/Station.Platform/Station.Platform.Api -c Release -o publish/platform-api
+
+      - name: Build and save platform image
+        run: |
+          docker build -f deploy/platform/Dockerfile -t station-platform:${{ needs.resolve.outputs.platform_version }} .
+          docker save station-platform:${{ needs.resolve.outputs.platform_version }} | gzip > publish/station-platform-${{ needs.resolve.outputs.platform_version }}.tar.gz
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: platform-image
+          path: publish/station-platform-*.tar.gz
+
   release:
-    needs: [package-windows, package-linux]
+    needs: [package-desktop, package-desktop-linux, package-platform]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/')
     steps:
       - uses: actions/download-artifact@v4
         with:
           path: artifacts
+          merge-multiple: true
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            artifacts/msi/*.msi
-            artifacts/deb-linux-x64/*.deb
-            artifacts/deb-linux-arm64/*.deb
+            artifacts/**/*.msi
+            artifacts/**/*.deb
+            artifacts/**/*.tar.gz
