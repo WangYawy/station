@@ -4,6 +4,7 @@ using Microsoft.Extensions.Options;
 using Station.Application.Audit;
 using Station.Domain.Entities;
 using Station.Infrastructure.Backup;
+using Microsoft.Extensions.Logging;
 
 namespace Station.Platform.Api;
 
@@ -12,11 +13,16 @@ public sealed class PlatformBackupWorker : BackgroundService
 {
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly BackupOptions _options;
+    private readonly ILogger<PlatformBackupWorker> _logger;
 
-    public PlatformBackupWorker(IServiceScopeFactory scopeFactory, IOptions<BackupOptions> options)
+    public PlatformBackupWorker(
+        IServiceScopeFactory scopeFactory,
+        IOptions<BackupOptions> options,
+        ILogger<PlatformBackupWorker> logger)
     {
         _scopeFactory = scopeFactory;
         _options = options.Value;
+        _logger = logger;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -52,6 +58,7 @@ public sealed class PlatformBackupWorker : BackgroundService
         {
             var path = await backups.CreateBackupAsync();
             var list = backups.ListBackups();
+            _logger.LogInformation("平台数据库备份完成：{File}（保留 {Count} 份）", Path.GetFileName(path), list.Count);
             await audit.WriteAsync(new AuditLog
             {
                 OperatorAccount = "system",
@@ -63,6 +70,7 @@ public sealed class PlatformBackupWorker : BackgroundService
         }
         catch (Exception ex)
         {
+            _logger.LogError(ex, "平台数据库备份失败");
             await audit.WriteAsync(new AuditLog
             {
                 OperatorAccount = "system",

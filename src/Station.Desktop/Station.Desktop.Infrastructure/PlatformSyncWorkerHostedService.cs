@@ -10,6 +10,7 @@ using Station.Contracts.Registration;
 using Station.Contracts.Reporting;
 using Station.Infrastructure.Licensing;
 using Station.Infrastructure.Security;
+using Microsoft.Extensions.Logging;
 
 namespace Station.Desktop.Infrastructure;
 
@@ -24,17 +25,20 @@ public sealed class PlatformSyncWorkerHostedService : BackgroundService
     private readonly IStationContext _stationContext;
     private readonly IMachineFingerprintProvider _fingerprint;
     private DateTime _lastCommandPoll = DateTime.MinValue;
+    private readonly ILogger<PlatformSyncWorkerHostedService> _logger;
 
     public PlatformSyncWorkerHostedService(
         IServiceScopeFactory scopeFactory,
         IStationContext stationContext,
         IMachineFingerprintProvider fingerprint,
-        IOptions<PlatformOptions> options)
+        IOptions<PlatformOptions> options,
+        ILogger<PlatformSyncWorkerHostedService> logger)
     {
         _scopeFactory = scopeFactory;
         _stationContext = stationContext;
         _fingerprint = fingerprint;
         _options = options.Value;
+        _logger = logger;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -54,6 +58,7 @@ public sealed class PlatformSyncWorkerHostedService : BackgroundService
             }
             catch
             {
+                _logger.LogWarning("平台同步轮询失败（平台不可达或异常），下轮重试");
                 // 平台不可达等异常不中断后台服务
             }
 

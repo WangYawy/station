@@ -22,6 +22,8 @@ public static class DependencyInjection
         this IServiceCollection services,
         IConfiguration configuration)
     {
+        // 共享服务声明日志依赖：宿主（Serilog）与 spike 自建容器都能解析 ILogger<T>
+        services.AddLogging();
         var section = configuration.GetSection(DbOptions.SectionName);
         var options = section.Get<DbOptions>() ?? new DbOptions();
         // 默认 SQLite 相对路径重定位到应用数据目录（安装目录只读，避免 Program Files//usr 下不可写）

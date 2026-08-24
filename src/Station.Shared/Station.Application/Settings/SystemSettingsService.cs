@@ -8,6 +8,7 @@ using Station.Application.PlatformSync;
 using Station.Domain.Entities;
 using Station.Infrastructure.Security;
 using Station.Infrastructure.Storage;
+using Microsoft.Extensions.Logging;
 
 namespace Station.Application.Settings;
 
@@ -27,6 +28,7 @@ public sealed class SystemSettingsService : ISystemSettingsService
     private readonly IRuntimeSettingsFile _runtimeFile;
     private readonly ILicenseService _license;
     private readonly IAuditLogService _audit;
+    private readonly ILogger<SystemSettingsService> _logger;
 
     private static readonly string[] VideoExtensions = [".mp4", ".avi", ".flv", ".mov"];
 
@@ -42,7 +44,8 @@ public sealed class SystemSettingsService : ISystemSettingsService
         WorkbenchOptions workbench,
         IRuntimeSettingsFile runtimeFile,
         ILicenseService license,
-        IAuditLogService audit)
+        IAuditLogService audit,
+        ILogger<SystemSettingsService> logger)
     {
         _collect = collect;
         _storage = storage;
@@ -53,6 +56,7 @@ public sealed class SystemSettingsService : ISystemSettingsService
         _runtimeFile = runtimeFile;
         _license = license;
         _audit = audit;
+        _logger = logger;
     }
 
     public async Task<SystemSettingsCoreDto> GetCoreAsync()
@@ -115,6 +119,7 @@ public sealed class SystemSettingsService : ISystemSettingsService
         };
 
         PersistRuntime();
+        _logger.LogInformation("设置更新（{Group}）by {Operator}：{Keys}", group, operatorAccount, string.Join(", ", values.Keys));
         await _audit.WriteAsync(new AuditLog
         {
             OperatorAccount = operatorAccount,

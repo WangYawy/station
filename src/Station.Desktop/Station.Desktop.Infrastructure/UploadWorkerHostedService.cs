@@ -5,6 +5,7 @@ using Station.Application.Uploading;
 using Station.Domain.Entities;
 using Station.Domain.Enums;
 using Station.Infrastructure.Repositories;
+using Microsoft.Extensions.Logging;
 
 namespace Station.Desktop.Infrastructure;
 
@@ -16,10 +17,12 @@ public sealed class UploadWorkerHostedService : BackgroundService
 {
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ConcurrentDictionary<long, byte> _processing = new();
+    private readonly ILogger<UploadWorkerHostedService> _logger;
 
-    public UploadWorkerHostedService(IServiceScopeFactory scopeFactory)
+    public UploadWorkerHostedService(IServiceScopeFactory scopeFactory, ILogger<UploadWorkerHostedService> logger)
     {
         _scopeFactory = scopeFactory;
+        _logger = logger;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -53,8 +56,9 @@ public sealed class UploadWorkerHostedService : BackgroundService
                     }
                 }
             }
-            catch
+            catch (Exception ex)
             {
+                _logger.LogError(ex, "上传轮询异常（单轮失败不中断）");
                 // 单轮失败不中断后台服务
             }
 

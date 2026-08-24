@@ -3,6 +3,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using Station.Application.Collecting;
 using Station.Contracts;
+using Microsoft.Extensions.Logging;
 
 namespace Station.Desktop.Infrastructure;
 
@@ -11,11 +12,16 @@ public sealed class ScheduledCollectWorkerHostedService : BackgroundService
 {
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly CollectOptions _options;
+    private readonly ILogger<ScheduledCollectWorkerHostedService> _logger;
 
-    public ScheduledCollectWorkerHostedService(IServiceScopeFactory scopeFactory, IOptions<CollectOptions> options)
+    public ScheduledCollectWorkerHostedService(
+        IServiceScopeFactory scopeFactory,
+        IOptions<CollectOptions> options,
+        ILogger<ScheduledCollectWorkerHostedService> logger)
     {
         _scopeFactory = scopeFactory;
         _options = options.Value;
+        _logger = logger;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -52,6 +58,7 @@ public sealed class ScheduledCollectWorkerHostedService : BackgroundService
             }
             catch
             {
+                _logger.LogWarning("定时采集触发失败（无设备/未绑定等），下轮重试");
                 // 无设备等场景：交由采集流程报警，定时任务下轮重试
             }
         }

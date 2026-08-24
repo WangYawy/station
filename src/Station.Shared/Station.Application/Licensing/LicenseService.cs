@@ -4,6 +4,7 @@ using Station.Infrastructure.IdGenerators;
 using Station.Infrastructure.Licensing;
 using Station.Infrastructure.Repositories;
 using Station.Infrastructure.Security;
+using Microsoft.Extensions.Logging;
 
 namespace Station.Application.Licensing;
 
@@ -14,19 +15,22 @@ public sealed class LicenseService : ILicenseService
     private readonly LicenseOptions _options;
     private readonly IMachineFingerprintProvider _fingerprint;
     private readonly IIdGenerator _idGenerator;
+    private readonly ILogger<LicenseService> _logger;
 
     public LicenseService(
         IRepository<LicenseInfo> licenses,
         IRepository<ClockState> clockStates,
         LicenseOptions options,
         IMachineFingerprintProvider fingerprint,
-        IIdGenerator idGenerator)
+        IIdGenerator idGenerator,
+        ILogger<LicenseService> logger)
     {
         _licenses = licenses;
         _clockStates = clockStates;
         _options = options;
         _fingerprint = fingerprint;
         _idGenerator = idGenerator;
+        _logger = logger;
     }
 
     public async Task<LicenseCheckResult> CheckAsync()
@@ -34,6 +38,7 @@ public sealed class LicenseService : ILicenseService
         var rollback = await DetectClockRollbackAsync();
         if (rollback)
         {
+            _logger.LogError("授权检查失败：检测到时钟回拨，授权已锁定");
             return new LicenseCheckResult(LicenseStatus.Locked, null, 0, false, "检测到时钟回拨，已锁定");
         }
 
@@ -48,6 +53,7 @@ public sealed class LicenseService : ILicenseService
         var daysLeft = Math.Max(0, (int)(active.ExpiresAt - DateTime.Now).TotalDays);
         if (DateTime.Now > active.ExpiresAt)
         {
+            _logger.LogWarning("授权已到期（{ExpiresAt}），请续期激活", active.ExpiresAt);
             return new LicenseCheckResult(LicenseStatus.Locked, active.ExpiresAt, 0, false,
                 "授权已到期，请续期激活");
         }
@@ -138,6 +144,7 @@ public sealed class LicenseService : ILicenseService
             ActivatedAt = DateTime.Now,
             IsActive = true
         });
+        _logger.LogInformation("授权激活成功：{Key}（至 {ExpiresAt:yyyy-MM-dd}）", file.LicenseKey, file.ExpiresAt);
         return (true, "激活成功");
     }
 

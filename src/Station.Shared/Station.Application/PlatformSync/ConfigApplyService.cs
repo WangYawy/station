@@ -12,6 +12,7 @@ using Station.Infrastructure.Db;
 using Station.Infrastructure.IdGenerators;
 using Station.Infrastructure.Persistence;
 using Station.Infrastructure.Storage;
+using Microsoft.Extensions.Logging;
 
 namespace Station.Application.PlatformSync;
 
@@ -24,6 +25,7 @@ public sealed class ConfigApplyService : IConfigApplyService
     private readonly ISqlSugarFactory _sqlSugarFactory;
     private readonly DbOptions _dbOptions;
     private readonly IIdGenerator _idGenerator;
+    private readonly ILogger<ConfigApplyService> _logger;
 
     public ConfigApplyService(
         CollectOptions collectOptions,
@@ -32,7 +34,8 @@ public sealed class ConfigApplyService : IConfigApplyService
         IAuditLogService audit,
         ISqlSugarFactory sqlSugarFactory,
         DbOptions dbOptions,
-        IIdGenerator idGenerator)
+        IIdGenerator idGenerator,
+        ILogger<ConfigApplyService> logger)
     {
         _collectOptions = collectOptions;
         _storageOptions = storageOptions;
@@ -41,6 +44,7 @@ public sealed class ConfigApplyService : IConfigApplyService
         _sqlSugarFactory = sqlSugarFactory;
         _dbOptions = dbOptions;
         _idGenerator = idGenerator;
+        _logger = logger;
     }
 
     public async Task<int> ApplyAsync(ConfigSyncResponse response)
@@ -66,6 +70,7 @@ public sealed class ConfigApplyService : IConfigApplyService
 
                 _state.RecordApplied(change.EntityType, change.Version);
                 applied++;
+                _logger.LogInformation("配置应用成功：{Type} v{Version}：{Detail}", change.EntityType, change.Version, detail);
                 await _audit.WriteAsync(new AuditLog
                 {
                     OperatorAccount = "platform",
@@ -78,6 +83,7 @@ public sealed class ConfigApplyService : IConfigApplyService
             }
             catch (Exception ex)
             {
+                _logger.LogError(ex, "配置应用失败：{Type} v{Version}", change.EntityType, change.Version);
                 // 单条失败不阻塞后续变更：记失败审计、不记录已应用版本，下轮轮询自动重试
                 await _audit.WriteAsync(new AuditLog
                 {

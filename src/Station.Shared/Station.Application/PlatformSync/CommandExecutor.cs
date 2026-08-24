@@ -6,6 +6,7 @@ using Station.Infrastructure;
 using Station.Infrastructure.Db;
 using Station.Infrastructure.IdGenerators;
 using System.Text.Json;
+using Microsoft.Extensions.Logging;
 
 namespace Station.Application.PlatformSync;
 
@@ -20,19 +21,22 @@ public sealed class CommandExecutor : ICommandExecutor
     private readonly DbOptions _dbOptions;
     private readonly CollectOptions _collectOptions;
     private readonly IIdGenerator _idGenerator;
+    private readonly ILogger<CommandExecutor> _logger;
 
     public CommandExecutor(
         ICollectControl collectControl,
         ISqlSugarFactory sqlSugarFactory,
         DbOptions dbOptions,
         CollectOptions collectOptions,
-        IIdGenerator idGenerator)
+        IIdGenerator idGenerator,
+        ILogger<CommandExecutor> logger)
     {
         _collectControl = collectControl;
         _sqlSugarFactory = sqlSugarFactory;
         _dbOptions = dbOptions;
         _collectOptions = collectOptions;
         _idGenerator = idGenerator;
+        _logger = logger;
     }
 
     public Task<CommandExecutionResult> ExecuteAsync(RemoteCommand command)
@@ -50,6 +54,7 @@ public sealed class CommandExecutor : ICommandExecutor
             _ => "未知指令"
         };
 
+        _logger.LogInformation("执行远程指令 {CommandId}（{Type}）：{Message}", command.CommandId, command.Type, message);
         return Task.FromResult(new CommandExecutionResult
         {
             CommandId = command.CommandId,

@@ -10,6 +10,7 @@ using Station.Infrastructure.Repositories;
 using Station.Infrastructure.Security;
 using Station.Application.Licensing;
 using Station.Application.PlatformSync;
+using Microsoft.Extensions.Logging;
 
 namespace Station.Application.Collecting;
 
@@ -33,6 +34,7 @@ public sealed class CollectTaskService : ICollectTaskService
     private readonly ISqlSugarFactory _sqlSugarFactory;
     private readonly DbOptions _dbOptions;
     private readonly ConcurrentDictionary<long, TaskControl> _controls = new();
+    private readonly ILogger<CollectTaskService> _logger;
 
     public CollectTaskService(
         IRepository<CollectTask> tasks,
@@ -43,7 +45,8 @@ public sealed class CollectTaskService : ICollectTaskService
         ICollectControl collectControl,
         ILicenseService licenseService,
         ISqlSugarFactory sqlSugarFactory,
-        DbOptions dbOptions)
+        DbOptions dbOptions,
+        ILogger<CollectTaskService> logger)
     {
         _tasks = tasks;
         _files = files;
@@ -54,6 +57,7 @@ public sealed class CollectTaskService : ICollectTaskService
         _licenseService = licenseService;
         _sqlSugarFactory = sqlSugarFactory;
         _dbOptions = dbOptions;
+        _logger = logger;
     }
 
     public async Task<CollectTaskDto> CreateTaskAsync(CollectDeviceInfo device, bool isAuto)
@@ -75,6 +79,8 @@ public sealed class CollectTaskService : ICollectTaskService
             CreatedAt = now
         };
         await _tasks.InsertAsync(task);
+        _logger.LogInformation("采集任务创建 {TaskNo}：记录仪 {Recorder}（{Protocol}，{Mode}）",
+            task.TaskNo, device.Name, device.Protocol, isAuto ? "自动" : "手动");
 
         if (isAuto && _options.AutoCollectOnConnect)
         {
@@ -140,6 +146,8 @@ public sealed class CollectTaskService : ICollectTaskService
             }
         }
 
+        _logger.LogInformation("任务 {TaskNo} 扫描完成：{Total} 个文件（跳过 {Skipped}）", task.TaskNo, accepted.Count, skipped);
+
         task.TotalFiles = accepted.Count;
         task.SkippedFiles = skipped;
         task.TotalBytes = accepted.Sum(f => f.Size);
@@ -158,6 +166,7 @@ public sealed class CollectTaskService : ICollectTaskService
         {
             control.PauseRequested = true;
             control.Cts.Cancel();
+            _logger.LogInformation("采集任务 {TaskId} 暂停请求", taskId);
         }
 
         return Task.CompletedTask;
@@ -183,6 +192,7 @@ public sealed class CollectTaskService : ICollectTaskService
         var control = new TaskControl();
         _controls[taskId] = control;
         _ = Task.Run(() => RunCollectAsync(taskId, control));
+        _logger.LogInformation("采集任务 {TaskId} 恢复", taskId);
     }
 
     public Task CancelAsync(long taskId) =>
@@ -209,6 +219,7 @@ public sealed class CollectTaskService : ICollectTaskService
 
         task.IsEmergency = isEmergency;
         await _tasks.UpdateAsync(task);
+        _logger.LogInformation("任务 {TaskId} 紧急优先标记 -> {Value}", taskId, isEmergency);
         return true;
     }
 
@@ -393,6 +404,7 @@ public sealed class CollectTaskService : ICollectTaskService
         }
         catch (Exception ex)
         {
+            _logger.LogError(ex, "采集任务 {TaskId} 执行异常（记录仪 {Recorder}）", taskId, task?.RecorderName);
             if (task is not null)
             {
                 task.FailedFiles++;
@@ -465,6 +477,7 @@ public sealed class CollectTaskService : ICollectTaskService
             task.Status = CollectTaskStatus.Paused;
             loopClient.Updateable(task).ExecuteCommand();
             _controls.TryRemove(taskId, out _);
+            _logger.LogInformation("采集任务 {TaskId} 已暂停", taskId);
             return;
         }
 
@@ -491,6 +504,8 @@ public sealed class CollectTaskService : ICollectTaskService
 
         loopClient.Updateable(task).ExecuteCommand();
         _controls.TryRemove(taskId, out _);
+        _logger.LogInformation("采集任务 {TaskId} 结束：{Status}（文件 {Total}/{Collected}）",
+            taskId, task.Status, task.TotalFiles, task.CollectedFiles);
     }
 
     private void TryErase(CollectTask task)

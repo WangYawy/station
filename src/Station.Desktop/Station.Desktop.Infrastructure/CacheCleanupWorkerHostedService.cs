@@ -4,6 +4,7 @@ using Microsoft.Extensions.Options;
 using Station.Application.Audit;
 using Station.Application.Collecting;
 using Station.Domain.Entities;
+using Microsoft.Extensions.Logging;
 
 namespace Station.Desktop.Infrastructure;
 
@@ -12,11 +13,16 @@ public sealed class CacheCleanupWorkerHostedService : BackgroundService
 {
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly CollectOptions _options;
+    private readonly ILogger<CacheCleanupWorkerHostedService> _logger;
 
-    public CacheCleanupWorkerHostedService(IServiceScopeFactory scopeFactory, IOptions<CollectOptions> options)
+    public CacheCleanupWorkerHostedService(
+        IServiceScopeFactory scopeFactory,
+        IOptions<CollectOptions> options,
+        ILogger<CacheCleanupWorkerHostedService> logger)
     {
         _scopeFactory = scopeFactory;
         _options = options.Value;
+        _logger = logger;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)

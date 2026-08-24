@@ -6,6 +6,7 @@ using Station.Application.Alerts;
 using Station.Contracts;
 using Station.Domain.Entities;
 using Station.Domain.Enums;
+using Microsoft.Extensions.Logging;
 
 namespace Station.Desktop.Infrastructure.Collecting;
 
@@ -18,15 +19,18 @@ public sealed class RecorderConnectWatcherHostedService : BackgroundService
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly CollectOptions _options;
     private readonly IReadOnlyList<IRecorderDeviceDetector> _detectors;
+    private readonly ILogger<RecorderConnectWatcherHostedService> _logger;
 
     public RecorderConnectWatcherHostedService(
         IServiceScopeFactory scopeFactory,
         CollectOptions options,
-        IEnumerable<IRecorderDeviceDetector> detectors)
+        IEnumerable<IRecorderDeviceDetector> detectors,
+        ILogger<RecorderConnectWatcherHostedService> logger)
     {
         _scopeFactory = scopeFactory;
         _options = options;
         _detectors = detectors.ToList();
+        _logger = logger;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -69,6 +73,7 @@ public sealed class RecorderConnectWatcherHostedService : BackgroundService
         var result = await identification.IdentifyAsync(deviceInfo, device.Root);
         if (result.Status != RecorderIdentifyStatus.Bound)
         {
+            _logger.LogWarning("记录仪接入 {Device}：识别未通过（{Status}：{Message}）", device.Name, result.Status, result.Message);
             // 未绑定/疑似篡改/非授权：识别流程已写报警，不自动采集
             return;
         }
@@ -82,6 +87,7 @@ public sealed class RecorderConnectWatcherHostedService : BackgroundService
         {
             var bound = deviceInfo with { UserId = result.UserId, DeptId = result.DeptId };
             var task = await collect.CreateTaskAsync(bound, isAuto: true);
+            _logger.LogInformation("记录仪接入 {Device}：已绑定，自动采集启动 {TaskNo}", device.Name, task.TaskNo);
             await alerts.WriteAsync(new Alert
             {
                 Type = AlertType.UsbFault,

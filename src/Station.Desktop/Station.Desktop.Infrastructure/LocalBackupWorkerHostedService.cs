@@ -4,6 +4,7 @@ using Microsoft.Extensions.Options;
 using Station.Application.Audit;
 using Station.Domain.Entities;
 using Station.Infrastructure.Backup;
+using Microsoft.Extensions.Logging;
 
 namespace Station.Desktop.Infrastructure;
 
@@ -12,11 +13,16 @@ public sealed class LocalBackupWorkerHostedService : BackgroundService
 {
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly BackupOptions _options;
+    private readonly ILogger<LocalBackupWorkerHostedService> _logger;
 
-    public LocalBackupWorkerHostedService(IServiceScopeFactory scopeFactory, IOptions<BackupOptions> options)
+    public LocalBackupWorkerHostedService(
+        IServiceScopeFactory scopeFactory,
+        IOptions<BackupOptions> options,
+        ILogger<LocalBackupWorkerHostedService> logger)
     {
         _scopeFactory = scopeFactory;
         _options = options.Value;
+        _logger = logger;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -58,6 +64,7 @@ public sealed class LocalBackupWorkerHostedService : BackgroundService
         {
             var path = await backups.CreateBackupAsync();
             var list = backups.ListBackups();
+            _logger.LogInformation("本地数据库备份完成：{File}（保留 {Count} 份）", Path.GetFileName(path), list.Count);
             await audit.WriteAsync(new AuditLog
             {
                 OperatorAccount = "system",
@@ -69,6 +76,7 @@ public sealed class LocalBackupWorkerHostedService : BackgroundService
         }
         catch (Exception ex)
         {
+            _logger.LogError(ex, "本地数据库备份失败");
             await audit.WriteAsync(new AuditLog
             {
                 OperatorAccount = "system",

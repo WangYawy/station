@@ -176,7 +176,7 @@ schtasks /Delete /TN "StationDesktop" /F
 | 本地数据库 | `%LOCALAPPDATA%\Station\station.db`（默认，可用 `STATION__DATA__DIR` 覆盖） | 
 | 运行时设置 | `%LOCALAPPDATA%\Station\appsettings.runtime.json`（系统设置页修改后落盘，重启生效） | 
 | 采集文件 | `Station:Storage:LocalRoot` 指定目录（默认相对工作目录） |
-| 日志 | 程序目录 `logs/`（Serilog 按天滚动） |
+| 日志 | `%LOCALAPPDATA%\Station\logs\desktop-yyyyMMdd.log`（Serilog 按天滚动，保留 30 天） |
 
 ### 8.2 备份（建议每周）
 
@@ -194,7 +194,7 @@ schtasks /Delete /TN "StationDesktop" /F
 
 | 现象 | 处理 |
 | :--- | :--- |
-| 双击没反应 | 确认是 64 位系统；看程序目录 `logs/` 最新日志；或管理员 PowerShell 运行 `.\Station.Desktop.UI.exe` 看报错 |
+| 双击没反应 | 确认是 64 位系统；看 `%LOCALAPPDATA%\Station\logs\` 最新日志；或管理员 PowerShell 运行 `.\Station.Desktop.UI.exe` 看报错 |
 | 单机版网页打不开 | 确认程序已启动；浏览器访问 `http://127.0.0.1:5000`（本机）；局域网访问需防火墙放行 5000 |
 | 授权显示未激活/已过期 | 按《部署与运维手册》第八章做授权激活；到期瞬间会中断采集 |
 | 接 U 盘不识别 | 确认 `SourceMode=ums`；换 USB 口；检查设备是否被系统识别 |

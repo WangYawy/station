@@ -4,6 +4,7 @@ using Station.Application.Collecting;
 using Station.Application.Settings;
 using Station.Contracts;
 using Station.Infrastructure.Storage;
+using Microsoft.Extensions.Logging;
 
 namespace Station.Desktop.Application.Settings;
 
@@ -13,12 +14,18 @@ public sealed class SystemSelfCheckService : ISystemSelfCheckService
     private readonly CollectOptions _collect;
     private readonly StorageOptions _storage;
     private readonly ICollectSource _source;
+    private readonly ILogger<SystemSelfCheckService> _logger;
 
-    public SystemSelfCheckService(CollectOptions collect, StorageOptions storage, ICollectSource source)
+    public SystemSelfCheckService(
+        CollectOptions collect,
+        StorageOptions storage,
+        ICollectSource source,
+        ILogger<SystemSelfCheckService> logger)
     {
         _collect = collect;
         _storage = storage;
         _source = source;
+        _logger = logger;
     }
 
     public Task<IReadOnlyList<SelfCheckItemDto>> RunAsync()
@@ -30,6 +37,7 @@ public sealed class SystemSelfCheckService : ISystemSelfCheckService
             CheckNetwork(),
             CheckStorageTarget()
         };
+        _logger.LogInformation("设备自检完成：{Ok}/{Total} 项正常", items.Count(i => i.Ok), items.Count);
         return Task.FromResult<IReadOnlyList<SelfCheckItemDto>>(items);
     }
 

@@ -8,6 +8,7 @@ using Station.Infrastructure.Db;
 using Station.Infrastructure.Repositories;
 using Station.Infrastructure.Storage;
 using Station.Infrastructure.Security;
+using Microsoft.Extensions.Logging;
 
 namespace Station.Application.Uploading;
 
@@ -21,6 +22,7 @@ public sealed class UploadService : IUploadService
     private readonly IStorageCircuitBreaker _breaker;
     private readonly ISqlSugarFactory _sqlSugarFactory;
     private readonly DbOptions _dbOptions;
+    private readonly ILogger<UploadService> _logger;
 
     public UploadService(
         IRepository<CollectTask> tasks,
@@ -30,7 +32,8 @@ public sealed class UploadService : IUploadService
         CollectOptions collectOptions,
         IStorageCircuitBreaker breaker,
         ISqlSugarFactory sqlSugarFactory,
-        DbOptions dbOptions)
+        DbOptions dbOptions,
+        ILogger<UploadService> logger)
     {
         _tasks = tasks;
         _files = files;
@@ -40,6 +43,7 @@ public sealed class UploadService : IUploadService
         _breaker = breaker;
         _sqlSugarFactory = sqlSugarFactory;
         _dbOptions = dbOptions;
+        _logger = logger;
     }
 
     public async Task<UploadSummary> ProcessTaskAsync(long taskId)
@@ -79,6 +83,7 @@ public sealed class UploadService : IUploadService
             if (_breaker.IsOpen)
             {
                 circuitOpened = true;
+                _logger.LogWarning("任务 {TaskNo} 上传中断：存储熔断已打开", task.TaskNo);
                 break;
             }
 
@@ -182,6 +187,7 @@ public sealed class UploadService : IUploadService
                 task.UploadedFiles++;
                 task.UploadedBytes += file.Size;
                 loopClient.Updateable(task).ExecuteCommand();
+                _logger.LogInformation("任务 {TaskNo} 文件 {FileName} 上传成功 -> {RemotePath}", task.TaskNo, file.FileName, remotePath);
             }
             else
             {
@@ -192,6 +198,8 @@ public sealed class UploadService : IUploadService
                     : UploadStatus.Pending;
                 loopClient.Updateable(file).ExecuteCommand();
                 failed++;
+                _logger.LogWarning("任务 {TaskNo} 文件 {FileName} 上传失败（第 {Retry} 次）：{Error}",
+                    task.TaskNo, file.FileName, file.UploadRetryCount, lastError?.Message);
             }
         }
 

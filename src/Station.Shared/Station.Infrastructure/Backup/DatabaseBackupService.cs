@@ -5,6 +5,7 @@ using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Options;
 using SqlSugar;
 using Station.Infrastructure.Db;
+using Microsoft.Extensions.Logging;
 
 namespace Station.Infrastructure.Backup;
 
@@ -30,12 +31,18 @@ public sealed class DatabaseBackupService : IDatabaseBackupService
     private readonly DbOptions _db;
     private readonly BackupOptions _options;
     private readonly ISqlSugarClient _client;
+    private readonly ILogger<DatabaseBackupService> _logger;
 
-    public DatabaseBackupService(DbOptions db, IOptions<BackupOptions> options, ISqlSugarClient client)
+    public DatabaseBackupService(
+        DbOptions db,
+        IOptions<BackupOptions> options,
+        ISqlSugarClient client,
+        ILogger<DatabaseBackupService> logger)
     {
         _db = db;
         _options = options.Value;
         _client = client;
+        _logger = logger;
     }
 
     public async Task<string> CreateBackupAsync()

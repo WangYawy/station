@@ -7,6 +7,7 @@ using Station.Contracts.Commands;
 using Station.Contracts.Registration;
 using Station.Contracts.Reporting;
 using Station.Contracts.Sync;
+using Microsoft.Extensions.Logging;
 
 namespace Station.Application.PlatformSync;
 
@@ -15,11 +16,13 @@ public sealed class HttpPlatformClient : IPlatformClient
     private readonly HttpClient _http;
     private readonly PlatformOptions _options;
     private readonly JsonSerializerOptions _json = new(JsonSerializerDefaults.Web);
+    private readonly ILogger<HttpPlatformClient> _logger;
 
-    public HttpPlatformClient(HttpClient http, IOptions<PlatformOptions> options)
+    public HttpPlatformClient(HttpClient http, IOptions<PlatformOptions> options, ILogger<HttpPlatformClient> logger)
     {
         _http = http;
         _options = options.Value;
+        _logger = logger;
         _http.Timeout = TimeSpan.FromSeconds(_options.TimeoutSeconds);
         if (!string.IsNullOrWhiteSpace(_options.BaseUrl))
         {
@@ -80,6 +83,7 @@ public sealed class HttpPlatformClient : IPlatformClient
         }
         catch
         {
+            _logger.LogWarning("紧急任务上报失败（平台不可达），下轮重试：{BaseUrl}", _options.BaseUrl);
             return false; // 平台不可达等下轮同步重试
         }
     }

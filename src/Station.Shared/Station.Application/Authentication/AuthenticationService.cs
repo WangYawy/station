@@ -6,6 +6,7 @@ using Station.Application.Audit;
 using Station.Application.Authorization;
 
 namespace Station.Application.Authentication;
+using Microsoft.Extensions.Logging;
 
 public sealed class AuthenticationService : IAuthenticationService
 {
@@ -14,19 +15,22 @@ public sealed class AuthenticationService : IAuthenticationService
     private readonly IAuditLogService _audit;
     private readonly IPasswordHasher _passwordHasher;
     private readonly AuthOptions _options;
+    private readonly ILogger<AuthenticationService> _logger;
 
     public AuthenticationService(
         IRepository<Account> accounts,
         IAuthorizationService authorization,
         IAuditLogService audit,
         IPasswordHasher passwordHasher,
-        IOptions<AuthOptions> options)
+        IOptions<AuthOptions> options,
+        ILogger<AuthenticationService> logger)
     {
         _accounts = accounts;
         _authorization = authorization;
         _audit = audit;
         _passwordHasher = passwordHasher;
         _options = options.Value;
+        _logger = logger;
     }
 
     public async Task<LoginResult> LoginAsync(LoginRequest request)
@@ -34,6 +38,7 @@ public sealed class AuthenticationService : IAuthenticationService
         var account = await _accounts.FirstAsync(a => a.UserName == request.UserName);
         if (account is null)
         {
+            _logger.LogWarning("登录失败：账号 {User} 不存在（IP {Ip}）", request.UserName, request.SourceIp);
             await _audit.WriteAsync(new AuditLog
             {
                 OperatorAccount = request.UserName,
@@ -55,6 +60,7 @@ public sealed class AuthenticationService : IAuthenticationService
 
         if (account.LockedUntil is { } lockedUntil && lockedUntil > DateTime.Now)
         {
+            _logger.LogWarning("登录失败：账号 {User} 锁定至 {Until}", request.UserName, lockedUntil);
             await WriteLoginAudit(account, request.SourceIp, $"登录失败：账号锁定至 {lockedUntil:HH:mm:ss}");
             return new LoginResult(false, LoginFailureReason.LockedOut, null, lockedUntil);
         }
@@ -75,6 +81,9 @@ public sealed class AuthenticationService : IAuthenticationService
                 newLockUntil is null
                     ? $"登录失败：密码错误（第 {account.FailedLoginAttempts + 1} 次）"
                     : $"登录失败：密码错误，账号锁定 {_options.LockoutMinutes} 分钟");
+            _logger.LogWarning("登录失败：账号 {User} 密码错误（IP {Ip}，第 {Attempt} 次{Locked}）",
+                request.UserName, request.SourceIp, account.FailedLoginAttempts,
+                newLockUntil is null ? string.Empty : "，已锁定");
             return new LoginResult(
                 false,
                 newLockUntil is null ? LoginFailureReason.InvalidCredentials : LoginFailureReason.LockedOut,
@@ -88,6 +97,7 @@ public sealed class AuthenticationService : IAuthenticationService
 
         var session = await _authorization.GetSessionAsync(account.Id);
         await WriteLoginAudit(account, request.SourceIp, "登录成功");
+        _logger.LogInformation("登录成功：{User}（IP {Ip}）", request.UserName, request.SourceIp);
         return new LoginResult(true, null, session);
     }
 

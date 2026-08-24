@@ -4,6 +4,7 @@ using Station.Application.Collecting;
 using Station.Domain.Entities;
 using Station.Domain.Enums;
 using Station.Infrastructure.Repositories;
+using Microsoft.Extensions.Logging;
 
 namespace Station.Desktop.Infrastructure;
 
@@ -14,10 +15,12 @@ namespace Station.Desktop.Infrastructure;
 public sealed class LedgerAndReportWorkerHostedService : BackgroundService
 {
     private readonly IServiceScopeFactory _scopeFactory;
+    private readonly ILogger<LedgerAndReportWorkerHostedService> _logger;
 
-    public LedgerAndReportWorkerHostedService(IServiceScopeFactory scopeFactory)
+    public LedgerAndReportWorkerHostedService(IServiceScopeFactory scopeFactory, ILogger<LedgerAndReportWorkerHostedService> logger)
     {
         _scopeFactory = scopeFactory;
+        _logger = logger;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -39,8 +42,9 @@ public sealed class LedgerAndReportWorkerHostedService : BackgroundService
                     await ledger.ProcessCompletedTaskAsync(candidate.Id);
                 }
             }
-            catch
+            catch (Exception ex)
             {
+                _logger.LogError(ex, "台账/上报轮询异常（单轮失败不中断）");
                 // 单轮失败不中断
             }
 

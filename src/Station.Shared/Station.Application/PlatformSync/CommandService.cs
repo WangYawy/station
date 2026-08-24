@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Station.Contracts;
 using Station.Contracts.Commands;
+using Microsoft.Extensions.Logging;
 
 namespace Station.Application.PlatformSync;
 
@@ -14,17 +15,20 @@ public sealed class CommandService : ICommandService
     private readonly ISyncOutboxService _outbox;
     private readonly ICommandSignatureVerifier _verifier;
     private readonly JsonSerializerOptions _json = new(JsonSerializerDefaults.Web);
+    private readonly ILogger<CommandService> _logger;
 
     public CommandService(
         IPlatformClient client,
         ICommandExecutor executor,
         ISyncOutboxService outbox,
-        ICommandSignatureVerifier verifier)
+        ICommandSignatureVerifier verifier,
+        ILogger<CommandService> logger)
     {
         _client = client;
         _executor = executor;
         _outbox = outbox;
         _verifier = verifier;
+        _logger = logger;
     }
 
     public async Task<int> PollAndExecuteAsync(long stationId)
@@ -34,6 +38,7 @@ public sealed class CommandService : ICommandService
         {
             if (!_verifier.Verify(command))
             {
+                _logger.LogWarning("指令 {CommandId} 签名校验失败，拒绝执行（类型 {Type}）", command.CommandId, command.Type);
                 await _outbox.EnqueueAsync(
                     "command-result",
                     System.Text.Json.JsonSerializer.Serialize(new CommandResultEnvelope(stationId,
