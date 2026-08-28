@@ -19,7 +19,7 @@ public sealed class SyncOutboxService : ISyncOutboxService
     private readonly IPlatformClient _client;
     private readonly IIdGenerator _idGenerator;
     private readonly ISqlSugarFactory _sqlSugarFactory;
-    private readonly DbOptions _dbOptions;
+    private readonly SnowFlakeOptions _dbOptions;
     private readonly JsonSerializerOptions _json = new(JsonSerializerDefaults.Web);
 
     public SyncOutboxService(
@@ -27,7 +27,7 @@ public sealed class SyncOutboxService : ISyncOutboxService
         IPlatformClient client,
         IIdGenerator idGenerator,
         ISqlSugarFactory sqlSugarFactory,
-        DbOptions dbOptions)
+        SnowFlakeOptions dbOptions)
     {
         _outbox = outbox;
         _client = client;

@@ -26,7 +26,7 @@ public sealed class FileLedgerService : IFileLedgerService
     private readonly PlatformOptions _platformOptions;
     private readonly CollectOptions _collectOptions;
     private readonly ISqlSugarFactory _sqlSugarFactory;
-    private readonly DbOptions _dbOptions;
+    private readonly SnowFlakeOptions _dbOptions;
     private readonly JsonSerializerOptions _json = new(JsonSerializerDefaults.Web);
 
     public FileLedgerService(
@@ -39,7 +39,7 @@ public sealed class FileLedgerService : IFileLedgerService
         IOptions<PlatformOptions> platformOptions,
         CollectOptions collectOptions,
         ISqlSugarFactory sqlSugarFactory,
-        DbOptions dbOptions)
+        SnowFlakeOptions dbOptions)
     {
         _ledger = ledger;
         _users = users;

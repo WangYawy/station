@@ -6,12 +6,36 @@ namespace Station.Domain.Enums;
 /// </summary>
 public enum CollectTaskStatus
 {
+    /// <summary>
+    /// 已生成采集任务
+    /// </summary>
     Created = 0,
+    /// <summary>
+    /// 扫描文件中
+    /// </summary>
     Scanning = 1,
+    /// <summary>
+    /// 采集文件中
+    /// </summary>
     Collecting = 2,
+    /// <summary>
+    /// 已暂停
+    /// </summary>
     Paused = 3,
+    /// <summary>
+    /// 采集完成
+    /// </summary>
     Completed = 4,
+    /// <summary>
+    /// 中途断线/拔出
+    /// </summary>
     Interrupted = 5,
+    /// <summary>
+    /// 采集失败
+    /// </summary>
     Failed = 6,
+    /// <summary>
+    /// 已取消
+    /// </summary>
     Canceled = 7
 }

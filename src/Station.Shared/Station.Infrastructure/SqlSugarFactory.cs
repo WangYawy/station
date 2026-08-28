@@ -4,7 +4,7 @@ using Station.Infrastructure.Db;
 namespace Station.Infrastructure;
 
 /// <summary>
-/// SqlSugar 客户端工厂：把 <see cref="DbOptions"/> 转换为对应提供程序的客户端实例。
+/// SqlSugar 客户端工厂：把 <see cref="SnowFlakeOptions"/> 转换为对应提供程序的客户端实例。
 /// </summary>
 public interface ISqlSugarFactory
 {
@@ -29,7 +29,7 @@ public sealed class SqlSugarFactory : ISqlSugarFactory
         var config = BuildConfig(options);
         // SQLite 保持连接常驻，避免异步查询中 auto-close 导致 "reader is closed"；
         // 服务端数据库（MySQL/PostgreSQL/Kingbase）使用 auto-close，避免连接池被常驻连接耗尽
-        config.IsAutoCloseConnection = options.Provider == DbProvider.Sqlite;
+        config.IsAutoCloseConnection = options.Provider != DbProvider.Sqlite;
         return new SqlSugarScope(config);
     }
 

@@ -35,6 +35,9 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
     private int _monitorTicks;
     private int _licenseTicks;
 
+    /// <summary>
+    /// 端口卡片
+    /// </summary>
     public ObservableCollection<UsbPortCardViewModel> PortCards { get; }
 
     [ObservableProperty]
@@ -103,7 +106,7 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
         _monitor = new SystemMonitorService(collectOptions);
 
         PortCards = [];
-        EnsureCardLayout();
+        EnsureCardLayout(); // 绘制卡片布局
 
         _sessions.SessionChanged += OnSessionChanged;
         OnSessionChanged();
@@ -113,21 +116,21 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
         {
             if (++_monitorTicks % 2 == 0)
             {
-                RefreshMonitor();
+                RefreshMonitor();  // 每2秒刷新一次状态栏
             }
 
             if (++_licenseTicks % 30 == 0)
             {
-                await RefreshLicenseAsync();
+                await RefreshLicenseAsync(); // 每30秒刷新一次授权状态
             }
 
             if (_monitorTicks % 2 == 0)
             {
-                await RefreshDataAsync();
+                await RefreshDataAsync(); // 每2秒刷新一次采集卡片数据
             }
         };
         _timer.Start();
-        RefreshMonitor();
+        RefreshMonitor(); // 刷新状态栏
         _ = RefreshLicenseAsync();
         _ = RefreshDataAsync();
     }
@@ -152,6 +155,10 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
     private static string ValueOf(IReadOnlyList<MonitorLine> lines, int index) =>
         lines.Count > index ? lines[index].Value : "—";
 
+    /// <summary>
+    /// 刷新数据，构建定时任务&构建执行&紧急优先&
+    /// </summary>
+    /// <returns></returns>
     private async Task RefreshDataAsync()
     {
         try
@@ -168,6 +175,10 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
         }
     }
 
+    /// <summary>
+    /// 刷新端口采集任务
+    /// </summary>
+    /// <param name="tasks">当前任务列表</param>
     private void RefreshPorts(IReadOnlyList<CollectTaskDto> tasks)
     {
         var byId = tasks.ToDictionary(t => t.TaskId, t => t);
@@ -257,6 +268,11 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
         }
     }
 
+    /// <summary>
+    /// 创建新卡片
+    /// </summary>
+    /// <param name="portIndex">端口编号</param>
+    /// <returns></returns>
     private UsbPortCardViewModel CreateCard(int portIndex) => new(
         portIndex,
         c => _ = OperateAsync(c, s => s.PauseAsync(c.TaskId!.Value)),
@@ -267,6 +283,11 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
         CardWidth,
         CardHeight);
 
+    /// <summary>
+    /// 紧急优先上传切换
+    /// </summary>
+    /// <param name="card">采集卡片</param>
+    /// <returns></returns>
     private async Task ToggleEmergencyAsync(UsbPortCardViewModel card)
     {
         if (!CanOperate || card.TaskId is null)
@@ -306,6 +327,9 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
         }
     }
 
+    /// <summary>
+    /// 刷新授权状态
+    /// </summary>
     private async Task RefreshLicenseAsync()
     {
         try
@@ -319,6 +343,12 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
         }
     }
 
+    /// <summary>
+    /// 操作
+    /// </summary>
+    /// <param name="card">采集卡片</param>
+    /// <param name="action">执行动作命令</param>
+    /// <returns></returns>
     private async Task OperateAsync(UsbPortCardViewModel card, Func<ICollectTaskService, Task> action)
     {
         if (!CanOperate || card.TaskId is null)
@@ -337,6 +367,11 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
         }
     }
 
+    /// <summary>
+    /// 获取采集任务文件列表
+    /// </summary>
+    /// <param name="taskId">采集任务Id</param>
+    /// <returns></returns>
     public async Task<IReadOnlyList<CollectFileDto>> GetTaskFilesAsync(long taskId) =>
         await _collectService.GetTaskFilesAsync(taskId);
 

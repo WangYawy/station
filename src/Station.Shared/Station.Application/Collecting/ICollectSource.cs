@@ -17,6 +17,9 @@ public interface ICollectSource
     /// <summary>记录仪根目录（UMS=盘符根；模拟源=模拟目录），用于绑定 ini 读写。</summary>
     string GetRecorderRoot(CollectDeviceInfo device);
 
+    /// <summary>
+    /// 扫描记录仪文件
+    /// </summary>
     Task<IReadOnlyList<SourceFileInfo>> ScanAsync(CollectDeviceInfo device, CancellationToken cancellationToken);
 
     /// <summary>复制文件到目标路径，onProgress 回调 0~1；device 携带该设备根路径（UMS 多盘按设备路由）。</summary>
@@ -27,5 +30,8 @@ public interface ICollectSource
         Func<double, Task>? onProgress,
         CancellationToken cancellationToken);
 
+    /// <summary>
+    /// 擦除记录仪文件
+    /// </summary>
     Task EraseAsync(CollectDeviceInfo device, CancellationToken cancellationToken);
 }

@@ -14,8 +14,14 @@ using Microsoft.Extensions.Logging;
 
 namespace Station.Application.Collecting;
 
+/// <summary>
+/// 采集任务服务
+/// </summary>
 public sealed class CollectTaskService : ICollectTaskService
 {
+    /// <summary>
+    /// 采集任务控件
+    /// </summary>
     private sealed class TaskControl
     {
         public CancellationTokenSource Cts { get; } = new();
@@ -32,7 +38,7 @@ public sealed class CollectTaskService : ICollectTaskService
     private readonly ICollectControl _collectControl;
     private readonly ILicenseService _licenseService;
     private readonly ISqlSugarFactory _sqlSugarFactory;
-    private readonly DbOptions _dbOptions;
+    private readonly SnowFlakeOptions _dbOptions;
     private readonly ConcurrentDictionary<long, TaskControl> _controls = new();
     private readonly ILogger<CollectTaskService> _logger;
 
@@ -45,7 +51,7 @@ public sealed class CollectTaskService : ICollectTaskService
         ICollectControl collectControl,
         ILicenseService licenseService,
         ISqlSugarFactory sqlSugarFactory,
-        DbOptions dbOptions,
+        SnowFlakeOptions dbOptions,
         ILogger<CollectTaskService> logger)
     {
         _tasks = tasks;
@@ -70,7 +76,7 @@ public sealed class CollectTaskService : ICollectTaskService
             TaskNo = $"CT-{now:yyyyMMddHHmmss}-{id % 1000000:D6}",
             RecorderName = device.Name,
             RecorderSerial = device.Serial,
-            Protocol = (int)device.Protocol,
+            Protocol = device.Protocol,
             SourceRoot = device.RootPath,
             OperatorUserId = device.UserId,
             DeptId = device.DeptId,
@@ -114,7 +120,7 @@ public sealed class CollectTaskService : ICollectTaskService
         await _tasks.UpdateAsync(task);
 
         var device = new CollectDeviceInfo(
-            task.RecorderName, task.RecorderSerial, (Station.Contracts.ProtocolType)task.Protocol,
+            task.RecorderName, task.RecorderSerial, task.Protocol,
             RootPath: task.SourceRoot);
         var collectSource = _sources.GetFor(device.Protocol);
         var sources = await collectSource.ScanAsync(device, CancellationToken.None);
@@ -300,7 +306,7 @@ public sealed class CollectTaskService : ICollectTaskService
             }
 
             var device = new CollectDeviceInfo(
-                task.RecorderName, task.RecorderSerial, (Station.Contracts.ProtocolType)task.Protocol,
+                task.RecorderName, task.RecorderSerial, task.Protocol,
                 RootPath: task.SourceRoot);
             var source = _sources.GetFor(device.Protocol);
             var speedWindow = new Queue<(DateTime Time, long Bytes)>();
@@ -518,7 +524,7 @@ public sealed class CollectTaskService : ICollectTaskService
         try
         {
             var device = new CollectDeviceInfo(
-                task.RecorderName, task.RecorderSerial, (Station.Contracts.ProtocolType)task.Protocol,
+                task.RecorderName, task.RecorderSerial, task.Protocol,
                 RootPath: task.SourceRoot);
             _sources.GetFor(device.Protocol)
                 .EraseAsync(device, CancellationToken.None)
@@ -537,7 +543,7 @@ public sealed class CollectTaskService : ICollectTaskService
         await _tasks.GetByIdAsync(taskId) ?? throw new InvalidOperationException($"任务 {taskId} 不存在");
 
     private static CollectTaskDto ToDto(CollectTask t) => new(
-        t.Id, t.TaskNo, t.RecorderName, t.RecorderSerial, (Station.Contracts.ProtocolType)t.Protocol, t.OperatorUserId, t.DeptId,
+        t.Id, t.TaskNo, t.RecorderName, t.RecorderSerial, t.Protocol, t.OperatorUserId, t.DeptId,
         t.Status, t.IsAuto,
         t.TotalFiles, t.CollectedFiles, t.SkippedFiles, t.FailedFiles,
         t.TotalBytes, t.CollectedBytes, t.SpeedBytesPerSecond, t.IsEmergency,

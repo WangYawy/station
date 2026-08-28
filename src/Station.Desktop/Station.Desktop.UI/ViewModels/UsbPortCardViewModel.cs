@@ -11,6 +11,10 @@ namespace Station.Desktop.UI.ViewModels;
 /// </summary>
 public partial class UsbPortCardViewModel : ObservableObject
 {
+    #region 属性
+    /// <summary>
+    /// 端口号
+    /// </summary>
     public string PortText { get; }
 
     [ObservableProperty]
@@ -19,85 +23,139 @@ public partial class UsbPortCardViewModel : ObservableObject
     [ObservableProperty]
     private string _taskNo = string.Empty;
 
+    /// <summary>
+    /// 状态文本
+    /// </summary>
     [ObservableProperty]
     private string _statusText = "空闲";
 
+    /// <summary>
+    /// 状态标识画笔
+    /// </summary>
     [ObservableProperty]
     private string _statusBadgeBrush = "#f1f5f9";
-
+    /// <summary>
+    /// 状态标识
+    /// </summary>
     [ObservableProperty]
     private string _statusForeground = "#94a3b8";
-
+    /// <summary>
+    /// 设备状态
+    /// </summary>
     [ObservableProperty]
     private string _deviceText = "-- 等待设备连接";
-
+    
     [ObservableProperty]
     private string _metaText = "--";
-
+    /// <summary>
+    /// 存储空间文件
+    /// </summary>
     [ObservableProperty]
     private string _storageText = "--";
-
+    /// <summary>
+    /// 采集进度
+    /// </summary>
     [ObservableProperty]
     private double _progress;
-
+    /// <summary>
+    /// 采集进度文本
+    /// </summary>
     [ObservableProperty]
     private string _progressText = "0%";
-
+    /// <summary>
+    /// 采集速度文本
+    /// </summary>
     [ObservableProperty]
     private string _speedText = "-- MB/s";
-
+    /// <summary>
+    /// 是否空闲状态
+    /// </summary>
     [ObservableProperty]
     private bool _isIdle = true;
-
+    /// <summary>
+    /// 透明度
+    /// </summary>
     [ObservableProperty]
     private double _opacity = 0.55;
-
+    /// <summary>
+    /// 卡片宽
+    /// </summary>
     [ObservableProperty]
     private double _cardWidth;
-
+    /// <summary>
+    /// 卡片高
+    /// </summary>
     [ObservableProperty]
     private double _cardHeight;
-
+    /// <summary>
+    /// 是否紧急优先采集
+    /// </summary>
     [ObservableProperty]
     private bool _isEmergency;
-
+    /// <summary>
+    /// 重点笔刷
+    /// </summary>
     [ObservableProperty]
     private string _accentBrush = "#2563eb";
-
+    /// <summary>
+    /// 卡片背景色
+    /// </summary>
     [ObservableProperty]
     private string _cardBackground = "White";
-
+    /// <summary>
+    /// 是否可以优先
+    /// </summary>
     [ObservableProperty]
     private bool _canPriority;
-
+    /// <summary>
+    /// 优先按钮文本
+    /// </summary>
     [ObservableProperty]
     private string _priorityButtonText = "优先";
 
     [ObservableProperty]
     private string _priorityButtonBrush = "#ea580c";
-
+    /// <summary>
+    /// 是否可以暂停
+    /// </summary>
     [ObservableProperty]
     private bool _canPause;
-
+    /// <summary>
+    /// 是否可以恢复
+    /// </summary>
     [ObservableProperty]
     private bool _canResume;
-
+    /// <summary>
+    /// 是否可以取消
+    /// </summary>
     [ObservableProperty]
     private bool _canCancel;
-
+    /// <summary>
+    /// 是否可以重试
+    /// </summary>
     [ObservableProperty]
     private bool _canRetry;
-
+    /// <summary>
+    /// 暂停命令
+    /// </summary>
     public IRelayCommand PauseCommand { get; }
-
+    /// <summary>
+    /// 回复命令
+    /// </summary>
     public IRelayCommand ResumeCommand { get; }
-
+    /// <summary>
+    /// 取消命令
+    /// </summary>
     public IRelayCommand CancelCommand { get; }
-
+    /// <summary>
+    /// 重试命令
+    /// </summary>
     public IRelayCommand RetryCommand { get; }
-
+    /// <summary>
+    /// 紧急优先命令
+    /// </summary>
     public IRelayCommand PriorityCommand { get; }
-
+    #endregion 属性
     public UsbPortCardViewModel(
         int portIndex,
         Action<UsbPortCardViewModel> pause,
@@ -118,6 +176,10 @@ public partial class UsbPortCardViewModel : ObservableObject
         PriorityCommand = new RelayCommand(() => priority(this), () => CanPriority);
     }
 
+    #region 方法
+    /// <summary>
+    /// 设置为空闲
+    /// </summary>
     public void SetIdle()
     {
         TaskId = null;
@@ -141,13 +203,18 @@ public partial class UsbPortCardViewModel : ObservableObject
         CanPause = CanResume = CanCancel = CanRetry = CanPriority = false;
         NotifyCommands();
     }
-
+    /// <summary>
+    /// 设置卡片大小
+    /// </summary>
     public void SetCardSize(double width, double height)
     {
         CardWidth = width;
         CardHeight = height;
     }
-
+    /// <summary>
+    /// 更新表单任务信息
+    /// </summary>
+    /// <param name="task">采集任务</param>
     public void UpdateFromTask(CollectTaskDto task)
     {
         TaskId = task.TaskId;
@@ -217,6 +284,9 @@ public partial class UsbPortCardViewModel : ObservableObject
         NotifyCommands();
     }
 
+    /// <summary>
+    /// 通知命令
+    /// </summary>
     private void NotifyCommands()
     {
         PauseCommand.NotifyCanExecuteChanged();
@@ -225,14 +295,22 @@ public partial class UsbPortCardViewModel : ObservableObject
         RetryCommand.NotifyCanExecuteChanged();
         PriorityCommand.NotifyCanExecuteChanged();
     }
-
+    /// <summary>
+    /// 设备连接方式文本
+    /// </summary>
+    /// <param name="task">采集任务</param>
+    /// <returns></returns>
     private static string ProtocolText(CollectTaskDto task) => task.Protocol switch
     {
         Station.Contracts.ProtocolType.Mtp => "MTP",
         Station.Contracts.ProtocolType.PrivateSdk => "私有SDK",
         _ => "UMS"
     };
-
+    /// <summary>
+    /// 格式化大小
+    /// </summary>
+    /// <param name="bytes">字节</param>
+    /// <returns></returns>
     private static string FormatSize(long bytes)
     {
         if (bytes <= 0)
@@ -251,4 +329,5 @@ public partial class UsbPortCardViewModel : ObservableObject
 
         return $"{value:F1} {units[unit]}";
     }
+    #endregion 方法
 }

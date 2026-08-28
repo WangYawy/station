@@ -59,6 +59,11 @@ public class RepositoryBase<T> : IRepository<T> where T : class, new()
     public Task<int> DeleteAsync(Expression<Func<T, bool>> predicate) =>
         Db.Deleteable<T>().Where(predicate).ExecuteCommandAsync();
 
+    public Task<int> SoftDeleteByIdAsync(long id) => Db.Deleteable<T>().In(id).ExecuteCommandAsync();
+
+    public Task<int> SoftDeleteAsync(Expression<Func<T, bool>> predicate) =>
+        Db.Updateable<T>().Where(predicate).ExecuteCommandAsync();
+
     public async Task<PageResult<T>> ToPageAsync(
         int pageIndex,
         int pageSize,

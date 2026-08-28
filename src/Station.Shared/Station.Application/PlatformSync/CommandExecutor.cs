@@ -18,7 +18,7 @@ public sealed class CommandExecutor : ICommandExecutor
 {
     private readonly ICollectControl _collectControl;
     private readonly ISqlSugarFactory _sqlSugarFactory;
-    private readonly DbOptions _dbOptions;
+    private readonly SnowFlakeOptions _dbOptions;
     private readonly CollectOptions _collectOptions;
     private readonly IIdGenerator _idGenerator;
     private readonly ILogger<CommandExecutor> _logger;
@@ -26,7 +26,7 @@ public sealed class CommandExecutor : ICommandExecutor
     public CommandExecutor(
         ICollectControl collectControl,
         ISqlSugarFactory sqlSugarFactory,
-        DbOptions dbOptions,
+        SnowFlakeOptions dbOptions,
         CollectOptions collectOptions,
         IIdGenerator idGenerator,
         ILogger<CommandExecutor> logger)

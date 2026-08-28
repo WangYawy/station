@@ -6,18 +6,35 @@ namespace Station.Infrastructure.Db;
 /// </summary>
 public interface IDbDialect
 {
+    /// <summary>
+    /// 数据库
+    /// </summary>
     DbProvider Provider { get; }
-
+    /// <summary>
+    /// 获取数据库版本
+    /// </summary>
+    /// <returns></returns>
     string GetVersionSql();
 
     /// <summary>时间列类型（用于跨库补列等 DDL）。</summary>
     string GetTimestampColumnType();
-
+    /// <summary>
+    /// 获取表索引sql脚本
+    /// </summary>
+    /// <param name="tableName">表名</param>
+    /// <returns></returns>
     string GetIndexListSql(string tableName);
-
+    /// <summary>
+    /// 获取数据库表sql脚本
+    /// </summary>
+    /// <param name="schema"></param>
+    /// <returns></returns>
     string GetTableListSql(string? schema = null);
 }
 
+/// <summary>
+/// Sqlite数据库
+/// </summary>
 public sealed class SqliteDialect : IDbDialect
 {
     public DbProvider Provider => DbProvider.Sqlite;
@@ -32,7 +49,9 @@ public sealed class SqliteDialect : IDbDialect
     public string GetTableListSql(string? schema = null) =>
         "select name from sqlite_master where type = 'table' and name not like 'sqlite_%' order by name";
 }
-
+/// <summary>
+/// 人大金仓数据库
+/// </summary>
 public sealed class KingbaseDialect : IDbDialect
 {
     public DbProvider Provider => DbProvider.Kingbase;
@@ -47,7 +66,9 @@ public sealed class KingbaseDialect : IDbDialect
     public string GetTableListSql(string? schema = null) =>
         $"select tablename from pg_tables where schemaname = {(schema is null ? "current_schema()" : $"'{schema}'")} order by tablename";
 }
-
+/// <summary>
+/// MySql数据库
+/// </summary>
 public sealed class MySqlDialect : IDbDialect
 {
     public DbProvider Provider => DbProvider.MySql;
@@ -62,7 +83,9 @@ public sealed class MySqlDialect : IDbDialect
     public string GetTableListSql(string? schema = null) =>
         $"select table_name from information_schema.tables where table_schema = {(schema is null ? "database()" : $"'{schema}'")} order by table_name";
 }
-
+/// <summary>
+/// PostgreSql数据库
+/// </summary>
 public sealed class PostgreSqlDialect : IDbDialect
 {
     public DbProvider Provider => DbProvider.PostgreSQL;
@@ -77,7 +100,9 @@ public sealed class PostgreSqlDialect : IDbDialect
     public string GetTableListSql(string? schema = null) =>
         $"select tablename from pg_tables where schemaname = {(schema is null ? "current_schema()" : $"'{schema}'")} order by tablename";
 }
-
+/// <summary>
+/// 数据库差异工厂
+/// </summary>
 public static class DbDialectFactory
 {
     public static IDbDialect Create(DbProvider provider) => provider switch

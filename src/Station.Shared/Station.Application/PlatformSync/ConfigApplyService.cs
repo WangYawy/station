@@ -23,7 +23,7 @@ public sealed class ConfigApplyService : IConfigApplyService
     private readonly IConfigSyncState _state;
     private readonly IAuditLogService _audit;
     private readonly ISqlSugarFactory _sqlSugarFactory;
-    private readonly DbOptions _dbOptions;
+    private readonly SnowFlakeOptions _dbOptions;
     private readonly IIdGenerator _idGenerator;
     private readonly ILogger<ConfigApplyService> _logger;
 
@@ -33,7 +33,7 @@ public sealed class ConfigApplyService : IConfigApplyService
         IConfigSyncState state,
         IAuditLogService audit,
         ISqlSugarFactory sqlSugarFactory,
-        DbOptions dbOptions,
+        SnowFlakeOptions dbOptions,
         IIdGenerator idGenerator,
         ILogger<ConfigApplyService> logger)
     {

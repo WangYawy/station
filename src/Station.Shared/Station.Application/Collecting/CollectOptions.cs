@@ -18,7 +18,7 @@ public sealed class CollectOptions
 
     /// <summary>
     /// 采集源模式：simulated（开发默认）/ ums|mtp（真实设备模式）。
-    /// 真实模式下按设备实际协议逐台路由（UMS/MTP 可混合接入，MTP 仅 Windows）。
+    /// 真实模式下按设备实际协议逐台路由（UMS/MTP 可混合接入）。
     /// </summary>
     public string SourceMode { get; set; } = "simulated";
 

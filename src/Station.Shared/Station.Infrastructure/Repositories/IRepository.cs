@@ -36,6 +36,10 @@ public interface IRepository<T> where T : class, new()
 
     Task<int> DeleteAsync(Expression<Func<T, bool>> predicate);
 
+    Task<int> SoftDeleteByIdAsync(long id);
+
+    Task<int> SoftDeleteAsync(Expression<Func<T, bool>> predicate);
+
     Task<PageResult<T>> ToPageAsync(
         int pageIndex,
         int pageSize,

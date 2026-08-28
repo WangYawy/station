@@ -33,6 +33,12 @@ public sealed class RecorderIdentificationService : IRecorderIdentificationServi
         _logger = logger;
     }
 
+    /// <summary>
+    /// 设备识别
+    /// </summary>
+    /// <param name="device">设备</param>
+    /// <param name="recorderRootPath">根目录</param>
+    /// <returns></returns>
     public async Task<RecorderIdentifyResult> IdentifyAsync(CollectDeviceInfo device, string recorderRootPath)
     {
         var binding = _bindingFile.Read(recorderRootPath);
@@ -102,6 +108,9 @@ public sealed class RecorderIdentificationService : IRecorderIdentificationServi
             $"已绑定：{user?.Name ?? "未关联用户"}（{dept?.Name ?? "未关联部门"}）");
     }
 
+    /// <summary>
+    /// 报警信息
+    /// </summary>
     private async Task WriteAlertAsync(AlertType type, AlertLevel level, string title, string detail, string? source)
     {
         await _alerts.WriteAsync(new Alert

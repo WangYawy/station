@@ -21,7 +21,7 @@ public sealed class UploadService : IUploadService
     private readonly CollectOptions _collectOptions;
     private readonly IStorageCircuitBreaker _breaker;
     private readonly ISqlSugarFactory _sqlSugarFactory;
-    private readonly DbOptions _dbOptions;
+    private readonly SnowFlakeOptions _dbOptions;
     private readonly ILogger<UploadService> _logger;
 
     public UploadService(
@@ -32,7 +32,7 @@ public sealed class UploadService : IUploadService
         CollectOptions collectOptions,
         IStorageCircuitBreaker breaker,
         ISqlSugarFactory sqlSugarFactory,
-        DbOptions dbOptions,
+        SnowFlakeOptions dbOptions,
         ILogger<UploadService> logger)
     {
         _tasks = tasks;
