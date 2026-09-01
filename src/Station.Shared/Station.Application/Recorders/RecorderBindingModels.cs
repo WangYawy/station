@@ -1,4 +1,4 @@
-namespace Station.Infrastructure.Recorders;
+namespace Station.Application.Recorders;
 
 /// <summary>记录仪根目录绑定文件（station_bind.ini）解析结果。</summary>
 public sealed record BindingInfo(

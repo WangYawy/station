@@ -1,49 +1,44 @@
 using System.Text.Json;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using SqlSugar;
-using Station.Application.Alerts;
 using Station.Application.Audit;
 using Station.Application.Collecting;
+using Station.Application.IdGenerators;
 using Station.Contracts;
 using Station.Contracts.Sync;
 using Station.Domain.Entities;
 using Station.Domain.Enums;
-using Station.Infrastructure;
-using Station.Infrastructure.Db;
-using Station.Infrastructure.IdGenerators;
-using Station.Infrastructure.Persistence;
-using Station.Infrastructure.Storage;
-using Microsoft.Extensions.Logging;
+using Station.Domain.Repositories;
+using static System.Formats.Asn1.AsnWriter;
 
 namespace Station.Application.PlatformSync;
 
 public sealed class ConfigApplyService : IConfigApplyService
 {
     private readonly CollectOptions _collectOptions;
-    private readonly StorageOptions _storageOptions;
+    //private readonly StorageOptions _storageOptions;
     private readonly IConfigSyncState _state;
     private readonly IAuditLogService _audit;
-    private readonly ISqlSugarFactory _sqlSugarFactory;
-    private readonly SnowFlakeOptions _dbOptions;
+
+    private readonly IServiceScopeFactory _serviceScopeFactory;
     private readonly IIdGenerator _idGenerator;
     private readonly ILogger<ConfigApplyService> _logger;
 
     public ConfigApplyService(
         CollectOptions collectOptions,
-        StorageOptions storageOptions,
         IConfigSyncState state,
         IAuditLogService audit,
-        ISqlSugarFactory sqlSugarFactory,
-        SnowFlakeOptions dbOptions,
         IIdGenerator idGenerator,
+        IServiceScopeFactory serviceScopeFactory,
         ILogger<ConfigApplyService> logger)
     {
         _collectOptions = collectOptions;
-        _storageOptions = storageOptions;
+        //_storageOptions = storageOptions;
         _state = state;
         _audit = audit;
-        _sqlSugarFactory = sqlSugarFactory;
-        _dbOptions = dbOptions;
         _idGenerator = idGenerator;
+        _serviceScopeFactory = serviceScopeFactory;
         _logger = logger;
     }
 
@@ -133,38 +128,39 @@ public sealed class ConfigApplyService : IConfigApplyService
 
     private string ApplyStoragePolicy(ConfigChangeItem change)
     {
-        using var json = JsonDocument.Parse(change.PayloadJson);
-        var root = json.RootElement;
-        if (root.TryGetProperty("target", out var target) && target.ValueKind == JsonValueKind.String)
-        {
-            _storageOptions.Target = Enum.TryParse<StorageTargetKind>(target.GetString(), true, out var kind)
-                ? kind
-                : _storageOptions.Target;
-        }
+        //using var json = JsonDocument.Parse(change.PayloadJson);
+        //var root = json.RootElement;
+        //if (root.TryGetProperty("target", out var target) && target.ValueKind == JsonValueKind.String)
+        //{
+        //    _storageOptions.Target = Enum.TryParse<StorageTargetKind>(target.GetString(), true, out var kind)
+        //        ? kind
+        //        : _storageOptions.Target;
+        //}
 
-        if (root.TryGetProperty("directoryTemplate", out var template) && template.ValueKind == JsonValueKind.String)
-        {
-            _storageOptions.DirectoryTemplate = template.GetString()!;
-        }
+        //if (root.TryGetProperty("directoryTemplate", out var template) && template.ValueKind == JsonValueKind.String)
+        //{
+        //    _storageOptions.DirectoryTemplate = template.GetString()!;
+        //}
 
-        if (root.TryGetProperty("retryCount", out var retry) && retry.TryGetInt32(out var retryValue))
-        {
-            _storageOptions.RetryCount = retryValue;
-        }
+        //if (root.TryGetProperty("retryCount", out var retry) && retry.TryGetInt32(out var retryValue))
+        //{
+        //    _storageOptions.RetryCount = retryValue;
+        //}
 
-        if (root.TryGetProperty("circuitBreakerThreshold", out var breaker) && breaker.TryGetInt32(out var breakerValue))
-        {
-            _storageOptions.CircuitBreakerThreshold = breakerValue;
-        }
+        //if (root.TryGetProperty("circuitBreakerThreshold", out var breaker) && breaker.TryGetInt32(out var breakerValue))
+        //{
+        //    _storageOptions.CircuitBreakerThreshold = breakerValue;
+        //}
 
-        return $"存储策略已热更新（Target={_storageOptions.Target}, Retry={_storageOptions.RetryCount}, 熔断阈值={_storageOptions.CircuitBreakerThreshold}）";
+        //return $"存储策略已热更新（Target={_storageOptions.Target}, Retry={_storageOptions.RetryCount}, 熔断阈值={_storageOptions.CircuitBreakerThreshold}）";
+        return "";
     }
 
     // ==================== 用户域（组织/用户/角色/账号/记录仪） ====================
 
-    /// <summary>创建独立长连接客户端，规避共享作用域与采集/查询并发时的连接竞争。</summary>
-    private SqlSugar.ISqlSugarClient NewClient() =>
-        _sqlSugarFactory.CreateClient(_dbOptions, autoCloseConnection: false);
+    /// <summary>创建独立客户端，规避共享作用域与采集/查询并发时的连接竞争。</summary>
+    private IServiceScope NewScope() =>
+        _serviceScopeFactory.CreateScope();
 
     private static List<T> DeserializeRows<T>(string payloadJson)
     {
@@ -180,8 +176,9 @@ public sealed class ConfigApplyService : IConfigApplyService
     private async Task<string> ApplyDeptAsync(ConfigChangeItem change)
     {
         var rows = DeserializeRows<DeptSyncRow>(change.PayloadJson);
-        using var db = NewClient();
-        var existing = await db.Queryable<Dept>().ToListAsync();
+        using var scope = NewScope();
+        var deptRepo = scope.ServiceProvider.GetRequiredService<ILoopRepository<Dept>>();
+        var existing = await deptRepo.GetListAsync();
         var idByCode = existing.ToDictionary(d => d.Code, d => d.Id, StringComparer.OrdinalIgnoreCase);
         var entityById = existing.ToDictionary(d => d.Id, d => d);
         var toUpdate = new List<Dept>();
@@ -208,7 +205,7 @@ public sealed class ConfigApplyService : IConfigApplyService
                 };
                 idByCode[row.Code] = dept.Id;
                 entityById[dept.Id] = dept;
-                await db.Insertable(dept).ExecuteCommandAsync();
+                await deptRepo.InsertAsync(dept);
                 toUpdate.Add(dept); // 第二遍回填父级后统一落库
             }
         }
@@ -238,7 +235,7 @@ public sealed class ConfigApplyService : IConfigApplyService
 
         if (toUpdate.Count > 0)
         {
-            await db.Updateable(toUpdate).ExecuteCommandAsync();
+            await deptRepo.UpdateRangeAsync(toUpdate);
         }
 
         return $"部门快照已应用：{rows.Count} 条（软停用 {disabled} 条）";
@@ -247,12 +244,14 @@ public sealed class ConfigApplyService : IConfigApplyService
     private async Task<string> ApplyUserAsync(ConfigChangeItem change)
     {
         var rows = DeserializeRows<UserSyncRow>(change.PayloadJson);
-        using var db = NewClient();
-        var existing = await db.Queryable<User>().ToListAsync();
+        using var scope = NewScope();
+        var userRepo = scope.ServiceProvider.GetRequiredService<ILoopRepository<User>>();
+        var deptRepo = scope.ServiceProvider.GetRequiredService<ILoopRepository<Dept>>();
+        var existing = await userRepo.GetListAsync();
         var idByUserNo = existing.ToDictionary(u => u.UserNo, u => u.Id, StringComparer.OrdinalIgnoreCase);
-        var depts = await db.Queryable<Dept>().ToListAsync();
+        var depts = await deptRepo.GetListAsync();
         var deptIdByCode = depts.ToDictionary(d => d.Code, d => d.Id, StringComparer.OrdinalIgnoreCase);
-        var fallbackDeptId = deptIdByCode.TryGetValue(AuthSeedData.RootDeptCode, out var rootId)
+        var fallbackDeptId = deptIdByCode.TryGetValue("ROOT", out var rootId)
             ? rootId
             : depts.Count > 0 ? depts[0].Id : 0;
         var touched = new List<User>();
@@ -279,7 +278,7 @@ public sealed class ConfigApplyService : IConfigApplyService
                     IsActive = row.IsActive
                 };
                 idByUserNo[row.UserNo] = user.Id;
-                await db.Insertable(user).ExecuteCommandAsync();
+                await userRepo.InsertAsync(user);
             }
         }
 
@@ -292,7 +291,7 @@ public sealed class ConfigApplyService : IConfigApplyService
 
         if (touched.Count > 0)
         {
-            await db.Updateable(touched).ExecuteCommandAsync();
+            await userRepo.UpdateRangeAsync(touched);
         }
 
         return $"用户快照已应用：{rows.Count} 条";
@@ -301,10 +300,13 @@ public sealed class ConfigApplyService : IConfigApplyService
     private async Task<string> ApplyRoleAsync(ConfigChangeItem change)
     {
         var rows = DeserializeRows<RoleSyncRow>(change.PayloadJson);
-        using var db = NewClient();
-        var existing = await db.Queryable<Role>().ToListAsync();
+        using var scope = NewScope();
+        var roleRepo = scope.ServiceProvider.GetRequiredService<ILoopRepository<Role>>();
+        var permissionRepo = scope.ServiceProvider.GetRequiredService<ILoopRepository<Permission>>();
+        var rolePermissionRepo = scope.ServiceProvider.GetRequiredService<ILoopRepository<RolePermission>>();
+        var existing = await roleRepo.GetListAsync();
         var idByCode = existing.ToDictionary(r => r.Code, r => r.Id, StringComparer.OrdinalIgnoreCase);
-        var permissionIdByCode = (await db.Queryable<Permission>().ToListAsync())
+        var permissionIdByCode = (await permissionRepo.GetListAsync())
             .ToDictionary(p => p.Code, p => p.Id, StringComparer.OrdinalIgnoreCase);
         var touched = new List<Role>();
 
@@ -331,11 +333,12 @@ public sealed class ConfigApplyService : IConfigApplyService
                     IsActive = row.IsActive
                 };
                 idByCode[row.Code] = role.Id;
-                await db.Insertable(role).ExecuteCommandAsync();
+                await roleRepo.InsertAsync(role);
             }
 
             // 角色权限全量重建（幂等）
-            await db.Deleteable<RolePermission>().Where(rp => rp.RoleId == role.Id).ExecuteCommandAsync();
+            await rolePermissionRepo.DeleteAsync(rp => rp.RoleId == role.Id);
+
             var links = row.PermissionCodes
                 .Where(code => permissionIdByCode.TryGetValue(code, out var _))
                 .Select(code => new RolePermission
@@ -347,7 +350,7 @@ public sealed class ConfigApplyService : IConfigApplyService
                 .ToList();
             if (links.Count > 0)
             {
-                await db.Insertable(links).ExecuteCommandAsync();
+                await rolePermissionRepo.InsertRangeAsync(links);
             }
         }
 
@@ -360,7 +363,7 @@ public sealed class ConfigApplyService : IConfigApplyService
 
         if (touched.Count > 0)
         {
-            await db.Updateable(touched).ExecuteCommandAsync();
+            await roleRepo.UpdateRangeAsync(touched);
         }
 
         return $"角色快照已应用：{rows.Count} 条";
@@ -369,14 +372,17 @@ public sealed class ConfigApplyService : IConfigApplyService
     private async Task<string> ApplyUserRoleAsync(ConfigChangeItem change)
     {
         var rows = DeserializeRows<UserRoleSyncRow>(change.PayloadJson);
-        using var db = NewClient();
-        var userNoToId = (await db.Queryable<User>().ToListAsync())
+        using var scope = NewScope();
+        var userRepo = scope.ServiceProvider.GetRequiredService<ILoopRepository<User>>();
+        var roleRepo = scope.ServiceProvider.GetRequiredService<ILoopRepository<Role>>();
+        var userRoleRepo = scope.ServiceProvider.GetRequiredService<ILoopRepository<UserRole>>();
+        var userNoToId = (await userRepo.GetListAsync())
             .ToDictionary(u => u.UserNo, u => u.Id, StringComparer.OrdinalIgnoreCase);
-        var roleCodeToId = (await db.Queryable<Role>().ToListAsync())
+        var roleCodeToId = (await roleRepo.GetListAsync())
             .ToDictionary(r => r.Code, r => r.Id, StringComparer.OrdinalIgnoreCase);
 
         // 派生表全量重建：先清空再按快照插入
-        await db.Deleteable<UserRole>().ExecuteCommandAsync();
+        await userRoleRepo.DeleteAsync(t => 1 == 1);
         var links = rows
             .Where(r => userNoToId.TryGetValue(r.UserNo, out var _) &&
                         roleCodeToId.TryGetValue(r.RoleCode, out var _))
@@ -389,7 +395,7 @@ public sealed class ConfigApplyService : IConfigApplyService
             .ToList();
         if (links.Count > 0)
         {
-            await db.Insertable(links).ExecuteCommandAsync();
+            await  userRoleRepo.InsertRangeAsync(links);
         }
 
         return $"用户角色快照已应用：{rows.Count} 条（有效 {links.Count} 条）";
@@ -398,10 +404,12 @@ public sealed class ConfigApplyService : IConfigApplyService
     private async Task<string> ApplyAccountAsync(ConfigChangeItem change)
     {
         var rows = DeserializeRows<AccountSyncRow>(change.PayloadJson);
-        using var db = NewClient();
-        var existing = await db.Queryable<Account>().ToListAsync();
+        using var scope = NewScope();
+        var accountRepo = scope.ServiceProvider.GetRequiredService<ILoopRepository<Account>>();
+        var userRepo = scope.ServiceProvider.GetRequiredService<ILoopRepository<User>>();
+        var existing = await accountRepo.GetListAsync();
         var idByUserName = existing.ToDictionary(a => a.UserName, a => a.Id, StringComparer.OrdinalIgnoreCase);
-        var userNoToId = (await db.Queryable<User>().ToListAsync())
+        var userNoToId = (await userRepo.GetListAsync())
             .ToDictionary(u => u.UserNo, u => u.Id, StringComparer.OrdinalIgnoreCase);
         var touched = new List<Account>();
 
@@ -421,7 +429,7 @@ public sealed class ConfigApplyService : IConfigApplyService
             }
             else
             {
-                await db.Insertable(new Account
+                await accountRepo.InsertAsync(new Account
                 {
                     Id = _idGenerator.NextId(),
                     UserName = row.UserName,
@@ -430,7 +438,7 @@ public sealed class ConfigApplyService : IConfigApplyService
                     IsEnabled = row.IsEnabled,
                     FailedLoginAttempts = row.FailedLoginAttempts,
                     LockedUntil = row.LockedUntil
-                }).ExecuteCommandAsync();
+                });
             }
         }
 
@@ -443,7 +451,7 @@ public sealed class ConfigApplyService : IConfigApplyService
 
         if (touched.Count > 0)
         {
-            await db.Updateable(touched).ExecuteCommandAsync();
+            await accountRepo.UpdateRangeAsync(touched);
         }
 
         return $"账号快照已应用：{rows.Count} 条";
@@ -452,12 +460,15 @@ public sealed class ConfigApplyService : IConfigApplyService
     private async Task<string> ApplyRecorderAsync(ConfigChangeItem change)
     {
         var rows = DeserializeRows<RecorderSyncRow>(change.PayloadJson);
-        using var db = NewClient();
-        var existing = await db.Queryable<Recorder>().ToListAsync();
+        using var scope = NewScope();
+        var recorderRepo = scope.ServiceProvider.GetRequiredService<ILoopRepository<Recorder>>();
+        var userRepo = scope.ServiceProvider.GetRequiredService<ILoopRepository<User>>();
+        var deptRepo = scope.ServiceProvider.GetRequiredService<ILoopRepository<Dept>>();
+        var existing = await recorderRepo.GetListAsync();
         var idBySerial = existing.ToDictionary(r => r.SerialNumber, r => r.Id, StringComparer.OrdinalIgnoreCase);
-        var userNoToId = (await db.Queryable<User>().ToListAsync())
+        var userNoToId = (await userRepo.GetListAsync())
             .ToDictionary(u => u.UserNo, u => u.Id, StringComparer.OrdinalIgnoreCase);
-        var deptIdByCode = (await db.Queryable<Dept>().ToListAsync())
+        var deptIdByCode = (await deptRepo.GetListAsync())
             .ToDictionary(d => d.Code, d => d.Id, StringComparer.OrdinalIgnoreCase);
         var touched = new List<Recorder>();
 
@@ -482,7 +493,7 @@ public sealed class ConfigApplyService : IConfigApplyService
             }
             else
             {
-                await db.Insertable(new Recorder
+                await recorderRepo.InsertAsync(new Recorder
                 {
                     Id = _idGenerator.NextId(),
                     SerialNumber = row.SerialNumber,
@@ -492,7 +503,7 @@ public sealed class ConfigApplyService : IConfigApplyService
                     DeptId = deptId,
                     IsAuthorized = row.IsAuthorized,
                     IsActive = row.IsActive
-                }).ExecuteCommandAsync();
+                });
             }
         }
 
@@ -505,7 +516,7 @@ public sealed class ConfigApplyService : IConfigApplyService
 
         if (touched.Count > 0)
         {
-            await db.Updateable(touched).ExecuteCommandAsync();
+            await recorderRepo.UpdateRangeAsync(touched);
         }
 
         return $"记录仪白名单快照已应用：{rows.Count} 条";

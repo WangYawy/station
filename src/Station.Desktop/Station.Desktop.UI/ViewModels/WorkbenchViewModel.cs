@@ -12,6 +12,7 @@ using Station.Domain.Entities;
 using Station.Domain.Enums;
 using Station.Infrastructure.Repositories;
 using SqlSugar;
+using Station.Domain.Repositories;
 
 namespace Station.Desktop.UI.ViewModels;
 
@@ -315,10 +316,8 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
         try
         {
             var today = DateTime.Today;
-            var rows = await _files.AsQueryable()
-                .Where(f => f.Status == CollectFileStatus.Completed && f.CollectedAt >= today)
-                .Select(f => new { f.Size })
-                .ToListAsync();
+            var rows = (await _files.GetListAsync(f => f.Status == CollectFileStatus.Completed && f.CollectedAt >= today))
+                .Select(f => new { f.Size }).ToList();
             TodayText = $"{rows.Count} 个 · {FormatSize(rows.Sum(r => r.Size))}";
         }
         catch

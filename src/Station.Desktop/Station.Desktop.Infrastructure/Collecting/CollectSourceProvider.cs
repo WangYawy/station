@@ -1,11 +1,12 @@
 using Station.Application.Collecting;
 using Station.Contracts;
+using Station.Infrastructure.Collecting;
 
 namespace Station.Desktop.Infrastructure.Collecting;
 
 /// <summary>
-/// 桌面端采集源路由：真实模式（SourceMode=ums/mtp）下按设备协议选择——
-/// UMS/私有SDK(转U盘) → UmsCollectSource，MTP → MtpCollectSource（仅 Windows）。
+/// 采集源路由：真实模式（SourceMode=ums/mtp）下按设备协议选择——
+/// UMS/私有SDK(转U盘) → UmsCollectSource，MTP → MtpCollectSource（Windows）/LinuxMtpCollectSource。
 /// </summary>
 public sealed class CollectSourceProvider : ICollectSourceProvider
 {
@@ -39,11 +40,12 @@ public sealed class CollectSourceProvider : ICollectSourceProvider
         return protocol switch
         {
             ProtocolType.Mtp => OperatingSystem.IsWindows()
-                ? _mtp ?? throw new PlatformNotSupportedException("MTP 采集源仅支持 Windows")
+                ? _mtp ?? throw new PlatformNotSupportedException("未适配 MTP 采集源")
                 : OperatingSystem.IsLinux()
-                    ? _mtpLinux ?? throw new PlatformNotSupportedException("未安装 libmtp（Linux 真实 MTP 采集源）")
+                    ? _mtpLinux ?? throw new PlatformNotSupportedException("未安装 libmtp")
                     : throw new PlatformNotSupportedException("当前平台不支持 MTP 采集源"),
             _ => _ums // Ums / PrivateSdk（私有加密 SDK 转 U 盘模式）
         };
+        
     }
 }

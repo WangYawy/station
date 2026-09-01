@@ -1,5 +1,6 @@
 using System.Management;
 using Station.Contracts.Registration;
+using Station.Infrastructure.Security;
 
 namespace Station.Infrastructure.Licensing;
 
@@ -38,4 +39,6 @@ public sealed class WindowsMachineFingerprintProvider : IMachineFingerprintProvi
 
         return "unknown";
     }
+
+    public string CollectFingerprint() => Sm3Checksum.ComputeString(CollectParts().ToRaw());
 }

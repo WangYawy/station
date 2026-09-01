@@ -1,17 +1,18 @@
 using System.Text;
+using Station.Domain.Security;
 
 namespace Station.Infrastructure.Security;
 
 /// <summary>SM4 凭据/敏感信息保护器：`sm4:` 前缀密文（base64(IV+密文)）；无前缀原样返回（兼容未升级配置）。</summary>
-public static class Sm4SecretProtector
+public class Sm4SecretProtector : ISecretProtector
 {
     public const string Prefix = "sm4:";
 
-    public static string Protect(string value) =>
+    public string Protect(string value) =>
         Prefix + Convert.ToBase64String(
             Sm4Crypto.EncryptCbc(Sm4KeyProvider.Default.GetKey(), Encoding.UTF8.GetBytes(value)));
 
-    public static string? TryUnprotect(string? value)
+    public string? TryUnprotect(string? value)
     {
         if (string.IsNullOrWhiteSpace(value) || !value.StartsWith(Prefix, StringComparison.Ordinal))
         {

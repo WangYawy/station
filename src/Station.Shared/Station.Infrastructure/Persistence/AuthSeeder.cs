@@ -1,6 +1,9 @@
 using Microsoft.Extensions.Options;
+using Station.Domain.Authorization;
 using Station.Domain.Entities;
 using Station.Domain.Enums;
+using Station.Domain.Repositories;
+using Station.Domain.Security;
 using Station.Infrastructure.Db;
 using Station.Infrastructure.Repositories;
 using Station.Infrastructure.Security;
@@ -89,7 +92,7 @@ public sealed class AuthSeeder : IAuthSeeder
         var nextRoleId = roles.Count > 0 ? roles.Max(r => r.Id) + 1 : 1;
         var allLinks = await _rolePermissions.GetListAsync();
         var nextLinkId = allLinks.Count > 0 ? allLinks.Max(x => x.Id) + 1 : 1;
-        foreach (var preset in AuthSeedData.PresetRoles)
+        foreach (var preset in PresetRoles.List)
         {
             var role = await _roles.FirstAsync(r => r.Code == preset.Code);
             if (role is null)
@@ -120,13 +123,13 @@ public sealed class AuthSeeder : IAuthSeeder
 
         // 根部门
         long rootDeptId;
-        if (!await _depts.IsAnyAsync(d => d.Code == AuthSeedData.RootDeptCode))
+        if (!await _depts.IsAnyAsync(d => d.Code == RootDept.Code))
         {
             var root = new Dept
             {
                 Id = 1,
-                Code = AuthSeedData.RootDeptCode,
-                Name = AuthSeedData.RootDeptName,
+                Code = RootDept.Code,
+                Name = RootDept.Name,
                 ParentId = null,
                 SortOrder = 0
             };
@@ -135,7 +138,7 @@ public sealed class AuthSeeder : IAuthSeeder
         }
         else
         {
-            rootDeptId = (await _depts.FirstAsync(d => d.Code == AuthSeedData.RootDeptCode))!.Id;
+            rootDeptId = (await _depts.FirstAsync(d => d.Code == RootDept.Code))!.Id;
         }
 
         // 系统管理员用户（挂 admin 角色，承载"管理员"数据范围）
@@ -153,7 +156,7 @@ public sealed class AuthSeeder : IAuthSeeder
             await _users.InsertAsync(adminUser);
             adminUserId = adminUser.Id;
 
-            var adminRole = await _roles.FirstAsync(r => r.Code == AuthSeedData.AdminRoleCode);
+            var adminRole = await _roles.FirstAsync(r => r.Code == PresetRoles.Admin);
             if (adminRole is not null)
             {
                 await _userRoles.InsertAsync(new UserRole { Id = 1, UserId = adminUserId, RoleId = adminRole.Id });

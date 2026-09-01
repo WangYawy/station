@@ -3,6 +3,7 @@ using System.Text;
 using Org.BouncyCastle.Crypto.Digests;
 using Org.BouncyCastle.Crypto.Macs;
 using Org.BouncyCastle.Crypto.Parameters;
+using Station.Domain.Security;
 
 namespace Station.Infrastructure.Security;
 

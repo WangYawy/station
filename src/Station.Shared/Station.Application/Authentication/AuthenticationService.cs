@@ -1,12 +1,12 @@
 using Microsoft.Extensions.Options;
 using Station.Domain.Entities;
-using Station.Infrastructure.Repositories;
-using Station.Infrastructure.Security;
+using Station.Domain.Repositories;
 using Station.Application.Audit;
 using Station.Application.Authorization;
 
 namespace Station.Application.Authentication;
 using Microsoft.Extensions.Logging;
+using Station.Domain.Security;
 
 public sealed class AuthenticationService : IAuthenticationService
 {

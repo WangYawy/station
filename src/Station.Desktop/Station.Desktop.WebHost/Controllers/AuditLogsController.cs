@@ -1,9 +1,12 @@
+using System.Linq.Expressions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.WebUtilities;
+using Station.Application.Audit;
 using Station.Application.Authorization;
+using Station.Domain.Authorization;
 using Station.Domain.Entities;
-using Station.Infrastructure.Persistence;
-using Station.Infrastructure.Repositories;
+using Station.Domain.Repositories;
 using AuthService = Station.Application.Authorization.IAuthorizationService;
 
 namespace Station.Desktop.WebHost.Controllers;
@@ -15,6 +18,7 @@ namespace Station.Desktop.WebHost.Controllers;
 public class AuditLogsController : ControllerBase
 {
     private readonly IRepository<AuditLog> _logs;
+    private readonly IAuditLogService _logService;
     private readonly AuthService _authorization;
     private readonly IDataScopeProvider _dataScope;
 
@@ -41,20 +45,19 @@ public class AuditLogsController : ControllerBase
         {
             return StatusCode(403, new { message = "无审计查看权限" });
         }
+        Expression<Func<AuditLog, bool>> filter = a =>
+             (from == null || a.CreatedAt >= from) &&
+             (to == null || a.CreatedAt <= to) &&
+             (operationType == null || a.OperationType == operationType) &&
+             (string.IsNullOrWhiteSpace(keyword) ||
+              (a.OperatorAccount != null && a.OperatorAccount.Contains(keyword)) ||
+              (a.OperatorName != null && a.OperatorName.Contains(keyword)) ||
+              (a.OperationType != null && a.OperationType.Contains(keyword)) ||  // 加了 null 检查
+              (a.Target != null && a.Target.Contains(keyword)) ||
+              (a.Detail != null && a.Detail.Contains(keyword)));
+        Expression<Func<AuditLog, object>> orderBy = a => a.CreatedAt;
+        var query = await _logs.ToPageAsync(page, size, filter, orderBy);
 
-        var query = _logs.AsQueryable().Where(a =>
-            (from == null || a.CreatedAt >= from) &&
-            (to == null || a.CreatedAt <= to) &&
-            (operationType == null || a.OperationType == operationType) &&
-            (string.IsNullOrWhiteSpace(keyword) ||
-             (a.OperatorAccount != null && a.OperatorAccount.Contains(keyword)) ||
-             (a.OperatorName != null && a.OperatorName.Contains(keyword)) ||
-             a.OperationType.Contains(keyword) ||
-             (a.Target != null && a.Target.Contains(keyword)) ||
-             (a.Detail != null && a.Detail.Contains(keyword))));
-        var total = query.Count();
-        var items = query.OrderBy(a => a.CreatedAt, SqlSugar.OrderByType.Desc)
-            .ToPageList(Math.Max(1, page), Math.Max(1, size));
         return Ok(new
         {
             success = true,
@@ -64,8 +67,8 @@ public class AuditLogsController : ControllerBase
             {
                 pageIndex = page,
                 pageSize = size,
-                totalCount = total,
-                items = items.Select(a => new AuditLogView(
+                totalCount = query.Total,
+                items = query.Items.Select(a => new AuditLogView(
                     a.Id, a.OperatorAccount, a.OperatorName, a.DeptId, a.SourceIp,
                     a.OperationType, a.Target, a.Detail, a.Result, a.CreatedAt)).ToList()
             }
@@ -85,37 +88,38 @@ public class AuditLogsController : ControllerBase
             return StatusCode(403, new { message = "无导出权限" });
         }
 
-        var rows = await _logs.AsQueryable().Where(a =>
-                (from == null || a.CreatedAt >= from) &&
-                (to == null || a.CreatedAt <= to) &&
-                (operationType == null || a.OperationType == operationType) &&
-                (string.IsNullOrWhiteSpace(keyword) ||
-                 (a.OperatorAccount != null && a.OperatorAccount.Contains(keyword)) ||
-                 (a.OperatorName != null && a.OperatorName.Contains(keyword)) ||
-                 a.OperationType.Contains(keyword) ||
-                 (a.Target != null && a.Target.Contains(keyword)) ||
-                 (a.Detail != null && a.Detail.Contains(keyword))))
-            .OrderBy(a => a.CreatedAt, SqlSugar.OrderByType.Desc)
-            .Take(10000)
-            .ToListAsync();
+        //var rows = await _logs.AsQueryable().Where(a =>
+        //        (from == null || a.CreatedAt >= from) &&
+        //        (to == null || a.CreatedAt <= to) &&
+        //        (operationType == null || a.OperationType == operationType) &&
+        //        (string.IsNullOrWhiteSpace(keyword) ||
+        //         (a.OperatorAccount != null && a.OperatorAccount.Contains(keyword)) ||
+        //         (a.OperatorName != null && a.OperatorName.Contains(keyword)) ||
+        //         a.OperationType.Contains(keyword) ||
+        //         (a.Target != null && a.Target.Contains(keyword)) ||
+        //         (a.Detail != null && a.Detail.Contains(keyword))))
+        //    .OrderBy(a => a.CreatedAt, SqlSugar.OrderByType.Desc)
+        //    .Take(10000)
+        //    .ToListAsync();
         var normalized = format.ToLowerInvariant() is "xlsx" or "pdf" ? format.ToLowerInvariant() : "csv";
-        var bytes = Station.Application.Exporting.ExportDocumentBuilder.Build(normalized, "审计日志",
-            ["时间", "操作人", "账号", "部门ID", "来源IP(脱敏)", "类型", "目标", "详情", "结果"],
-            rows.Select(a => new[]
-            {
-                a.CreatedAt.ToString("yyyy-MM-dd HH:mm:ss"),
-                a.OperatorName ?? string.Empty, a.OperatorAccount ?? string.Empty,
-                a.DeptId?.ToString() ?? string.Empty, WebCsv.MaskIp(a.SourceIp),
-                a.OperationType, a.Target ?? string.Empty, a.Detail ?? string.Empty,
-                a.Result == 1 ? "成功" : "失败"
-            }));
+        //var bytes = Station.Application.Exporting.ExportDocumentBuilder.Build(normalized, "审计日志",
+        //    ["时间", "操作人", "账号", "部门ID", "来源IP(脱敏)", "类型", "目标", "详情", "结果"],
+        //    rows.Select(a => new[]
+        //    {
+        //        a.CreatedAt.ToString("yyyy-MM-dd HH:mm:ss"),
+        //        a.OperatorName ?? string.Empty, a.OperatorAccount ?? string.Empty,
+        //        a.DeptId?.ToString() ?? string.Empty, WebCsv.MaskIp(a.SourceIp),
+        //        a.OperationType, a.Target ?? string.Empty, a.Detail ?? string.Empty,
+        //        a.Result == 1 ? "成功" : "失败"
+        //    }));
         var contentType = normalized switch
         {
             "xlsx" => "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             "pdf" => "application/pdf",
             _ => "text/csv; charset=utf-8"
         };
-        return File(bytes, contentType, $"审计日志_{DateTime.Now:yyyyMMdd_HHmmss}.{normalized}");
+        //return File(bytes, contentType, $"审计日志_{DateTime.Now:yyyyMMdd_HHmmss}.{normalized}"); 
+        return null;
     }
 
     private async Task<bool> RequirePermissionAsync(string code)

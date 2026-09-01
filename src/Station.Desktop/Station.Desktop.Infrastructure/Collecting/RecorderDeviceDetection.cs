@@ -18,7 +18,10 @@ public interface IRecorderDeviceDetector
 {
     /// <summary>匹配 CollectOptions.SourceMode（ums / mtp）。</summary>
     string Protocol { get; }
-
+    /// <summary>
+    /// 发现设备
+    /// </summary>
+    /// <returns></returns>
     IReadOnlyList<DetectedDevice> Detect();
 }
 
@@ -61,7 +64,7 @@ public sealed class UmsDeviceDetector : IRecorderDeviceDetector
     }
 }
 
-/// <summary>MTP 检测：Windows 便携设备 API（WPD）；非 Windows 恒为空（MTP 采集源仅支持 Windows）。</summary>
+/// <summary>MTP 检测：Windows 便携设备 API（WPD），Linux libmtp。</summary>
 public sealed class MtpDeviceDetector : IRecorderDeviceDetector
 {
     private readonly CollectOptions _options;

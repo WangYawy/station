@@ -5,6 +5,7 @@ using Station.Domain.Entities;
 using Station.Domain.Enums;
 using Station.Infrastructure.Repositories;
 using Microsoft.Extensions.Logging;
+using Station.Domain.Repositories;
 
 namespace Station.Desktop.Infrastructure;
 

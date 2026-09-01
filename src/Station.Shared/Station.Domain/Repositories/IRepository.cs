@@ -1,18 +1,17 @@
 using System.Linq.Expressions;
 using SqlSugar;
 
-namespace Station.Infrastructure.Repositories;
+namespace Station.Domain.Repositories;
 
 /// <summary>分页结果。</summary>
 public sealed record PageResult<T>(int Total, List<T> Items);
 
 /// <summary>
 /// 通用仓储接口：覆盖业务模块最常见的 CRUD + 分页场景。
-/// 复杂查询请使用 <see cref="AsQueryable"/> 返回 SqlSugar 查询器，保持可组合性。
 /// </summary>
 public interface IRepository<T> where T : class, new()
 {
-    ISugarQueryable<T> AsQueryable();
+    // ISugarQueryable<T> AsQueryable();
 
     Task<T?> GetByIdAsync(long id);
 

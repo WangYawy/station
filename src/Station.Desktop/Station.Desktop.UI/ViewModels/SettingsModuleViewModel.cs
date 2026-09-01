@@ -111,7 +111,7 @@ public partial class SettingsModuleViewModel : ObservableObject, IDisposable
         var session = sessions.Current;
         CanManage = operationAccess.HasPermission(session, "settings") &&
                     (session?.Roles.Contains(AuthRoleCodes.Admin) == true ||
-                     session?.Permissions.Contains(PermissionCodes.SettingManage) == true);
+                     session?.Permissions.Contains(Domain.Authorization.PermissionCodes.SettingManage) == true);
         _ = LoadAsync();
     }
 

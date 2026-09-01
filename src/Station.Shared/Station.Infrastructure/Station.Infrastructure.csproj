@@ -24,6 +24,7 @@
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="8.0.3" />
     <PackageReference Include="Microsoft.Extensions.Logging" Version="8.0.1" />
     <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="8.0.0" />
+    <ProjectReference Include="..\Station.Application\Station.Application.csproj" />
     <ProjectReference Include="..\Station.Domain\Station.Domain.csproj" />
   </ItemGroup>
 

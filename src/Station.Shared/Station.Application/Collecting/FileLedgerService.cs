@@ -1,16 +1,15 @@
 using System.Text.Json;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using SqlSugar;
+using Station.Application.IdGenerators;
 using Station.Application.PlatformSync;
 using Station.Contracts;
 using Station.Contracts.Reporting;
 using Station.Domain.Entities;
 using Station.Domain.Enums;
-using Station.Infrastructure;
-using Station.Infrastructure.Db;
-using Station.Infrastructure.IdGenerators;
-using Station.Infrastructure.Repositories;
-using Station.Infrastructure.Security;
+using Station.Domain.Repositories;
+using Station.Domain.Security;
 using TaskStatus = Station.Contracts.TaskStatus;
 
 namespace Station.Application.Collecting;
@@ -25,9 +24,11 @@ public sealed class FileLedgerService : IFileLedgerService
     private readonly IIdGenerator _idGenerator;
     private readonly PlatformOptions _platformOptions;
     private readonly CollectOptions _collectOptions;
-    private readonly ISqlSugarFactory _sqlSugarFactory;
-    private readonly SnowFlakeOptions _dbOptions;
+    private readonly IServiceScopeFactory _scopeFactory;
     private readonly JsonSerializerOptions _json = new(JsonSerializerDefaults.Web);
+    private readonly IFileChecksumService _checksumService;
+    private readonly IFileEncryptionService _encryptionService;
+
 
     public FileLedgerService(
         IRepository<VideoFile> ledger,
@@ -38,8 +39,10 @@ public sealed class FileLedgerService : IFileLedgerService
         IIdGenerator idGenerator,
         IOptions<PlatformOptions> platformOptions,
         CollectOptions collectOptions,
-        ISqlSugarFactory sqlSugarFactory,
-        SnowFlakeOptions dbOptions)
+        IServiceScopeFactory scopeFactory,
+        IFileEncryptionService encryptionService,
+        IFileChecksumService checksumService
+        )
     {
         _ledger = ledger;
         _users = users;
@@ -49,21 +52,25 @@ public sealed class FileLedgerService : IFileLedgerService
         _idGenerator = idGenerator;
         _platformOptions = platformOptions.Value;
         _collectOptions = collectOptions;
-        _sqlSugarFactory = sqlSugarFactory;
-        _dbOptions = dbOptions;
+        _scopeFactory = scopeFactory;
+        _checksumService = checksumService;
+        _encryptionService = encryptionService;
     }
 
     public async Task<int> ProcessCompletedTaskAsync(long taskId)
     {
-        using var client = _sqlSugarFactory.CreateClient(_dbOptions, autoCloseConnection: false);
-        var task = client.Queryable<CollectTask>().InSingle(taskId);
+        using var scope = _scopeFactory.CreateScope();
+        // 2. 从作用域解析需要的泛型 LoopClient（它们共享同一个 ISqlSugarClient）
+        var taskLoop = scope.ServiceProvider.GetRequiredService<ILoopRepository<CollectTask>>();
+        var fileLoop = scope.ServiceProvider.GetRequiredService<ILoopRepository<CollectFile>>();
+
+        var task = taskLoop.GetById(taskId);
         if (task is null || task.Status != CollectTaskStatus.Completed || task.LedgeredAt is not null)
         {
             return 0;
         }
 
-        var files = client.Queryable<CollectFile>()
-            .Where(f => f.TaskId == taskId && f.Status == CollectFileStatus.Completed)
+        var files = fileLoop.GetList(f => f.TaskId == taskId && f.Status == CollectFileStatus.Completed)
             .OrderBy(f => f.Id)
             .ToList();
 
@@ -74,10 +81,10 @@ public sealed class FileLedgerService : IFileLedgerService
         {
             var cachePath = Path.Combine(_collectOptions.CacheDirectory, task.TaskNo, file.RelativePath);
             file.Sm3 ??= _collectOptions.EncryptCache
-                ? Sm3Checksum.Compute(Sm4Crypto.CreateDecryptReader(cachePath, Sm4KeyProvider.Default.GetKey()))
-                : Sm3Checksum.ComputeFile(cachePath);
+                ? _checksumService.Compute(_encryptionService.CreateDecryptStream(cachePath))
+                : _checksumService.ComputeFile(cachePath);
             file.FileNo = FileNo.Create(_platformOptions.StationCode, file.Id);
-            client.Updateable(file).ExecuteCommand();
+            fileLoop.Update(file);
 
             if (!await _ledger.IsAnyAsync(v => v.FileNo == file.FileNo))
             {
@@ -121,7 +128,7 @@ public sealed class FileLedgerService : IFileLedgerService
         }
 
         task.LedgeredAt = DateTime.Now;
-        client.Updateable(task).ExecuteCommand();
+        taskLoop.Update(task);
         return files.Count;
     }
 }

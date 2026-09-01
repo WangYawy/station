@@ -8,6 +8,8 @@ using Station.Desktop.Infrastructure.Settings;
 using Station.Infrastructure;
 using Station.Infrastructure.Recorders;
 using Station.Application.Settings;
+using Station.Infrastructure.Collecting;
+using Station.Application.Recorders;
 
 namespace Station.Desktop.Infrastructure;
 
@@ -20,7 +22,8 @@ public static class DependencyInjection
 
         services.AddSingleton<IRuntimeSettingsFile, RuntimeSettingsFile>();
 
-        // MTP 采集源（仅 Windows；Linux 上选择 mtp 时给出明确错误）
+        // MTP 采集源 覆盖共享层默认实现
+        
         if (OperatingSystem.IsWindows())
         {
             services.AddSingleton<MtpCollectSource>();
@@ -29,7 +32,7 @@ public static class DependencyInjection
         }
         else
         {
-            services.AddSingleton<IRecorderRootFileStore, FileSystemRecorderRootFileStore>();
+           
             if (OperatingSystem.IsLinux())
             {
                 // Linux 真实 MTP（libmtp）：与 UMS 一起参与"真实设备模式"混合路由
@@ -68,7 +71,7 @@ public static class DependencyInjection
             return collect.SourceMode switch
             {
                 "mtp" when OperatingSystem.IsWindows() => sp.GetRequiredService<MtpCollectSource>(),
-                "mtp" => throw new PlatformNotSupportedException("MTP 采集源仅支持 Windows"),
+                "mtp" when OperatingSystem.IsLinux() => sp.GetRequiredService<LinuxMtpCollectSource>(),
                 "ums" => sp.GetRequiredService<UmsCollectSource>(),
                 _ => sp.GetRequiredService<SimulatedCollectSource>()
             };

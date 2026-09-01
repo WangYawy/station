@@ -18,7 +18,6 @@
 | 文档 | `docs/...` | `docs/git-standard` |
 | 杂项/维护 | `chore/...` | `chore/update-ci` |
 
-- 自动化代理（Codex 等）创建的分支遵循其 `codex/` 前缀约定；
 - 单人/小团队现状下，小改动且本地验证充分时允许直接提交 `main`；
 - **多人协作时必须走分支 + Pull Request**，禁止直接推 `main`。
 

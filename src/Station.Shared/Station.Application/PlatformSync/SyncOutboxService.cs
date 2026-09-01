@@ -1,15 +1,12 @@
 using System.Text.Json;
-using Microsoft.Extensions.Options;
 using SqlSugar;
 using Station.Contracts.Alerts;
-using Station.Contracts.Commands;
 using Station.Contracts.Registration;
 using Station.Contracts.Reporting;
 using Station.Domain.Entities;
-using Station.Infrastructure;
-using Station.Infrastructure.Db;
-using Station.Infrastructure.IdGenerators;
-using Station.Infrastructure.Repositories;
+using Station.Application.IdGenerators;
+using Station.Domain.Repositories;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Station.Application.PlatformSync;
 
@@ -18,22 +15,19 @@ public sealed class SyncOutboxService : ISyncOutboxService
     private readonly IRepository<SyncOutbox> _outbox;
     private readonly IPlatformClient _client;
     private readonly IIdGenerator _idGenerator;
-    private readonly ISqlSugarFactory _sqlSugarFactory;
-    private readonly SnowFlakeOptions _dbOptions;
+    private readonly IServiceScopeFactory _scopeFactory;
     private readonly JsonSerializerOptions _json = new(JsonSerializerDefaults.Web);
 
     public SyncOutboxService(
         IRepository<SyncOutbox> outbox,
         IPlatformClient client,
         IIdGenerator idGenerator,
-        ISqlSugarFactory sqlSugarFactory,
-        SnowFlakeOptions dbOptions)
+        IServiceScopeFactory scopeFactory)
     {
         _outbox = outbox;
         _client = client;
         _idGenerator = idGenerator;
-        _sqlSugarFactory = sqlSugarFactory;
-        _dbOptions = dbOptions;
+        _scopeFactory = scopeFactory;
     }
 
     public async Task<long> EnqueueAsync(string topic, string payloadJson)
@@ -52,9 +46,10 @@ public sealed class SyncOutboxService : ISyncOutboxService
 
     public async Task<int> DrainAsync(int maxItems = 50)
     {
-        using var client = _sqlSugarFactory.CreateClient(_dbOptions, autoCloseConnection: false);
+        using var scope = _scopeFactory.CreateScope();
+        var outboxRepo = scope.ServiceProvider.GetRequiredService<ILoopRepository<SyncOutbox>>();
         var now = DateTime.Now;
-        var pending = client.Queryable<SyncOutbox>()
+        var pending = outboxRepo.GetList()
             .Where(o => o.Status == 0 && (o.NextRetryAt == null || o.NextRetryAt <= now))
             .OrderBy(o => o.Id)
             .Take(maxItems)
@@ -77,8 +72,7 @@ public sealed class SyncOutboxService : ISyncOutboxService
                 item.Error = ex.Message;
                 item.NextRetryAt = DateTime.Now.AddSeconds(Math.Min(300, 15 * Math.Pow(2, Math.Min(item.RetryCount, 5))));
             }
-
-            client.Updateable(item).ExecuteCommand();
+            outboxRepo.Update(item);
         }
 
         return sent;

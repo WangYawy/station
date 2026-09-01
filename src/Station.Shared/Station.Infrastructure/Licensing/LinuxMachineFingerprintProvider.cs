@@ -1,4 +1,5 @@
 using Station.Contracts.Registration;
+using Station.Infrastructure.Security;
 
 namespace Station.Infrastructure.Licensing;
 
@@ -24,6 +25,7 @@ public sealed class LinuxMachineFingerprintProvider : IMachineFingerprintProvide
         DiskSerial = FindDiskSerial(),
         MacAddress = MachineFingerprintUtil.FirstMac()
     };
+    public string CollectFingerprint() => Sm3Checksum.ComputeString(CollectParts().ToRaw());
 
     private string FindDiskSerial()
     {

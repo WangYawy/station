@@ -1,12 +1,7 @@
 using System.Security.Cryptography;
+using Station.Domain.Security;
 
 namespace Station.Infrastructure.Security;
-
-/// <summary>SM4 密钥来源：本机密钥文件（Windows 用 DPAPI 保护，Linux 0600）。</summary>
-public interface ISm4KeyProvider
-{
-    byte[] GetKey();
-}
 
 public sealed class Sm4KeyProvider : ISm4KeyProvider
 {

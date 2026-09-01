@@ -1,12 +1,14 @@
+using System.Text.Json;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using SqlSugar;
 using Station.Application.Collecting;
+using Station.Application.IdGenerators;
+using Station.Application.Services;
 using Station.Contracts;
 using Station.Contracts.Commands;
 using Station.Domain.Entities;
-using Station.Infrastructure;
-using Station.Infrastructure.Db;
-using Station.Infrastructure.IdGenerators;
-using System.Text.Json;
-using Microsoft.Extensions.Logging;
+using Station.Domain.Repositories;
 
 namespace Station.Application.PlatformSync;
 
@@ -17,26 +19,29 @@ namespace Station.Application.PlatformSync;
 public sealed class CommandExecutor : ICommandExecutor
 {
     private readonly ICollectControl _collectControl;
-    private readonly ISqlSugarFactory _sqlSugarFactory;
-    private readonly SnowFlakeOptions _dbOptions;
     private readonly CollectOptions _collectOptions;
     private readonly IIdGenerator _idGenerator;
     private readonly ILogger<CommandExecutor> _logger;
+    private readonly IDatabaseHealthService _dbHealthService;
+    private readonly ILoopRepository<User> _users;
+    private readonly ILoopRepository<Recorder> _recorders;
 
     public CommandExecutor(
         ICollectControl collectControl,
-        ISqlSugarFactory sqlSugarFactory,
-        SnowFlakeOptions dbOptions,
         CollectOptions collectOptions,
         IIdGenerator idGenerator,
+        IDatabaseHealthService dbHealthService,
+        ILoopRepository<User> users,
+        ILoopRepository<Recorder> recorders,
         ILogger<CommandExecutor> logger)
     {
         _collectControl = collectControl;
-        _sqlSugarFactory = sqlSugarFactory;
-        _dbOptions = dbOptions;
         _collectOptions = collectOptions;
         _idGenerator = idGenerator;
         _logger = logger;
+        _dbHealthService = dbHealthService;
+        _users = users;
+        _recorders = recorders;
     }
 
     public Task<CommandExecutionResult> ExecuteAsync(RemoteCommand command)
@@ -101,9 +106,8 @@ public sealed class CommandExecutor : ICommandExecutor
         var checks = new List<string>();
         try
         {
-            using var client = _sqlSugarFactory.CreateClient(_dbOptions);
-            var value = client.Ado.GetString("select 1");
-            checks.Add(value == "1" ? "数据库连接正常" : $"数据库响应异常({value})");
+            var isConnected = _dbHealthService.IsConnected();
+            checks.Add(isConnected ? "数据库连接正常" : $"数据库响应异常");
         }
         catch (Exception ex)
         {
@@ -136,16 +140,15 @@ public sealed class CommandExecutor : ICommandExecutor
                 return "绑定指令缺少记录仪编号";
             }
 
-            using var db = _sqlSugarFactory.CreateClient(_dbOptions);
             var user = payload.UserNo is null
                 ? null
-                : db.Queryable<User>().Where(u => u.UserNo == payload.UserNo && u.IsActive).First();
+                : _users.First(u => u.UserNo == payload.UserNo && u.IsActive);
             if (user is null)
             {
                 return $"用户 {payload.UserNo} 未同步到本机，绑定未生效";
             }
 
-            var recorder = db.Queryable<Recorder>().Where(r => r.SerialNumber == payload.RecorderSerial).First();
+            var recorder = _recorders.First(r => r.SerialNumber == payload.RecorderSerial);
             if (recorder is null)
             {
                 recorder = new Recorder
@@ -159,7 +162,7 @@ public sealed class CommandExecutor : ICommandExecutor
                     IsAuthorized = true,
                     IsActive = true
                 };
-                db.Insertable(recorder).ExecuteCommand();
+                _recorders.Insert(recorder);
             }
             else
             {
@@ -167,7 +170,7 @@ public sealed class CommandExecutor : ICommandExecutor
                 recorder.BoundUserId = user.Id;
                 recorder.DeptId = payload.DeptId ?? user.DeptId;
                 recorder.IsAuthorized = true;
-                db.Updateable(recorder).ExecuteCommand();
+                _recorders.Update(recorder);
             }
 
             return "绑定已更新，记录仪下次接入时自动写入绑定文件";

@@ -1,5 +1,7 @@
 using Microsoft.Extensions.Options;
 using Renci.SshNet;
+using Station.Application.Storage;
+using Station.Domain.Security;
 using Station.Infrastructure.Security;
 
 namespace Station.Infrastructure.Storage;
@@ -9,11 +11,16 @@ namespace Station.Infrastructure.Storage;
 /// </summary>
 public sealed class SftpStorageTarget : IStorageTarget
 {
-    private readonly StorageOptions _options;
+    private readonly StorageTargetConfig _targetConfig;
+    private readonly StorageOptions _globalOptions;
+    private readonly ISecretProtector _secretProtector;
 
-    public SftpStorageTarget(IOptions<StorageOptions> options)
+
+    public SftpStorageTarget(StorageTargetConfig targetConfig, IOptions<StorageOptions> options, ISecretProtector secretProtector)
     {
-        _options = options.Value;
+        _targetConfig = targetConfig;
+        _globalOptions = options.Value;
+        _secretProtector = secretProtector;
     }
 
     public string Name => "sftp";
@@ -31,7 +38,7 @@ public sealed class SftpStorageTarget : IStorageTarget
 
         using var remoteStream = sftp.Open(remotePath, FileMode.Append, FileAccess.Write);
         await using var localStream = file.LocalStreamFactory?.Invoke() ?? File.OpenRead(file.LocalPath);
-        var buffer = new byte[_options.ChunkBytes];
+        var buffer = new byte[_globalOptions.ChunkBytes];
         long total = 0;
         int read;
         while ((read = await localStream.ReadAsync(buffer, cancellationToken)) > 0)
@@ -73,9 +80,9 @@ public sealed class SftpStorageTarget : IStorageTarget
     }
 
     private string ResolveRoot(SftpClient sftp) =>
-        string.IsNullOrWhiteSpace(_options.SftpRoot)
+        string.IsNullOrWhiteSpace(_targetConfig.SftpRoot)
             ? sftp.WorkingDirectory.TrimEnd('/')
-            : _options.SftpRoot.TrimEnd('/');
+            : _targetConfig.SftpRoot.TrimEnd('/');
 
     private static string AbsolutePath(string root, string remotePath) =>
         $"{root}/{remotePath.TrimStart('/')}";
@@ -88,8 +95,8 @@ public sealed class SftpStorageTarget : IStorageTarget
 
     private SftpClient CreateClient()
     {
-        var user = _options.SftpUser ?? string.Empty;
-        var password = Sm4SecretProtector.TryUnprotect(_options.SftpPassword) ?? string.Empty;
+        var user = _targetConfig.SftpUser ?? string.Empty;
+        var password = _secretProtector.TryUnprotect(_targetConfig.SftpPassword) ?? string.Empty;
         var passwordAuth = new Renci.SshNet.PasswordAuthenticationMethod(user, password);
         var keyboardAuth = new Renci.SshNet.KeyboardInteractiveAuthenticationMethod(user);
         keyboardAuth.AuthenticationPrompt += (_, e) =>
@@ -101,8 +108,8 @@ public sealed class SftpStorageTarget : IStorageTarget
         };
 
         var connectionInfo = new Renci.SshNet.ConnectionInfo(
-            _options.SftpHost,
-            _options.SftpPort,
+            _targetConfig.SftpHost,
+            _targetConfig.SftpPort,
             user,
             passwordAuth,
             keyboardAuth);

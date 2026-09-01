@@ -1,7 +1,7 @@
 using Microsoft.Extensions.Options;
 using Station.Application.Authentication;
 using Station.Application.Authorization;
-using Station.Infrastructure.Persistence;
+using Station.Domain.Authorization;
 
 namespace Station.Desktop.Application.OperationAccess;
 

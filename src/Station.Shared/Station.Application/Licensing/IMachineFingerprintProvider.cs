@@ -1,5 +1,5 @@
 using Station.Contracts.Registration;
-using Station.Infrastructure.Security;
+using Station.Domain.Security;
 
 namespace Station.Infrastructure.Licensing;
 
@@ -11,5 +11,5 @@ public interface IMachineFingerprintProvider
 {
     MachineFingerprint CollectParts();
 
-    string CollectFingerprint() => Sm3Checksum.ComputeString(CollectParts().ToRaw());
+    string CollectFingerprint();
 }

@@ -8,7 +8,6 @@ using Station.Application.Settings;
 using Station.Desktop.Application.Settings;
 using Station.Desktop.WebHost.Settings;
 using Station.Domain.Entities;
-using Station.Infrastructure.Persistence;
 using AuthService = Station.Application.Authorization.IAuthorizationService;
 
 namespace Station.Desktop.WebHost.Controllers;
@@ -48,7 +47,7 @@ public class SettingsController : ControllerBase
     [HttpGet]
     public async Task<IActionResult> GetSettings()
     {
-        if (!await RequirePermissionAsync(PermissionCodes.SettingView))
+        if (!await RequirePermissionAsync(Domain.Authorization.PermissionCodes.SettingView))
         {
             return StatusCode(403, new { message = "无设置查看权限" });
         }
@@ -72,7 +71,7 @@ public class SettingsController : ControllerBase
         string group,
         [FromBody] SystemSettingsUpdateRequest request)
     {
-        if (!await RequirePermissionAsync(PermissionCodes.SettingManage))
+        if (!await RequirePermissionAsync(Domain.Authorization.PermissionCodes.SettingManage))
         {
             return StatusCode(403, new { message = "无设置修改权限" });
         }
@@ -104,7 +103,7 @@ public class SettingsController : ControllerBase
     [HttpPost("license/activate")]
     public async Task<IActionResult> ActivateLicense([FromBody] string licenseFileText)
     {
-        if (!await RequirePermissionAsync(PermissionCodes.SettingManage))
+        if (!await RequirePermissionAsync(Domain.Authorization.PermissionCodes.SettingManage))
         {
             return StatusCode(403, new { message = "无设置修改权限" });
         }
@@ -117,7 +116,7 @@ public class SettingsController : ControllerBase
     [HttpPost("certificate")]
     public async Task<IActionResult> UploadCertificate([FromBody] CertificateUploadRequest request)
     {
-        if (!await RequirePermissionAsync(PermissionCodes.SettingManage))
+        if (!await RequirePermissionAsync(Domain.Authorization.PermissionCodes.SettingManage))
         {
             return StatusCode(403, new { message = "无设置修改权限" });
         }
@@ -130,7 +129,7 @@ public class SettingsController : ControllerBase
     [HttpPost("self-check")]
     public async Task<IActionResult> RunSelfCheck()
     {
-        if (!await RequirePermissionAsync(PermissionCodes.SettingView))
+        if (!await RequirePermissionAsync(Domain.Authorization.PermissionCodes.SettingView))
         {
             return StatusCode(403, new { message = "无设置查看权限" });
         }
@@ -143,7 +142,7 @@ public class SettingsController : ControllerBase
     [HttpGet("self-check/report")]
     public async Task<IActionResult> DownloadSelfCheckReport(string format = "pdf")
     {
-        if (!await RequirePermissionAsync(PermissionCodes.SettingView))
+        if (!await RequirePermissionAsync(Domain.Authorization.PermissionCodes.SettingView))
         {
             return StatusCode(403, new { message = "无设置查看权限" });
         }

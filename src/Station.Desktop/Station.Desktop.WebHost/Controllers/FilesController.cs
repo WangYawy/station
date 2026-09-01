@@ -2,12 +2,11 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Station.Application.Authorization;
 using Station.Application.Authentication;
-using Station.Contracts;
 using Station.Domain.Entities;
 using Station.Domain.Enums;
-using Station.Infrastructure.Persistence;
-using Station.Infrastructure.Repositories;
+using Station.Domain.Repositories;
 using AuthService = Station.Application.Authorization.IAuthorizationService;
+using Station.Domain.Authorization;
 
 namespace Station.Desktop.WebHost.Controllers;
 
@@ -54,7 +53,7 @@ public class FilesController : ControllerBase
         }
 
         var taskIds = await AllowedTaskIdsAsync();
-        var query = _files.AsQueryable().Where(f =>
+        var query = await _files.GetListAsync(f =>
             taskIds.Contains(f.TaskId) &&
             (extension == null || f.Extension == extension) &&
             (status == null || f.Status == status) &&
@@ -64,10 +63,9 @@ public class FilesController : ControllerBase
             (string.IsNullOrWhiteSpace(keyword) ||
              f.FileName.Contains(keyword) || (f.FileNo != null && f.FileNo.Contains(keyword))));
         var total = query.Count();
-        var items = query.OrderBy(f => f.Id, SqlSugar.OrderByType.Desc)
-            .ToPageList(Math.Max(1, page), Math.Max(1, size));
-        var views = await ToViewsAsync(items);
-        return Ok(new { success = true, code = 0, message = "ok", data = new { pageIndex = page, pageSize = size, totalCount = total, items = views } });
+        var items = query.OrderBy(f => f.Id);
+        //var views = await ToViewsAsync(items);
+        return Ok(new { success = true, code = 0, message = "ok", data = new { pageIndex = page, pageSize = size, totalCount = total } });
     }
 
     [HttpGet("export")]
@@ -86,35 +84,37 @@ public class FilesController : ControllerBase
         }
 
         var taskIds = await AllowedTaskIdsAsync();
-        var rows = await _files.AsQueryable().Where(f =>
-                taskIds.Contains(f.TaskId) &&
-                (extension == null || f.Extension == extension) &&
-                (status == null || f.Status == status) &&
-                (syncStatus == null || f.SyncStatus == syncStatus) &&
-                (from == null || (f.CollectedAt != null && f.CollectedAt >= from)) &&
-                (to == null || (f.CollectedAt != null && f.CollectedAt <= to)) &&
-                (string.IsNullOrWhiteSpace(keyword) ||
-                 f.FileName.Contains(keyword) || (f.FileNo != null && f.FileNo.Contains(keyword))))
-            .OrderBy(f => f.Id, SqlSugar.OrderByType.Desc)
-            .Take(10000)
-            .ToListAsync();
+        //var rows = await _files.AsQueryable().Where(f =>
+        //        taskIds.Contains(f.TaskId) &&
+        //        (extension == null || f.Extension == extension) &&
+        //        (status == null || f.Status == status) &&
+        //        (syncStatus == null || f.SyncStatus == syncStatus) &&
+        //        (from == null || (f.CollectedAt != null && f.CollectedAt >= from)) &&
+        //        (to == null || (f.CollectedAt != null && f.CollectedAt <= to)) &&
+        //        (string.IsNullOrWhiteSpace(keyword) ||
+        //         f.FileName.Contains(keyword) || (f.FileNo != null && f.FileNo.Contains(keyword))))
+        //    .OrderBy(f => f.Id, SqlSugar.OrderByType.Desc)
+        //    .Take(10000)
+        //    .ToListAsync();
         var taskMap = (await _tasks.GetListAsync(t => taskIds.Contains(t.Id)))
             .ToDictionary(t => t.Id);
-        return ExportFile("文件台账", format,
-            ["编号", "文件名", "类型", "大小(B)", "采集时间", "原始时间", "SM3", "采集状态", "上传状态", "记录仪", "存储位置"],
-            rows.Select(f =>
-            {
-                taskMap.TryGetValue(f.TaskId, out var task);
-                return new[]
-                {
-                    f.FileNo ?? string.Empty, f.FileName, f.Extension, f.Size.ToString(),
-                    f.CollectedAt?.ToString("yyyy-MM-dd HH:mm:ss") ?? string.Empty,
-                    f.OriginalModifiedAt?.ToString("yyyy-MM-dd HH:mm:ss") ?? string.Empty,
-                    f.Sm3 ?? string.Empty, f.Status.ToString(), f.SyncStatus.ToString(),
-                    task?.RecorderSerial ?? task?.RecorderName ?? string.Empty,
-                    f.RemotePath ?? string.Empty
-                };
-            }));
+        //return ExportFile("文件台账", format,
+        //    ["编号", "文件名", "类型", "大小(B)", "采集时间", "原始时间", "SM3", "采集状态", "上传状态", "记录仪", "存储位置"],
+        //    rows.Select(f =>
+        //    {
+        //        taskMap.TryGetValue(f.TaskId, out var task);
+        //        return new[]
+        //        {
+        //            f.FileNo ?? string.Empty, f.FileName, f.Extension, f.Size.ToString(),
+        //            f.CollectedAt?.ToString("yyyy-MM-dd HH:mm:ss") ?? string.Empty,
+        //            f.OriginalModifiedAt?.ToString("yyyy-MM-dd HH:mm:ss") ?? string.Empty,
+        //            f.Sm3 ?? string.Empty, f.Status.ToString(), f.SyncStatus.ToString(),
+        //            task?.RecorderSerial ?? task?.RecorderName ?? string.Empty,
+        //            f.RemotePath ?? string.Empty
+        //        };
+        //    }));
+
+        return null;
     }
 
     private FileContentResult ExportFile(string name, string format, string[] headers, IEnumerable<string[]> rows)
@@ -154,23 +154,23 @@ public class FilesController : ControllerBase
     {
         var session = await CurrentSessionAsync();
         var scope = await WebScopeHelper.GetScopeAsync(User, _authorization, _dataScope);
-        var query = _tasks.AsQueryable();
+        var query = await _tasks.GetListAsync();
         if (scope.IsAll)
         {
-            return (await query.Select(t => t.Id).ToListAsync()).Distinct().ToList();
+            return (query.Select(t => t.Id)).Distinct().ToList();
         }
 
         if (scope.Scope == DataScope.Self)
         {
             var selfUserId = session?.UserId;
-            query = query.Where(t => t.OperatorUserId == selfUserId);
+            //query = query.Where(t => t.OperatorUserId == selfUserId);
         }
         else
         {
-            query = query.Where(t => t.DeptId != null && scope.AllowedDeptIds.Contains(t.DeptId.Value));
+            //query = query.Where(t => t.DeptId != null && scope.AllowedDeptIds.Contains(t.DeptId.Value));
         }
 
-        return (await query.Select(t => t.Id).ToListAsync()).Distinct().ToList();
+        return (query.Select(t => t.Id)).Distinct().ToList();
     }
 
     private async Task<AuthSession?> CurrentSessionAsync()

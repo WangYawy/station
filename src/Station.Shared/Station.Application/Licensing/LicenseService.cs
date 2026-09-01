@@ -1,9 +1,9 @@
 using Station.Contracts;
 using Station.Domain.Entities;
-using Station.Infrastructure.IdGenerators;
+using Station.Application.IdGenerators;
 using Station.Infrastructure.Licensing;
-using Station.Infrastructure.Repositories;
-using Station.Infrastructure.Security;
+using Station.Domain.Repositories;
+using Station.Domain.Security;
 using Microsoft.Extensions.Logging;
 
 namespace Station.Application.Licensing;
@@ -16,6 +16,8 @@ public sealed class LicenseService : ILicenseService
     private readonly IMachineFingerprintProvider _fingerprint;
     private readonly IIdGenerator _idGenerator;
     private readonly ILogger<LicenseService> _logger;
+    private readonly ILicenseSignatureService _licenseSignature;
+    private readonly ISecretProtector _secretProtector;
 
     public LicenseService(
         IRepository<LicenseInfo> licenses,
@@ -23,6 +25,8 @@ public sealed class LicenseService : ILicenseService
         LicenseOptions options,
         IMachineFingerprintProvider fingerprint,
         IIdGenerator idGenerator,
+        ILicenseSignatureService licenseSignature,
+        ISecretProtector secretProtector,
         ILogger<LicenseService> logger)
     {
         _licenses = licenses;
@@ -30,6 +34,8 @@ public sealed class LicenseService : ILicenseService
         _options = options;
         _fingerprint = fingerprint;
         _idGenerator = idGenerator;
+        _licenseSignature = licenseSignature;
+        _secretProtector = secretProtector;
         _logger = logger;
     }
 
@@ -103,7 +109,8 @@ public sealed class LicenseService : ILicenseService
             return (false, "未配置授权公钥（无法验签）");
         }
 
-        if (!LicenseFileCodec.Verify(file, _options.PublicKeyPem))
+        if (_licenseSignature.Verify(_options.PublicKeyPem, LicenseFileCodec.Canonical(file), file.Signature))
+        // if (!LicenseFileCodec.Verify(file, _options.PublicKeyPem))
         {
             return (false, "授权文件签名无效");
         }
@@ -137,7 +144,7 @@ public sealed class LicenseService : ILicenseService
             ProductCode = file.ProductCode,
             StationCode = file.StationCode,
             Fingerprint = file.Fingerprint,
-            PayloadEnc = Sm4SecretProtector.Protect(licenseFileText),
+            PayloadEnc = _secretProtector.Protect(licenseFileText),
             IssuedAt = file.IssuedAt,
             ExpiresAt = file.ExpiresAt,
             Status = LicenseStatus.Activated,

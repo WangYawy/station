@@ -11,8 +11,6 @@ using Station.Application.PlatformSync;
 using Station.Application.Recorders;
 using Station.Application.Uploading;
 using Station.Application.Users;
-using Station.Infrastructure.Recorders;
-using Station.Infrastructure.Storage;
 
 namespace Station.Application;
 
@@ -26,10 +24,11 @@ public static class DependencyInjection
         this IServiceCollection services,
         IConfiguration configuration)
     {
+        // 注册认证授权配置
         var authSection = configuration.GetSection(AuthOptions.SectionName);
         services.Configure<AuthOptions>(authSection);
         services.AddSingleton(authSection.Get<AuthOptions>() ?? new AuthOptions());
-
+        // 注册采集配置
         var collectSection = configuration.GetSection(CollectOptions.SectionName);
         var collectOptions = collectSection.Get<CollectOptions>() ?? new CollectOptions();
         // .NET 配置绑定对 List 是"追加"而非替换：存在配置项时按配置整体重建白名单，避免与默认值叠加
@@ -41,44 +40,36 @@ public static class DependencyInjection
 
         services.AddSingleton(collectOptions);
         services.AddSingleton(Options.Create(collectOptions));
-        services.AddSingleton<UmsCollectSource>();
-        services.AddSingleton<SimulatedCollectSource>();
-        services.AddSingleton<ICollectSourceProvider, DefaultCollectSourceProvider>();
-        services.AddSingleton<ICollectSource>(sp =>
-        {
-            var collect = sp.GetRequiredService<CollectOptions>();
-            return collect.SourceMode == "ums"
-                ? sp.GetRequiredService<UmsCollectSource>()
-                : sp.GetRequiredService<SimulatedCollectSource>();
-        });
+        // 注册采集任务服务和文件缓存清理服务
         services.AddScoped<ICacheCleanupService, CacheCleanupService>();
         services.AddScoped<ICollectTaskService, CollectTaskService>();
-
+        // 注册记录仪相关服务
         var bindingSection = configuration.GetSection(BindingOptions.SectionName);
         services.Configure<BindingOptions>(bindingSection);
         services.AddSingleton<RecorderBindingFile>();
+        services.AddScoped<IRecorderService, RecorderService>(); // 记录仪绑定服务
+        services.AddScoped<IRecorderIdentificationService, RecorderIdentificationService>(); // 记录仪绑定识别服务
+        // 注册报警服务
         services.AddScoped<IAlertService, AlertService>();
-        services.AddScoped<IRecorderService, RecorderService>();
-        services.AddScoped<IRecorderIdentificationService, RecorderIdentificationService>();
-
-        var storageSection = configuration.GetSection(StorageOptions.SectionName);
-        services.Configure<StorageOptions>(storageSection);
-        services.AddSingleton(storageSection.Get<StorageOptions>() ?? new StorageOptions());
-        services.AddSingleton<IStorageCircuitBreaker>(sp =>
-        {
-            var storage = sp.GetRequiredService<StorageOptions>();
-            return new StorageCircuitBreaker(storage.CircuitBreakerThreshold, storage.CircuitBreakerCooldownSeconds);
-        });
-        services.AddSingleton<IStorageTarget>(sp =>
-        {
-            var storage = sp.GetRequiredService<StorageOptions>();
-            return storage.Target switch
-            {
-                StorageTargetKind.Ftp => new FtpStorageTarget(Options.Create(storage)),
-                StorageTargetKind.Sftp => new SftpStorageTarget(Options.Create(storage)),
-                _ => new LocalDiskStorageTarget(Options.Create(storage))
-            };
-        });
+        //var storageSection = configuration.GetSection(StorageOptions.SectionName);
+        //services.Configure<StorageOptions>(storageSection);
+        //services.AddSingleton(storageSection.Get<StorageOptions>() ?? new StorageOptions());
+        //services.AddSingleton<IStorageCircuitBreaker>(sp =>
+        //{
+        //    var storage = sp.GetRequiredService<StorageOptions>();
+        //    return new StorageCircuitBreaker(storage.CircuitBreakerThreshold, storage.CircuitBreakerCooldownSeconds);
+        //});
+        //services.AddSingleton<IStorageTarget>(sp =>
+        //{
+        //    var storage = sp.GetRequiredService<StorageOptions>();
+        //    return storage.Target switch
+        //    {
+        //        StorageTargetKind.Ftp => new FtpStorageTarget(Options.Create(storage)),
+        //        StorageTargetKind.Sftp => new SftpStorageTarget(Options.Create(storage)),
+        //        _ => new LocalDiskStorageTarget(Options.Create(storage))
+        //    };
+        //});
+        // 注册上传服务
         services.AddScoped<IUploadService, UploadService>();
 
         var platformSection = configuration.GetSection(PlatformOptions.SectionName);
@@ -97,18 +88,23 @@ public static class DependencyInjection
         services.AddScoped<ICommandService, CommandService>();
         services.AddScoped<IFileLedgerService, FileLedgerService>();
         services.AddScoped<IConfigApplyService, ConfigApplyService>();
-
+        // 注册授权服务
         var licenseSection = configuration.GetSection(LicenseOptions.SectionName);
         services.Configure<LicenseOptions>(licenseSection);
         services.AddSingleton(licenseSection.Get<LicenseOptions>() ?? new LicenseOptions());
         services.AddScoped<ILicenseService, LicenseService>();
         services.AddScoped<LicenseGenerator>();
-
+        // 注册审计日志服务
         services.AddScoped<IAuditLogService, AuditLogService>();
+        // 注册授权服务
         services.AddScoped<IAuthorizationService, AuthorizationService>();
+        // 注册数据权限服务
         services.AddScoped<IDataScopeProvider, DataScopeProvider>();
+        // 注册登录认证服务
         services.AddScoped<IAuthenticationService, AuthenticationService>();
+        // 注册RBAC服务
         services.AddScoped<IUserService, UserService>();
+
         return services;
     }
 }

@@ -3,9 +3,9 @@ using Microsoft.AspNetCore.Mvc;
 using Station.Application.Audit;
 using Station.Application.Recorders;
 using Station.Application.Users;
+using Station.Domain.Authorization;
 using Station.Domain.Entities;
-using Station.Infrastructure.Persistence;
-using Station.Infrastructure.Repositories;
+using Station.Domain.Repositories;
 using AuthService = Station.Application.Authorization.IAuthorizationService;
 
 namespace Station.Desktop.WebHost.Controllers;

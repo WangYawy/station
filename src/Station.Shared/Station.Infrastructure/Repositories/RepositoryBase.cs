@@ -1,5 +1,6 @@
 using System.Linq.Expressions;
 using SqlSugar;
+using Station.Domain.Repositories;
 
 namespace Station.Infrastructure.Repositories;
 

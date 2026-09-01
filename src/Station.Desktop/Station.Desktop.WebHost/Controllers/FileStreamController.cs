@@ -1,8 +1,8 @@
 using Microsoft.AspNetCore.Mvc;
 using Station.Application.Collecting;
 using Station.Domain.Entities;
-using Station.Infrastructure.Repositories;
-using Station.Infrastructure.Security;
+using Station.Domain.Repositories;
+using Station.Domain.Security;
 using System.Text.RegularExpressions;
 
 namespace Station.Desktop.WebHost.Controllers;
@@ -70,8 +70,8 @@ public class FileStreamController : ControllerBase
             }
 
             Response.ContentLength = remaining;
-            await using var stream = Sm4Crypto.CreateDecryptReader(path, Sm4KeyProvider.Default.GetKey(), start);
-            await stream.CopyToAsync(Response.Body);
+            // await using var stream = Sm4Crypto.CreateDecryptReader(path, Sm4KeyProvider.Default.GetKey(), start);
+            //await stream.CopyToAsync(Response.Body);
             return new EmptyResult();
         }
 

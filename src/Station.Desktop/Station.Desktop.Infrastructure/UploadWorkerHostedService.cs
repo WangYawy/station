@@ -4,7 +4,7 @@ using Microsoft.Extensions.Hosting;
 using Station.Application.Uploading;
 using Station.Domain.Entities;
 using Station.Domain.Enums;
-using Station.Infrastructure.Repositories;
+using Station.Domain.Repositories;
 using Microsoft.Extensions.Logging;
 
 namespace Station.Desktop.Infrastructure;

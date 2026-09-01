@@ -1,6 +1,6 @@
-using Station.Infrastructure.Repositories;
+using Station.Domain.Repositories;
 
-namespace Station.Infrastructure;
+namespace Station.Domain;
 
 /// <summary>
 /// 工作单元：持有独立 SqlSugar 客户端，保证事务内所有仓储操作同库同事务。

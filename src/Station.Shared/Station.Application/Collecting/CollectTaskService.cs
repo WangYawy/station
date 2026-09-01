@@ -1,16 +1,14 @@
 using System.Collections.Concurrent;
-using Microsoft.Extensions.Options;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using SqlSugar;
-using Station.Domain.Entities;
-using Station.Domain.Enums;
-using Station.Infrastructure;
-using Station.Infrastructure.Db;
-using Station.Infrastructure.IdGenerators;
-using Station.Infrastructure.Repositories;
-using Station.Infrastructure.Security;
+using Station.Application.IdGenerators;
 using Station.Application.Licensing;
 using Station.Application.PlatformSync;
-using Microsoft.Extensions.Logging;
+using Station.Domain.Entities;
+using Station.Domain.Enums;
+using Station.Domain.Repositories;
+using Station.Domain.Security;
 
 namespace Station.Application.Collecting;
 
@@ -37,10 +35,11 @@ public sealed class CollectTaskService : ICollectTaskService
     private readonly CollectOptions _options;
     private readonly ICollectControl _collectControl;
     private readonly ILicenseService _licenseService;
-    private readonly ISqlSugarFactory _sqlSugarFactory;
-    private readonly SnowFlakeOptions _dbOptions;
+    private readonly IServiceScopeFactory _scopeFactory;
     private readonly ConcurrentDictionary<long, TaskControl> _controls = new();
     private readonly ILogger<CollectTaskService> _logger;
+    private readonly IFileChecksumService _checksumService;
+    private readonly IFileEncryptionService _encryptionService;
 
     public CollectTaskService(
         IRepository<CollectTask> tasks,
@@ -50,8 +49,9 @@ public sealed class CollectTaskService : ICollectTaskService
         CollectOptions options,
         ICollectControl collectControl,
         ILicenseService licenseService,
-        ISqlSugarFactory sqlSugarFactory,
-        SnowFlakeOptions dbOptions,
+        IServiceScopeFactory scopeFactory,
+        IFileChecksumService checksumService,
+        IFileEncryptionService encryptionService,
         ILogger<CollectTaskService> logger)
     {
         _tasks = tasks;
@@ -61,9 +61,10 @@ public sealed class CollectTaskService : ICollectTaskService
         _options = options;
         _collectControl = collectControl;
         _licenseService = licenseService;
-        _sqlSugarFactory = sqlSugarFactory;
-        _dbOptions = dbOptions;
+        _scopeFactory = scopeFactory;
         _logger = logger;
+        _checksumService = checksumService;
+        _encryptionService = encryptionService;
     }
 
     public async Task<CollectTaskDto> CreateTaskAsync(CollectDeviceInfo device, bool isAuto)
@@ -294,12 +295,17 @@ public sealed class CollectTaskService : ICollectTaskService
     private async Task RunCollectAsync(long taskId, TaskControl control)
     {
         // 后台采集使用独立长连接客户端，DB 操作用同步调用（Kdbndp 异步长连接易报 command already in progress）
-        using var loopClient = _sqlSugarFactory.CreateClient(_dbOptions, autoCloseConnection: false);
+        // 1. 创建独立作用域（保证此任务内所有 LoopClient 共享同一个连接）
+        using var scope = _scopeFactory.CreateScope();
+        // 2. 从作用域解析需要的泛型 LoopClient（它们共享同一个 ILoopSqlSugarClient）
+        var taskLoop = scope.ServiceProvider.GetRequiredService<ILoopRepository<CollectTask>>();
+        var fileLoop = scope.ServiceProvider.GetRequiredService<ILoopRepository<CollectFile>>();
+        
         CollectTask? task = null;
         try
         {
             var ct = control.Cts.Token;
-            task = loopClient.Queryable<CollectTask>().InSingle(taskId);
+            task = taskLoop.GetById(taskId);
             if (task is null)
             {
                 return;
@@ -320,11 +326,7 @@ public sealed class CollectTaskService : ICollectTaskService
                     break;
                 }
 
-                var file = loopClient.Queryable<CollectFile>()
-                    .Where(f => f.TaskId == taskId && f.Status == CollectFileStatus.Pending)
-                    .OrderBy(f => f.Id)
-                    .ToList()
-                    .FirstOrDefault();
+                var file = fileLoop.GetList(f => f.TaskId == taskId && f.Status == CollectFileStatus.Pending).OrderBy(f => f.TaskId).FirstOrDefault();
                 if (file is null)
                 {
                     break;
@@ -333,7 +335,7 @@ public sealed class CollectTaskService : ICollectTaskService
                 control.CurrentFileId = file.Id;
                 file.Status = CollectFileStatus.Copying;
                 file.Progress = 0;
-                loopClient.Updateable(file).ExecuteCommand();
+                fileLoop.Update(file);
 
                 var destination = Path.Combine(_options.CacheDirectory, task.TaskNo, file.RelativePath);
                 double lastPersistedProgress = -1;
@@ -367,7 +369,7 @@ public sealed class CollectTaskService : ICollectTaskService
                             lastPersistedProgress = progress;
                             try
                             {
-                                loopClient.Updateable(file).ExecuteCommand();
+                                fileLoop.Update(file);
                             }
                             catch
                             {
@@ -379,7 +381,7 @@ public sealed class CollectTaskService : ICollectTaskService
 
                 // 校验大小
                 file.Status = CollectFileStatus.Verifying;
-                loopClient.Updateable(file).ExecuteCommand();
+                fileLoop.Update(file);
                 var copied = new FileInfo(destination).Length;
                 if (copied != file.Size)
                 {
@@ -388,18 +390,18 @@ public sealed class CollectTaskService : ICollectTaskService
 
                 if (_options.EncryptCache)
                 {
-                    Sm4Crypto.EncryptInPlace(destination, Sm4KeyProvider.Default.GetKey());
+                    _encryptionService.EncryptInPlace(destination);
                 }
 
                 file.Status = CollectFileStatus.Completed;
                 file.Progress = 1;
                 file.CollectedAt = DateTime.Now;
-                loopClient.Updateable(file).ExecuteCommand();
+                fileLoop.Update(file);
 
                 task.CollectedFiles++;
                 task.CollectedBytes += file.Size;
                 task.Status = CollectTaskStatus.Collecting;
-                loopClient.Updateable(task).ExecuteCommand();
+                taskLoop.Update(task);
 
                 control.CurrentFileId = 0;
             }
@@ -415,21 +417,21 @@ public sealed class CollectTaskService : ICollectTaskService
             {
                 task.FailedFiles++;
                 task.ErrorMessage = ex.Message;
-                var failedFile = loopClient.Queryable<CollectFile>().InSingle(control.CurrentFileId);
+                var failedFile = fileLoop.GetById(control.CurrentFileId);
                 if (failedFile is not null)
                 {
                     failedFile.Status = CollectFileStatus.Failed;
                     failedFile.ErrorMessage = ex.Message;
-                    loopClient.Updateable(failedFile).ExecuteCommand();
+                    fileLoop.Update(failedFile);
                 }
 
-                loopClient.Updateable(task).ExecuteCommand();
+                taskLoop.Update(task);
             }
         }
 
         try
         {
-            FinalizeAsync(taskId, control, loopClient);
+            FinalizeAsync(taskId, control, taskLoop, fileLoop);
         }
         catch (Exception ex)
         {
@@ -453,16 +455,17 @@ public sealed class CollectTaskService : ICollectTaskService
         }
     }
 
-    private void FinalizeAsync(long taskId, TaskControl control, ISqlSugarClient loopClient)
+    private void FinalizeAsync(long taskId, TaskControl control, ILoopRepository<CollectTask> taskLoop,
+    ILoopRepository<CollectFile> fileLoop)
     {
-        var task = loopClient.Queryable<CollectTask>().InSingle(taskId);
+        var task = taskLoop.GetById(taskId);
         if (task is null)
         {
             _controls.TryRemove(taskId, out _);
             return;
         }
 
-        var files = loopClient.Queryable<CollectFile>().Where(f => f.TaskId == taskId).ToList();
+        var files = fileLoop.GetList(f => f.TaskId == taskId).ToList();
         var current = control.CurrentFileId;
 
         if (control.PauseRequested &&
@@ -476,12 +479,12 @@ public sealed class CollectTaskService : ICollectTaskService
                 {
                     currentFile.Status = CollectFileStatus.Pending;
                     currentFile.Progress = 0;
-                    loopClient.Updateable(currentFile).ExecuteCommand();
+                    fileLoop.Update(currentFile);
                 }
             }
 
             task.Status = CollectTaskStatus.Paused;
-            loopClient.Updateable(task).ExecuteCommand();
+            taskLoop.Update(task);
             _controls.TryRemove(taskId, out _);
             _logger.LogInformation("采集任务 {TaskId} 已暂停", taskId);
             return;
@@ -496,7 +499,7 @@ public sealed class CollectTaskService : ICollectTaskService
         {
             file.Status = interrupted ? CollectFileStatus.Abnormal : CollectFileStatus.Canceled;
             file.ErrorMessage = interrupted ? "设备断开，采集中断" : "任务已取消";
-            loopClient.Updateable(file).ExecuteCommand();
+            fileLoop.Update(file);
         }
 
         var terminalByRequest = control.FinalStatus is CollectTaskStatus.Interrupted or CollectTaskStatus.Canceled;
@@ -508,7 +511,7 @@ public sealed class CollectTaskService : ICollectTaskService
             TryErase(task);
         }
 
-        loopClient.Updateable(task).ExecuteCommand();
+        taskLoop.Update(task);
         _controls.TryRemove(taskId, out _);
         _logger.LogInformation("采集任务 {TaskId} 结束：{Status}（文件 {Total}/{Collected}）",
             taskId, task.Status, task.TotalFiles, task.CollectedFiles);

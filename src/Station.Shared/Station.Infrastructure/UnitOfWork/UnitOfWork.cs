@@ -1,4 +1,6 @@
 using SqlSugar;
+using Station.Domain;
+using Station.Domain.Repositories;
 using Station.Infrastructure.Repositories;
 
 namespace Station.Infrastructure;

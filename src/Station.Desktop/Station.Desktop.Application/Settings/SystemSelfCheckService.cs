@@ -2,8 +2,7 @@ using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using Station.Application.Collecting;
 using Station.Application.Settings;
-using Station.Contracts;
-using Station.Infrastructure.Storage;
+using Station.Application.Storage;
 using Microsoft.Extensions.Logging;
 
 namespace Station.Desktop.Application.Settings;
@@ -12,19 +11,22 @@ namespace Station.Desktop.Application.Settings;
 public sealed class SystemSelfCheckService : ISystemSelfCheckService
 {
     private readonly CollectOptions _collect;
-    private readonly StorageOptions _storage;
+    private readonly IStorageConfiguration _storage;
+    private readonly IReadOnlyList<IStorageTarget> _targets;
     private readonly ICollectSource _source;
     private readonly ILogger<SystemSelfCheckService> _logger;
 
     public SystemSelfCheckService(
         CollectOptions collect,
-        StorageOptions storage,
+        IStorageConfiguration storage,
+        IReadOnlyList<IStorageTarget> targets,
         ICollectSource source,
         ILogger<SystemSelfCheckService> logger)
     {
         _collect = collect;
         _storage = storage;
         _source = source;
+        _targets = targets;
         _logger = logger;
     }
 
@@ -104,13 +106,18 @@ public sealed class SystemSelfCheckService : ISystemSelfCheckService
     {
         try
         {
-            return _storage.Target switch
+            foreach (var target in _targets)
             {
-                StorageTargetKind.Local => CheckLocalTarget(),
-                StorageTargetKind.Ftp => CheckRemoteTarget(_storage.FtpHost, _storage.FtpPort, "FTP"),
-                StorageTargetKind.Sftp => CheckRemoteTarget(_storage.SftpHost, _storage.SftpPort, "SFTP"),
-                _ => new SelfCheckItemDto("存储目标", false, $"未知存储类型 {_storage.Target}")
-            };
+                return target.Name switch
+                {
+                    //StorageTargetKind.Local => CheckLocalTarget(),
+                    //StorageTargetKind.Ftp => CheckRemoteTarget(_storage.FtpHost, _storage.FtpPort, "FTP"),
+                    //StorageTargetKind.Sftp => CheckRemoteTarget(_storage.SftpHost, _storage.SftpPort, "SFTP"),
+                    _ => new SelfCheckItemDto("存储目标", false, $"未知存储类型 {target.Name}")
+                };
+            }
+
+            return new SelfCheckItemDto("存储目标", false, "未知");
         }
         catch (Exception ex)
         {
@@ -118,21 +125,21 @@ public sealed class SystemSelfCheckService : ISystemSelfCheckService
         }
     }
 
-    private SelfCheckItemDto CheckLocalTarget()
-    {
-        var probe = Path.Combine(_storage.LocalRoot, ".selfcheck-probe");
-        try
-        {
-            Directory.CreateDirectory(_storage.LocalRoot);
-            File.WriteAllText(probe, "ok");
-            File.Delete(probe);
-            return new SelfCheckItemDto("存储目标", true, $"本地磁盘可写（{_storage.LocalRoot}）");
-        }
-        catch (Exception ex)
-        {
-            return new SelfCheckItemDto("存储目标", false, $"本地磁盘不可写：{ex.Message}");
-        }
-    }
+    //private SelfCheckItemDto CheckLocalTarget()
+    //{
+    //    var probe = Path.Combine(_storage.LocalRoot, ".selfcheck-probe");
+    //    try
+    //    {
+    //        Directory.CreateDirectory(_storage.LocalRoot);
+    //        File.WriteAllText(probe, "ok");
+    //        File.Delete(probe);
+    //        return new SelfCheckItemDto("存储目标", true, $"本地磁盘可写（{_storage.LocalRoot}）");
+    //    }
+    //    catch (Exception ex)
+    //    {
+    //        return new SelfCheckItemDto("存储目标", false, $"本地磁盘不可写：{ex.Message}");
+    //    }
+    //}
 
     private static SelfCheckItemDto CheckRemoteTarget(string host, int port, string protocol)
     {

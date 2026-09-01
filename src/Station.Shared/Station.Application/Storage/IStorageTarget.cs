@@ -1,4 +1,4 @@
-namespace Station.Infrastructure.Storage;
+namespace Station.Application.Storage;
 
 /// <summary>待上传文件：本地缓存路径 → 远端相对路径。</summary>
 public sealed record UploadTargetFile(

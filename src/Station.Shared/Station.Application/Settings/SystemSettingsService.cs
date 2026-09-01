@@ -6,8 +6,7 @@ using Station.Application.Collecting;
 using Station.Application.Licensing;
 using Station.Application.PlatformSync;
 using Station.Domain.Entities;
-using Station.Infrastructure.Security;
-using Station.Infrastructure.Storage;
+using Station.Application.Storage;
 using Microsoft.Extensions.Logging;
 
 namespace Station.Application.Settings;
@@ -20,7 +19,8 @@ namespace Station.Application.Settings;
 public sealed class SystemSettingsService : ISystemSettingsService
 {
     private readonly CollectOptions _collect;
-    private readonly StorageOptions _storage;
+    //private readonly StorageOptions _storage;
+    private IStorageConfiguration _storage;
     private readonly AuthOptions _auth;
     private readonly PlatformOptions _platform;
     private readonly StationOptions _station;
@@ -37,7 +37,7 @@ public sealed class SystemSettingsService : ISystemSettingsService
 
     public SystemSettingsService(
         CollectOptions collect,
-        StorageOptions storage,
+        IStorageConfiguration storage,
         AuthOptions auth,
         PlatformOptions platform,
         StationOptions station,
@@ -70,20 +70,20 @@ public sealed class SystemSettingsService : ISystemSettingsService
                 _platform.BaseUrl ?? string.Empty,
                 _platform.StationCode),
             new StorageSettingsDto(
-                _storage.Target.ToString(),
-                _storage.LocalRoot,
-                _storage.DirectoryTemplate,
-                _storage.FtpHost,
-                _storage.FtpPort,
-                _storage.FtpUser ?? string.Empty,
-                _storage.SftpHost,
-                _storage.SftpPort,
-                _storage.SftpUser ?? string.Empty,
-                _storage.SftpRoot ?? string.Empty,
-                _storage.CircuitBreakerThreshold,
-                _storage.CircuitBreakerCooldownSeconds,
-                _station.VideoRetentionDays,
-                _station.LogRetentionDays,
+                "", //_storage.Target.ToString(),
+                "", //_storage.LocalRoot,
+                "", //_storage.DirectoryTemplate,
+                "", //_storage.FtpHost,
+                0, //_storage.FtpPort,
+                "", // _storage.FtpUser ?? string.Empty,
+                "", //_storage.SftpHost,
+               0, // _storage.SftpPort,
+                "", //_storage.SftpUser ?? string.Empty,
+                "", //_storage.SftpRoot ?? string.Empty,
+                0, //_storage.CircuitBreakerThreshold,
+               0, // _storage.CircuitBreakerCooldownSeconds,
+                0, //_station.VideoRetentionDays,
+                0, //_station.LogRetentionDays,
                 $"{_collect.CacheCleanupHour:D2}:{_collect.CacheCleanupMinute:D2}"),
             new CollectSettingsDto(
                 _collect.AutoCollectOnConnect,
@@ -175,66 +175,66 @@ public sealed class SystemSettingsService : ISystemSettingsService
     private List<string> ApplyStorage(IReadOnlyDictionary<string, string> values)
     {
         var hints = new List<string> { "存储目标/连接参数修改需重启后生效" };
-        if (values.TryGetValue("target", out var target) &&
-            Enum.TryParse<StorageTargetKind>(target, true, out var targetKind))
-        {
-            _storage.Target = targetKind;
-        }
+        //if (values.TryGetValue("target", out var target) &&
+        //    Enum.TryParse<StorageTargetKind>(target, true, out var targetKind))
+        //{
+        //    _storage.Target = targetKind;
+        //}
 
-        if (values.TryGetValue("localRoot", out var localRoot))
-        {
-            _storage.LocalRoot = localRoot.Trim();
-        }
+        //if (values.TryGetValue("localRoot", out var localRoot))
+        //{
+        //    _storage.LocalRoot = localRoot.Trim();
+        //}
 
-        if (values.TryGetValue("directoryTemplate", out var template) && !string.IsNullOrWhiteSpace(template))
-        {
-            _storage.DirectoryTemplate = template.Trim();
-        }
+        //if (values.TryGetValue("directoryTemplate", out var template) && !string.IsNullOrWhiteSpace(template))
+        //{
+        //    _storage.DirectoryTemplate = template.Trim();
+        //}
 
-        if (values.TryGetValue("ftpHost", out var ftpHost)) _storage.FtpHost = ftpHost.Trim();
-        if (values.TryGetValue("ftpPort", out var ftpPort) && int.TryParse(ftpPort, out var fp)) _storage.FtpPort = fp;
-        if (values.TryGetValue("ftpUser", out var ftpUser)) _storage.FtpUser = ftpUser.Trim();
-        if (values.TryGetValue("ftpPassword", out var ftpPassword) && !string.IsNullOrWhiteSpace(ftpPassword))
-        {
-            _storage.FtpPassword = Sm4SecretProtector.Protect(ftpPassword);
-        }
+        //if (values.TryGetValue("ftpHost", out var ftpHost)) _storage.FtpHost = ftpHost.Trim();
+        //if (values.TryGetValue("ftpPort", out var ftpPort) && int.TryParse(ftpPort, out var fp)) _storage.FtpPort = fp;
+        //if (values.TryGetValue("ftpUser", out var ftpUser)) _storage.FtpUser = ftpUser.Trim();
+        //if (values.TryGetValue("ftpPassword", out var ftpPassword) && !string.IsNullOrWhiteSpace(ftpPassword))
+        //{
+        //    _storage.FtpPassword = Sm4SecretProtector.Protect(ftpPassword);
+        //}
 
-        if (values.TryGetValue("sftpHost", out var sftpHost)) _storage.SftpHost = sftpHost.Trim();
-        if (values.TryGetValue("sftpPort", out var sftpPort) && int.TryParse(sftpPort, out var sp)) _storage.SftpPort = sp;
-        if (values.TryGetValue("sftpUser", out var sftpUser)) _storage.SftpUser = sftpUser.Trim();
-        if (values.TryGetValue("sftpPassword", out var sftpPassword) && !string.IsNullOrWhiteSpace(sftpPassword))
-        {
-            _storage.SftpPassword = Sm4SecretProtector.Protect(sftpPassword);
-        }
+        //if (values.TryGetValue("sftpHost", out var sftpHost)) _storage.SftpHost = sftpHost.Trim();
+        //if (values.TryGetValue("sftpPort", out var sftpPort) && int.TryParse(sftpPort, out var sp)) _storage.SftpPort = sp;
+        //if (values.TryGetValue("sftpUser", out var sftpUser)) _storage.SftpUser = sftpUser.Trim();
+        //if (values.TryGetValue("sftpPassword", out var sftpPassword) && !string.IsNullOrWhiteSpace(sftpPassword))
+        //{
+        //    _storage.SftpPassword = Sm4SecretProtector.Protect(sftpPassword);
+        //}
 
-        if (values.TryGetValue("sftpRoot", out var sftpRoot)) _storage.SftpRoot = sftpRoot.Trim();
-        if (values.TryGetValue("circuitBreakerThreshold", out var threshold) && int.TryParse(threshold, out var t))
-        {
-            _storage.CircuitBreakerThreshold = Math.Max(1, t);
-        }
+        //if (values.TryGetValue("sftpRoot", out var sftpRoot)) _storage.SftpRoot = sftpRoot.Trim();
+        //if (values.TryGetValue("circuitBreakerThreshold", out var threshold) && int.TryParse(threshold, out var t))
+        //{
+        //    _storage.CircuitBreakerThreshold = Math.Max(1, t);
+        //}
 
-        if (values.TryGetValue("circuitBreakerCooldownSeconds", out var cooldown) && int.TryParse(cooldown, out var c))
-        {
-            _storage.CircuitBreakerCooldownSeconds = Math.Max(1, c);
-        }
+        //if (values.TryGetValue("circuitBreakerCooldownSeconds", out var cooldown) && int.TryParse(cooldown, out var c))
+        //{
+        //    _storage.CircuitBreakerCooldownSeconds = Math.Max(1, c);
+        //}
 
-        if (values.TryGetValue("videoRetentionDays", out var videoDays) && int.TryParse(videoDays, out var vd))
-        {
-            _station.VideoRetentionDays = Math.Max(1, vd);
-            _collect.CacheRetentionDays = Math.Max(1, vd);
-        }
+        //if (values.TryGetValue("videoRetentionDays", out var videoDays) && int.TryParse(videoDays, out var vd))
+        //{
+        //    _station.VideoRetentionDays = Math.Max(1, vd);
+        //    _collect.CacheRetentionDays = Math.Max(1, vd);
+        //}
 
-        if (values.TryGetValue("logRetentionDays", out var logDays) && int.TryParse(logDays, out var ld))
-        {
-            _station.LogRetentionDays = Math.Max(1, ld);
-        }
+        //if (values.TryGetValue("logRetentionDays", out var logDays) && int.TryParse(logDays, out var ld))
+        //{
+        //    _station.LogRetentionDays = Math.Max(1, ld);
+        //}
 
-        if (values.TryGetValue("cleanupTime", out var cleanupTime) &&
-            TimeSpan.TryParse(cleanupTime, out var time))
-        {
-            _collect.CacheCleanupHour = time.Hours;
-            _collect.CacheCleanupMinute = time.Minutes;
-        }
+        //if (values.TryGetValue("cleanupTime", out var cleanupTime) &&
+        //    TimeSpan.TryParse(cleanupTime, out var time))
+        //{
+        //    _collect.CacheCleanupHour = time.Hours;
+        //    _collect.CacheCleanupMinute = time.Minutes;
+        //}
 
         return hints;
     }
@@ -309,23 +309,23 @@ public sealed class SystemSettingsService : ISystemSettingsService
             _station.VideoRetentionDays,
             _station.LogRetentionDays
         });
-        station["Storage"] = JsonSerializer.SerializeToNode(new
-        {
-            Target = _storage.Target.ToString(),
-            _storage.LocalRoot,
-            _storage.DirectoryTemplate,
-            _storage.FtpHost,
-            _storage.FtpPort,
-            _storage.FtpUser,
-            FtpPassword = _storage.FtpPassword,
-            _storage.SftpHost,
-            _storage.SftpPort,
-            _storage.SftpUser,
-            SftpPassword = _storage.SftpPassword,
-            _storage.SftpRoot,
-            _storage.CircuitBreakerThreshold,
-            _storage.CircuitBreakerCooldownSeconds
-        });
+        //station["Storage"] = JsonSerializer.SerializeToNode(new
+        //{
+        //    Target = _storage.Target.ToString(),
+        //    _storage.LocalRoot,
+        //    _storage.DirectoryTemplate,
+        //    _storage.FtpHost,
+        //    _storage.FtpPort,
+        //    _storage.FtpUser,
+        //    FtpPassword = _storage.FtpPassword,
+        //    _storage.SftpHost,
+        //    _storage.SftpPort,
+        //    _storage.SftpUser,
+        //    SftpPassword = _storage.SftpPassword,
+        //    _storage.SftpRoot,
+        //    _storage.CircuitBreakerThreshold,
+        //    _storage.CircuitBreakerCooldownSeconds
+        //});
         station["Collect"] = JsonSerializer.SerializeToNode(new
         {
             _collect.AutoCollectOnConnect,

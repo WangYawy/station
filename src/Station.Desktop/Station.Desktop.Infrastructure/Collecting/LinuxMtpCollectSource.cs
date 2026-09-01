@@ -2,8 +2,8 @@ using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
 using System.Text;
 using Station.Application.Collecting;
+using Station.Application.Recorders;
 using Station.Contracts;
-using Station.Infrastructure.Recorders;
 
 namespace Station.Desktop.Infrastructure.Collecting;
 

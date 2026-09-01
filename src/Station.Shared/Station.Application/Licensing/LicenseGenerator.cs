@@ -1,3 +1,5 @@
+using Station.Domain.Security;
+
 namespace Station.Application.Licensing;
 
 /// <summary>
@@ -7,10 +9,12 @@ namespace Station.Application.Licensing;
 public sealed class LicenseGenerator
 {
     private readonly LicenseOptions _options;
+    private readonly ILicenseSignatureService _licenseSignatureService;
 
-    public LicenseGenerator(LicenseOptions options)
+    public LicenseGenerator(LicenseOptions options, ILicenseSignatureService licenseSignatureService)
     {
         _options = options;
+        _licenseSignatureService = licenseSignatureService;
     }
 
     public LicenseFile Generate(string stationCode, string fingerprint, DateTime expiresAt)
@@ -28,7 +32,7 @@ public sealed class LicenseGenerator
             DateTime.Now,
             expiresAt,
             string.Empty);
-        return file with { Signature = LicenseFileCodec.Sign(file, _options.PrivateKeyPem) };
+        return file with { Signature = _licenseSignatureService.Sign(_options.PrivateKeyPem, LicenseFileCodec.Canonical(file)) };
     }
 
     public string GenerateFileText(string stationCode, string fingerprint, DateTime expiresAt) =>

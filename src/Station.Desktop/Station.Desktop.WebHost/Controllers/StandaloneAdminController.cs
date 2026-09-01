@@ -8,8 +8,7 @@ using Station.Application.Recorders;
 using Station.Application.Users;
 using Station.Contracts;
 using Station.Domain.Entities;
-using Station.Infrastructure.Persistence;
-using Station.Infrastructure.Repositories;
+using Station.Domain.Repositories;
 using AuthService = Station.Application.Authorization.IAuthorizationService;
 
 namespace Station.Desktop.WebHost.Controllers;
@@ -54,7 +53,7 @@ public class StandaloneAdminController : ControllerBase
     [HttpGet("depts")]
     public async Task<IActionResult> ListDepts()
     {
-        if (!await RequirePermissionAsync(PermissionCodes.DeptView))
+        if (!await RequirePermissionAsync(Domain.Authorization.PermissionCodes.DeptView))
         {
             return StatusCode(403, new { message = "无部门查看权限" });
         }
@@ -69,7 +68,7 @@ public class StandaloneAdminController : ControllerBase
     [HttpPost("depts")]
     public async Task<IActionResult> CreateDept(DeptDto dto)
     {
-        if (!await RequirePermissionAsync(PermissionCodes.DeptManage))
+        if (!await RequirePermissionAsync(Domain.Authorization.PermissionCodes.DeptManage))
         {
             return StatusCode(403, new { message = "无部门管理权限" });
         }
@@ -80,7 +79,7 @@ public class StandaloneAdminController : ControllerBase
     [HttpPut("depts/{deptId:long}")]
     public async Task<IActionResult> UpdateDept(long deptId, DeptDto dto)
     {
-        if (!await RequirePermissionAsync(PermissionCodes.DeptManage))
+        if (!await RequirePermissionAsync(Domain.Authorization.PermissionCodes.DeptManage))
         {
             return StatusCode(403, new { message = "无部门管理权限" });
         }
@@ -92,7 +91,7 @@ public class StandaloneAdminController : ControllerBase
     [HttpDelete("depts/{deptId:long}")]
     public async Task<IActionResult> DeleteDept(long deptId)
     {
-        if (!await RequirePermissionAsync(PermissionCodes.DeptManage))
+        if (!await RequirePermissionAsync(Domain.Authorization.PermissionCodes.DeptManage))
         {
             return StatusCode(403, new { message = "无部门管理权限" });
         }
@@ -106,7 +105,7 @@ public class StandaloneAdminController : ControllerBase
     [HttpGet("users")]
     public async Task<IActionResult> ListUsers()
     {
-        if (!await RequirePermissionAsync(PermissionCodes.UserView))
+        if (!await RequirePermissionAsync(Domain.Authorization.PermissionCodes.UserView))
         {
             return StatusCode(403, new { message = "无用户查看权限" });
         }
@@ -121,7 +120,7 @@ public class StandaloneAdminController : ControllerBase
     [HttpPost("users")]
     public async Task<IActionResult> CreateUser([FromBody] CreateUserWebRequest request)
     {
-        if (!await RequirePermissionAsync(PermissionCodes.UserManage))
+        if (!await RequirePermissionAsync(Domain.Authorization.PermissionCodes.UserManage))
         {
             return StatusCode(403, new { message = "无用户管理权限" });
         }
@@ -134,7 +133,7 @@ public class StandaloneAdminController : ControllerBase
     [HttpPut("users/{userId:long}")]
     public async Task<IActionResult> UpdateUser(long userId, UserDto dto)
     {
-        if (!await RequirePermissionAsync(PermissionCodes.UserManage))
+        if (!await RequirePermissionAsync(Domain.Authorization.PermissionCodes.UserManage))
         {
             return StatusCode(403, new { message = "无用户管理权限" });
         }
@@ -146,7 +145,7 @@ public class StandaloneAdminController : ControllerBase
     [HttpPut("users/{userId:long}/roles")]
     public async Task<IActionResult> AssignRoles(long userId, [FromBody] RoleIdsRequest request)
     {
-        if (!await RequirePermissionAsync(PermissionCodes.UserAssignRole))
+        if (!await RequirePermissionAsync(Domain.Authorization.PermissionCodes.UserAssignRole))
         {
             return StatusCode(403, new { message = "无角色分配权限" });
         }
@@ -158,7 +157,7 @@ public class StandaloneAdminController : ControllerBase
     [HttpPost("users/{userId:long}/reset-password")]
     public async Task<IActionResult> ResetPassword(long userId, [FromBody] ResetPasswordRequest request)
     {
-        if (!await RequirePermissionAsync(PermissionCodes.UserManage))
+        if (!await RequirePermissionAsync(Domain.Authorization.PermissionCodes.UserManage))
         {
             return StatusCode(403, new { message = "无用户管理权限" });
         }
@@ -178,7 +177,7 @@ public class StandaloneAdminController : ControllerBase
     [HttpGet("roles")]
     public async Task<IActionResult> ListRoles()
     {
-        if (!await RequirePermissionAsync(PermissionCodes.RoleView))
+        if (!await RequirePermissionAsync(Domain.Authorization.PermissionCodes.RoleView))
         {
             return StatusCode(403, new { message = "无角色查看权限" });
         }
@@ -189,7 +188,7 @@ public class StandaloneAdminController : ControllerBase
     [HttpGet("permissions")]
     public async Task<IActionResult> ListPermissions()
     {
-        if (!await RequirePermissionAsync(PermissionCodes.RoleView))
+        if (!await RequirePermissionAsync(Domain.Authorization.PermissionCodes.RoleView))
         {
             return StatusCode(403, new { message = "无角色查看权限" });
         }
@@ -200,7 +199,7 @@ public class StandaloneAdminController : ControllerBase
     [HttpPost("roles")]
     public async Task<IActionResult> CreateRole(RoleDto dto)
     {
-        if (!await RequirePermissionAsync(PermissionCodes.RoleManage))
+        if (!await RequirePermissionAsync(Domain.Authorization.PermissionCodes.RoleManage))
         {
             return StatusCode(403, new { message = "无角色管理权限" });
         }
@@ -211,7 +210,7 @@ public class StandaloneAdminController : ControllerBase
     [HttpPut("roles/{roleId:long}")]
     public async Task<IActionResult> UpdateRole(long roleId, RoleDto dto)
     {
-        if (!await RequirePermissionAsync(PermissionCodes.RoleManage))
+        if (!await RequirePermissionAsync(Domain.Authorization.PermissionCodes.RoleManage))
         {
             return StatusCode(403, new { message = "无角色管理权限" });
         }
@@ -223,7 +222,7 @@ public class StandaloneAdminController : ControllerBase
     [HttpPut("roles/{roleId:long}/permissions")]
     public async Task<IActionResult> SetRolePermissions(long roleId, [FromBody] PermissionIdsRequest request)
     {
-        if (!await RequirePermissionAsync(PermissionCodes.RoleManage))
+        if (!await RequirePermissionAsync(Domain.Authorization.PermissionCodes.RoleManage))
         {
             return StatusCode(403, new { message = "无角色管理权限" });
         }
@@ -237,7 +236,7 @@ public class StandaloneAdminController : ControllerBase
     [HttpGet("recorders")]
     public async Task<IActionResult> ListRecorders()
     {
-        if (!await RequirePermissionAsync(PermissionCodes.RecorderView))
+        if (!await RequirePermissionAsync(Domain.Authorization.PermissionCodes.RecorderView))
         {
             return StatusCode(403, new { message = "无记录仪查看权限" });
         }
@@ -249,7 +248,7 @@ public class StandaloneAdminController : ControllerBase
     [HttpPut("recorders/{recorderId:long}/bind")]
     public async Task<IActionResult> BindRecorder(long recorderId, [FromBody] BindRecorderWebRequest request)
     {
-        if (!await RequirePermissionAsync(PermissionCodes.RecorderManage))
+        if (!await RequirePermissionAsync(Domain.Authorization.PermissionCodes.RecorderManage))
         {
             return StatusCode(403, new { message = "无记录仪管理权限" });
         }
@@ -290,7 +289,7 @@ public class StandaloneAdminController : ControllerBase
         [FromQuery] AlertStatus? status,
         [FromQuery] int count = 100)
     {
-        if (!await RequirePermissionAsync(PermissionCodes.AlertView))
+        if (!await RequirePermissionAsync(Domain.Authorization.PermissionCodes.AlertView))
         {
             return StatusCode(403, new { message = "无报警查看权限" });
         }
@@ -301,7 +300,7 @@ public class StandaloneAdminController : ControllerBase
     [HttpPost("alerts/{alertId:long}/status")]
     public async Task<IActionResult> SetAlertStatus(long alertId, [FromBody] AlertStatusRequest request)
     {
-        if (!await RequirePermissionAsync(PermissionCodes.AlertHandle))
+        if (!await RequirePermissionAsync(Domain.Authorization.PermissionCodes.AlertHandle))
         {
             return StatusCode(403, new { message = "无报警处置权限" });
         }

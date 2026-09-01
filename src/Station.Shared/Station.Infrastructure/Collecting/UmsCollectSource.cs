@@ -1,9 +1,10 @@
 using Microsoft.Extensions.Options;
+using Station.Application.Collecting;
 
-namespace Station.Application.Collecting;
+namespace Station.Infrastructure.Collecting;
 
 /// <summary>
-/// 真实 UMS（U 盘模式）采集源：枚举可移动磁盘作为记录仪根目录；
+/// 真实 UMS（U 盘模式）采集源：枚举可移动磁盘作为记录仪根目录；真实 MTP采集源：WPD实现
 /// 开发/测试可用 <see cref="CollectOptions.UmsRootOverride"/> 指定目录走同一套扫描/复制/擦除逻辑。
 /// </summary>
 public sealed class UmsCollectSource : ICollectSource

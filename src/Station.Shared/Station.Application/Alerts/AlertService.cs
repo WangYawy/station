@@ -2,11 +2,11 @@ using Station.Domain.Entities;
 using Station.Contracts;
 using Station.Contracts.Alerts;
 using Station.Application.PlatformSync;
-using Station.Infrastructure.Security;
-using Station.Infrastructure.IdGenerators;
-using Station.Infrastructure.Repositories;
 using SqlSugar;
 using Microsoft.Extensions.Logging;
+using Station.Application.IdGenerators;
+using Station.Domain.Repositories;
+using Station.Domain.Security;
 
 namespace Station.Application.Alerts;
 
@@ -18,6 +18,7 @@ public sealed class AlertService : IAlertService
     private readonly ReportingOptions _reportingOptions;
     private readonly IStationContext _stationContext;
     private readonly ILogger<AlertService> _logger;
+    private readonly ILicenseSignatureService _licenseSignature;
 
     public AlertService(
         IRepository<Alert> alerts,
@@ -25,6 +26,7 @@ public sealed class AlertService : IAlertService
         ISyncOutboxService outbox,
         ReportingOptions reportingOptions,
         IStationContext stationContext,
+        ILicenseSignatureService licenseSignature,
         ILogger<AlertService> logger)
     {
         _alerts = alerts;
@@ -33,6 +35,7 @@ public sealed class AlertService : IAlertService
         _reportingOptions = reportingOptions;
         _stationContext = stationContext;
         _logger = logger;
+        _licenseSignature = licenseSignature;
     }
 
     public async Task WriteAsync(Alert alert)
@@ -60,7 +63,7 @@ public sealed class AlertService : IAlertService
             {
                 report = report with
                 {
-                    Signature = Sm2LicenseSigner.Sign(
+                    Signature = _licenseSignature.Sign(
                         _reportingOptions.PrivateKeyPem,
                         AlertReportSignature.Canonical(report))
                 };

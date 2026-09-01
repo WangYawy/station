@@ -1,4 +1,5 @@
 using SqlSugar;
+using Station.Application.IdGenerators;
 
 namespace Station.Infrastructure.IdGenerators;
 

@@ -4,7 +4,7 @@ using Station.Infrastructure.Db;
 namespace Station.Infrastructure;
 
 /// <summary>
-/// SqlSugar 客户端工厂：把 <see cref="SnowFlakeOptions"/> 转换为对应提供程序的客户端实例。
+/// SqlSugar 客户端工厂。
 /// </summary>
 public interface ISqlSugarFactory
 {
@@ -13,6 +13,8 @@ public interface ISqlSugarFactory
 
     /// <summary>创建线程安全共享作用域（用于常规读写路径，单例注册）。</summary>
     ISqlSugarClient CreateScope(DbOptions options);
+    // 构建 ConnectionConfig 的方法，供外部创建自定义客户端
+    ConnectionConfig BuildConfig(DbOptions options, bool autoCloseConnection = true);
 }
 
 public sealed class SqlSugarFactory : ISqlSugarFactory
@@ -26,18 +28,17 @@ public sealed class SqlSugarFactory : ISqlSugarFactory
 
     public ISqlSugarClient CreateScope(DbOptions options)
     {
-        var config = BuildConfig(options);
+        var config = BuildConfig(options, options.Provider != DbProvider.Sqlite);
         // SQLite 保持连接常驻，避免异步查询中 auto-close 导致 "reader is closed"；
         // 服务端数据库（MySQL/PostgreSQL/Kingbase）使用 auto-close，避免连接池被常驻连接耗尽
-        config.IsAutoCloseConnection = options.Provider != DbProvider.Sqlite;
         return new SqlSugarScope(config);
     }
 
-    private static ConnectionConfig BuildConfig(DbOptions options) => new()
+    public ConnectionConfig BuildConfig(DbOptions options, bool autoCloseConnection = true) => new()
     {
         ConnectionString = options.ConnectionString,
         DbType = ToSqlSugarDbType(options.Provider),
-        IsAutoCloseConnection = true,
+        IsAutoCloseConnection = autoCloseConnection,
         InitKeyType = InitKeyType.Attribute,
         MoreSettings = new ConnMoreSettings
         {

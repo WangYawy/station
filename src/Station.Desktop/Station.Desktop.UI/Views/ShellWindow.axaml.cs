@@ -20,6 +20,7 @@ using Station.Desktop.UI.Services;
 using Station.Desktop.UI.ViewModels;
 using Station.Domain.Entities;
 using Station.Infrastructure.Repositories;
+using Station.Domain.Repositories;
 
 namespace Station.Desktop.UI.Views;
 

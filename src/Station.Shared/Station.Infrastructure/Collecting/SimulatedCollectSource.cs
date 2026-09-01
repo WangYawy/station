@@ -1,6 +1,6 @@
-using Microsoft.Extensions.Options;
+using Station.Application.Collecting;
 
-namespace Station.Application.Collecting;
+namespace Station.Infrastructure.Collecting;
 
 /// <summary>
 /// 模拟记录仪采集源（开发验证用）：在本地目录生成模拟文件，

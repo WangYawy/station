@@ -1,9 +1,21 @@
-namespace Station.Infrastructure.Storage;
+namespace Station.Application.Storage;
 
 using System.Text.RegularExpressions;
 
+public interface IDirectoryTemplateRenderer
+{
+    string Render(string template, string stationNo, DateTime date, string recorderName,
+        long? userId, long? deptId, string fileType);
+}
+
+public sealed class CircuitBreakerOpenException : InvalidOperationException
+{
+    public CircuitBreakerOpenException(string targetName)
+        : base($"存储目标 {targetName} 熔断器已打开，拒绝上传") { }
+}
+
 /// <summary>上传目录模板渲染：{StationNo}/{Date}/{RecorderName}/{UserId}/{DeptId}/{FileType}。</summary>
-public static class DirectoryTemplateRenderer
+public class DirectoryTemplateRenderer
 {
     public static string Render(
         string template,

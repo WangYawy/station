@@ -1,4 +1,4 @@
-namespace Station.Infrastructure.Recorders;
+namespace Station.Application.Recorders;
 
 /// <summary>记录仪绑定配置，对应配置节 <c>Station:Binding</c>。</summary>
 public sealed class BindingOptions

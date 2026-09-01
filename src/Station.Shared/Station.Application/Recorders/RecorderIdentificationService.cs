@@ -2,8 +2,7 @@ using Station.Application.Alerts;
 using Station.Application.Collecting;
 using Station.Contracts;
 using Station.Domain.Entities;
-using Station.Infrastructure.Recorders;
-using Station.Infrastructure.Repositories;
+using Station.Domain.Repositories;
 using Microsoft.Extensions.Logging;
 
 namespace Station.Application.Recorders;

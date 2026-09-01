@@ -1,9 +1,8 @@
-using Station.Application.Authorization;
 using Station.Domain.Entities;
-using Station.Infrastructure;
-using Station.Infrastructure.IdGenerators;
-using Station.Infrastructure.Repositories;
-using Station.Infrastructure.Security;
+using Station.Application.IdGenerators;
+using Station.Domain.Repositories;
+using Station.Domain.Security;
+using Station.Domain;
 
 namespace Station.Application.Users;
 

@@ -1,3 +1,5 @@
+using Station.Application.Storage;
+
 namespace Station.Infrastructure.Storage;
 
 /// <summary>
@@ -5,60 +7,50 @@ namespace Station.Infrastructure.Storage;
 /// 支持 本地磁盘 / FTP / SFTP；上传目录模板变量：
 /// {StationNo} {Date} {RecorderName} {UserId} {DeptId} {FileType}。
 /// </summary>
-public sealed class StorageOptions
+public sealed class StorageOptions : IStorageConfiguration
 {
     public const string SectionName = "Station:Storage";
 
-    public StorageTargetKind Target { get; set; } = StorageTargetKind.Local;
-
-    public string LocalRoot { get; set; } = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "Station", "storage");
-
-    public string FtpHost { get; set; } = "localhost";
-
-    public int FtpPort { get; set; } = 21;
-
-    public string? FtpUser { get; set; }
-
-    public string? FtpPassword { get; set; }
-
-    public string SftpHost { get; set; } = "localhost";
-
-    public int SftpPort { get; set; } = 22;
-
-    public string? SftpUser { get; set; }
-
-    public string? SftpPassword { get; set; }
-
-    /// <summary>SFTP 远程根目录；为空时使用登录用户主目录（SSH.NET WorkingDirectory）。</summary>
-    public string? SftpRoot { get; set; }
-
-    /// <summary>上传目录模板，默认 采集站/日期/记录仪/用户/部门/类型。</summary>
-    public string DirectoryTemplate { get; set; } =
-        "{StationNo}/{Date:yyyy-MM-dd}/{RecorderName}/{UserId}/{DeptId}/{FileType}";
-
-    /// <summary>本机采集站编号。</summary>
+    // 业务配置（实现接口）
+    public string DirectoryTemplate { get; set; } = "{StationNo}/{Date:yyyy-MM-dd}/{RecorderName}/{UserId}/{DeptId}/{FileType}";
     public string StationNo { get; set; } = "ST0001";
-
-    /// <summary>单文件重试次数。</summary>
     public int RetryCount { get; set; } = 3;
-
-    /// <summary>单文件重试间隔（秒）。</summary>
     public int RetryIntervalSeconds { get; set; } = 10;
+    public bool VerifyRemoteSm3 { get; set; } = true;
 
-    /// <summary>熔断阈值：连续失败次数。</summary>
+    // 技术配置（熔断、分块大小）
     public int CircuitBreakerThreshold { get; set; } = 5;
-
-    /// <summary>熔断冷却时间（秒）。</summary>
     public int CircuitBreakerCooldownSeconds { get; set; } = 60;
-
     public int ChunkBytes { get; set; } = 1024 * 1024;
 
-    /// <summary>上传完成后对远端文件计算 SM3 二次校验（"存储成功"判定，需求 10.4）。</summary>
-    public bool VerifyRemoteSm3 { get; set; } = true;
+    // 多存储目标配置（支持同时上传到多个位置）
+    public List<StorageTargetConfig> Targets { get; set; } = new();
 }
+public class StorageTargetConfig
+{
+    public StorageTargetKind Kind { get; set; }
+    public string? Name { get; set; } // 可选标识
 
+    // 本地存储专用
+    public string? LocalRoot { get; set; }
+
+    // FTP 专用
+    public string? FtpHost { get; set; }
+    public int FtpPort { get; set; } = 21;
+    public string? FtpUser { get; set; }
+    public string? FtpPassword { get; set; }
+
+    // SFTP 专用
+    public string? SftpHost { get; set; }
+    public int SftpPort { get; set; } = 22;
+    public string? SftpUser { get; set; }
+    public string? SftpPassword { get; set; }
+    public string? SftpRoot { get; set; }
+
+    // 熔断配置（可选，若未设置则使用全局默认值）
+    public int? CircuitBreakerThreshold { get; set; }
+    public int? CircuitBreakerCooldownSeconds { get; set; }
+}
 public enum StorageTargetKind
 {
     Local = 0,

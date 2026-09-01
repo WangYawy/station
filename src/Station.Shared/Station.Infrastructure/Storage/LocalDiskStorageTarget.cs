@@ -1,4 +1,6 @@
 using Microsoft.Extensions.Options;
+using Station.Application.Storage;
+using Station.Domain.Security;
 using Station.Infrastructure.Security;
 
 namespace Station.Infrastructure.Storage;
@@ -6,11 +8,15 @@ namespace Station.Infrastructure.Storage;
 /// <summary>本地磁盘存储目标：复制到 LocalRoot + 远端相对路径，按分块回调进度。</summary>
 public sealed class LocalDiskStorageTarget : IStorageTarget
 {
-    private readonly StorageOptions _options;
+    private readonly StorageTargetConfig _targetConfig;
+    private readonly StorageOptions _globalOptions;
+    private readonly ISecretProtector _secretProtector;
 
-    public LocalDiskStorageTarget(IOptions<StorageOptions> options)
+    public LocalDiskStorageTarget(StorageTargetConfig targetConfig, IOptions<StorageOptions> options, ISecretProtector secretProtector)
     {
-        _options = options.Value;
+        _targetConfig = targetConfig;
+        _globalOptions = options.Value;
+        _secretProtector = secretProtector;
     }
 
     public string Name => "local";
@@ -20,12 +26,12 @@ public sealed class LocalDiskStorageTarget : IStorageTarget
         Func<double, Task>? onProgress,
         CancellationToken cancellationToken)
     {
-        var destination = Path.Combine(_options.LocalRoot, file.RemotePath.Replace('/', Path.DirectorySeparatorChar));
+        var destination = Path.Combine(_targetConfig.LocalRoot, file.RemotePath.Replace('/', Path.DirectorySeparatorChar));
         Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
 
         await using var input = file.LocalStreamFactory?.Invoke() ?? File.OpenRead(file.LocalPath);
         await using var output = new FileStream(destination, FileMode.Create, FileAccess.Write, FileShare.None);
-        var buffer = new byte[_options.ChunkBytes];
+        var buffer = new byte[_globalOptions.ChunkBytes];
         long total = 0;
         int read;
         while ((read = await input.ReadAsync(buffer, cancellationToken)) > 0)
@@ -46,13 +52,13 @@ public sealed class LocalDiskStorageTarget : IStorageTarget
 
     public Task<long> GetRemoteSizeAsync(string remotePath, CancellationToken cancellationToken)
     {
-        var path = Path.Combine(_options.LocalRoot, remotePath.Replace('/', Path.DirectorySeparatorChar));
+        var path = Path.Combine(_targetConfig.LocalRoot, remotePath.Replace('/', Path.DirectorySeparatorChar));
         return Task.FromResult(new FileInfo(path).Length);
     }
 
     public Task<string> ComputeRemoteSm3Async(string remotePath, CancellationToken cancellationToken)
     {
-        var path = Path.Combine(_options.LocalRoot, remotePath.Replace('/', Path.DirectorySeparatorChar));
+        var path = Path.Combine(_targetConfig.LocalRoot, remotePath.Replace('/', Path.DirectorySeparatorChar));
         return Task.FromResult(Sm3Checksum.ComputeFile(path));
     }
 }

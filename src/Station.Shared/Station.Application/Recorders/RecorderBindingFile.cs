@@ -1,9 +1,7 @@
-using System.Text;
 using Microsoft.Extensions.Options;
-using Org.BouncyCastle.Crypto.Digests;
-using Station.Infrastructure.Security;
+using Station.Domain.Security;
 
-namespace Station.Infrastructure.Recorders;
+namespace Station.Application.Recorders;
 
 /// <summary>
 /// 记录仪根目录绑定文件（station_bind.ini）：记录仪编号/用户/部门/绑定时间 + SM3 签名。
@@ -15,13 +13,19 @@ public sealed class RecorderBindingFile
 
     private readonly string _secret;
     private readonly IRecorderRootFileStore _rootStore;
+    private readonly ISecretProtector _secretProtector;
+    private readonly IHashService _hashService;
 
     public RecorderBindingFile(
         IOptions<BindingOptions> options,
-        IRecorderRootFileStore? rootStore = null)
+        ISecretProtector secretProtector,
+        IHashService hashService,
+        IRecorderRootFileStore rootStore )
     {
-        _secret = Sm4SecretProtector.TryUnprotect(options.Value.Secret) ?? options.Value.Secret;
-        _rootStore = rootStore ?? new FileSystemRecorderRootFileStore();
+        _secretProtector = secretProtector;
+        _secret = _secretProtector.TryUnprotect(options.Value.Secret) ?? options.Value.Secret;
+        _hashService = hashService;
+        _rootStore = rootStore;
     }
 
     public void Write(string recorderRootPath, BindingInfo binding)
@@ -86,21 +90,11 @@ public sealed class RecorderBindingFile
     public string ComputeSignature(string serial, string model, string userNo, string userName, string deptCode, string deptName, DateTime boundAt)
     {
         var canonical = string.Join('|', serial, model, userNo, userName, deptCode, deptName, boundAt.ToString("O"), _secret);
-        return Sm3Hex(canonical);
+        return _hashService.ComputeHash(canonical);
     }
 
     public void Delete(string recorderRootPath)
     {
         _rootStore.DeleteFile(recorderRootPath, FileName);
-    }
-
-    private static string Sm3Hex(string text)
-    {
-        var digest = new SM3Digest();
-        var bytes = Encoding.UTF8.GetBytes(text);
-        digest.BlockUpdate(bytes, 0, bytes.Length);
-        var output = new byte[digest.GetDigestSize()];
-        digest.DoFinal(output, 0);
-        return Convert.ToHexString(output).ToLowerInvariant();
     }
 }
