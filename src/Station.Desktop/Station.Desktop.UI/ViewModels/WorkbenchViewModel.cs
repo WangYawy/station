@@ -5,14 +5,13 @@ using Station.Application.Collecting;
 using Station.Application.Licensing;
 using Station.Application.Settings;
 using Station.Application.Uploading;
+using Station.Application.UsbPortCard;
+using Station.Application.UsbPortCard.Events;
 using Station.Desktop.Application.Monitoring;
 using Station.Desktop.Application.OperationAccess;
 using Station.Desktop.Application.Session;
 using Station.Domain.Entities;
 using Station.Domain.Enums;
-using Station.Infrastructure.Repositories;
-using SqlSugar;
-using Station.Domain.Repositories;
 
 namespace Station.Desktop.UI.ViewModels;
 
@@ -25,22 +24,27 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
     private readonly ISessionManager _sessions;
     private readonly ICollectTaskService _collectService;
     private readonly IUploadService _uploadService;
-    private readonly IRepository<CollectFile> _files;
     private readonly ILicenseService _license;
     private readonly IOperationAccessService _operationAccess;
+    private readonly IUsbPortCardService _cardService;          // 查询服务（快照）
+    private readonly IUsbPortCardEventService _eventService;    // 事件聚合器
+
     private readonly CollectOptions _collectOptions;
     private readonly WorkbenchOptions _workbench;
     private readonly SystemMonitorService _monitor;
-    private readonly DispatcherTimer _timer;
-    private readonly Dictionary<int, long> _portTaskIds = [];
+    private readonly DispatcherTimer _heartbeatTimer;   // 兜底刷新（5秒）
+    private readonly DispatcherTimer _monitorTimer;     // 系统监控定时器（2秒）
+    private readonly DispatcherTimer _licenseTimer;     // 授权刷新（30秒）
+
     private int _monitorTicks;
     private int _licenseTicks;
 
     /// <summary>
-    /// 端口卡片
+    /// 端口卡片集合
     /// </summary>
     public ObservableCollection<UsbPortCardViewModel> PortCards { get; }
 
+    // 布局配置
     [ObservableProperty]
     private int _columns = 5;
 
@@ -50,6 +54,7 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     private double _cardHeight = 200;
 
+    // 状态栏
     [ObservableProperty]
     private string _onlineText = "加载中…";
 
@@ -65,6 +70,7 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     private string _statusMessage = string.Empty;
 
+    // 系统监控
     [ObservableProperty]
     private string _cpuText = "—";
 
@@ -90,57 +96,184 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
         ISessionManager sessions,
         ICollectTaskService collectService,
         IUploadService uploadService,
-        CollectOptions collectOptions,
-        IRepository<CollectFile> files,
         ILicenseService license,
         IOperationAccessService operationAccess,
+        IUsbPortCardService cardService,
+        IUsbPortCardEventService eventService,
+        CollectOptions collectOptions,
         WorkbenchOptions workbench)
     {
         _sessions = sessions;
         _collectService = collectService;
         _uploadService = uploadService;
-        _files = files;
         _license = license;
         _operationAccess = operationAccess;
+        _cardService = cardService;
+        _eventService = eventService;
         _collectOptions = collectOptions;
         _workbench = workbench;
-        _monitor = new SystemMonitorService(collectOptions);
 
+        // 1. 订阅事件
+        _eventService.TaskProgressUpdated += OnTaskProgressUpdated;
+        _eventService.TaskStatusChanged += OnTaskStatusChanged;
+        _eventService.DeviceConnected += OnDeviceConnected;
+        _eventService.DeviceDisconnected += OnDeviceDisconnected;
+
+        // 2. 初始化卡片集合（根据配置创建空卡片）
         PortCards = [];
-        EnsureCardLayout(); // 绘制卡片布局
+        EnsureCardLayout();
 
+        // 3. 会话权限
         _sessions.SessionChanged += OnSessionChanged;
         OnSessionChanged();
+        // 4. 系统监控（每2秒刷新一次）
+        _monitor = new SystemMonitorService(collectOptions);
+        _monitorTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
+        _monitorTimer.Tick += (_, _) => RefreshMonitor();
+        _monitorTimer.Start();
+        // 5. 授权刷新（每30秒）
+        _licenseTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(30) };
+        _licenseTimer.Tick += async (_, _) => await RefreshLicenseAsync();
+        _licenseTimer.Start();
+        // 6. 心跳兜底（每5秒全量刷新）
+        _heartbeatTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(5) };
+        _heartbeatTimer.Tick += async (_, _) => await RefreshSnapshotAsync();
+        _heartbeatTimer.Start();
 
-        _timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
-        _timer.Tick += async (_, _) =>
-        {
-            if (++_monitorTicks % 2 == 0)
-            {
-                RefreshMonitor();  // 每2秒刷新一次状态栏
-            }
-
-            if (++_licenseTicks % 30 == 0)
-            {
-                await RefreshLicenseAsync(); // 每30秒刷新一次授权状态
-            }
-
-            if (_monitorTicks % 2 == 0)
-            {
-                await RefreshDataAsync(); // 每2秒刷新一次采集卡片数据
-            }
-        };
-        _timer.Start();
-        RefreshMonitor(); // 刷新状态栏
+        // 7. 首次加载：获取今日统计、待上传数量
+        _ = RefreshTodayAsync();
+        _ = RefreshPendingUploadAsync();
+        // 首次快照加载
+        _ = RefreshSnapshotAsync();
+        // 首次授权监控
         _ = RefreshLicenseAsync();
-        _ = RefreshDataAsync();
+        // 首次系统监控
+        RefreshMonitor();
+
     }
 
-    private void OnSessionChanged()
+    // ---- 事件处理方法（UI线程调度） ----
+
+    private void OnTaskProgressUpdated(object? sender, TaskProgressUpdatedEvent e)
     {
-        CanOperate = _sessions.IsAuthenticated &&
-                     _operationAccess.HasPermission(_sessions.Current, "collect");
+        Dispatcher.UIThread.InvokeAsync(() =>
+        {
+            var card = FindCardByTaskId(e.TaskId);
+            card?.UpdateProgress(e.Progress, e.SpeedBytesPerSecond);
+        });
     }
+
+    private void OnTaskStatusChanged(object? sender, TaskStatusChangedEvent e)
+    {
+        Dispatcher.UIThread.InvokeAsync(() =>
+        {
+            var card = FindCardByTaskId(e.TaskId);
+            if (card is not null)
+            {
+                card.UpdateStatus(e.Status, e.IsEmergency);
+                // 更新统计
+                UpdatePortStats();
+            }
+        });
+    }
+
+    private void OnDeviceConnected(object? sender, DeviceConnectedEvent e)
+    {
+        Dispatcher.UIThread.InvokeAsync(() =>
+        {
+            // 找到第一个空闲卡片（IsIdle = true）绑定此设备
+            var card = PortCards.FirstOrDefault(c => c.IsIdle && string.IsNullOrEmpty(c.DeviceKey));
+            if (card is not null)
+            {
+                card.SetDeviceOnline(e.DeviceKey, e.DeviceName, e.Protocol);
+            }
+            // 没有空闲卡片则忽略（或记录日志）
+        });
+    }
+
+    private void OnDeviceDisconnected(object? sender, DeviceDisconnectedEvent e)
+    {
+        Dispatcher.UIThread.InvokeAsync(() =>
+        {
+            var card = FindCardByDeviceKey(e.DeviceKey);
+            if (card is not null && card.IsIdle) // 只有空闲设备才清理，正在采集的不清理（由状态事件处理）
+            {
+                card.SetIdle();
+                UpdatePortStats();
+            }
+        });
+    }
+
+    // ---- 辅助查找方法 ----
+
+    private UsbPortCardViewModel? FindCardByTaskId(long taskId)
+    {
+        return PortCards.FirstOrDefault(c => c.TaskId == taskId);
+    }
+
+    private UsbPortCardViewModel? FindCardByDeviceKey(string deviceKey)
+    {
+        return PortCards.FirstOrDefault(c => c.TaskNo == deviceKey);
+    }
+    // ---- 快照刷新（兜底） ----
+
+    private async Task RefreshSnapshotAsync()
+    {
+        try
+        {
+            var snapshots = await _cardService.GetCurrentSnapshotAsync();
+            // 更新所有卡片（仅当有变化）
+            for (int i = 0; i < snapshots.Count && i < PortCards.Count; i++)
+            {
+                PortCards[i].UpdateFromDto(snapshots[i]);
+            }
+            // 更新统计
+            UpdatePortStats();
+        }
+        catch
+        {
+            // 静默失败
+        }
+    }
+    // ---- 今日统计 & 待上传 ----
+
+    private async Task RefreshTodayAsync()
+    {
+        try
+        {
+            var stats = await _cardService.GetTodayStatsAsync();
+            TodayText = $"{stats.FileCount} 个 · {FormatSize(stats.TotalBytes)}";
+        }
+        catch
+        {
+            TodayText = "—";
+        }
+    }
+
+    private async Task RefreshPendingUploadAsync()
+    {
+        try
+        {
+            var count = await _uploadService.CountPendingUploadsAsync();
+            PendingUploadText = count.ToString();
+        }
+        catch
+        {
+            PendingUploadText = "—";
+        }
+    }
+
+    // ---- 端口统计 ----
+
+    private void UpdatePortStats()
+    {
+        var collecting = PortCards.Count(c => c.IsCollecting);
+        var paused = PortCards.Count(c => c.IsPaused);
+        var idle = PortCards.Count(c => c.IsIdle);
+        PortStatsText = $"采集中 {collecting} · 已暂停 {paused} · 空闲 {idle}";
+    }
+
+    // ---- 系统监控 ----
 
     private void RefreshMonitor()
     {
@@ -156,93 +289,32 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
     private static string ValueOf(IReadOnlyList<MonitorLine> lines, int index) =>
         lines.Count > index ? lines[index].Value : "—";
 
-    /// <summary>
-    /// 刷新数据，构建定时任务&构建执行&紧急优先&
-    /// </summary>
-    /// <returns></returns>
-    private async Task RefreshDataAsync()
+    // ---- 授权刷新 ----
+
+    private async Task RefreshLicenseAsync()
     {
         try
         {
-            EnsureCardLayout();
-            var tasks = await _collectService.GetActiveTasksAsync();
-            RefreshPorts(tasks);
-            await RefreshTodayAsync();
-            PendingUploadText = (await _uploadService.CountPendingUploadsAsync()).ToString();
+            var check = await _license.CheckAsync();
+            OnlineText = check.Message;
         }
         catch
         {
-            // 数据刷新失败不阻塞界面
+            OnlineText = "授权状态未知";
         }
     }
 
-    /// <summary>
-    /// 刷新端口采集任务
-    /// </summary>
-    /// <param name="tasks">当前任务列表</param>
-    private void RefreshPorts(IReadOnlyList<CollectTaskDto> tasks)
-    {
-        var byId = tasks.ToDictionary(t => t.TaskId, t => t);
-        var collecting = 0;
-        var paused = 0;
+    // ---- 卡片布局管理 ----
 
-        // 1) 更新已占用端口：任务仍在运行则刷新，否则清空为空闲
-        foreach (var (port, taskId) in _portTaskIds.ToList())
-        {
-            if (byId.TryGetValue(taskId, out var task))
-            {
-                PortCards[port - 1].UpdateFromTask(task);
-                if (task.Status == CollectTaskStatus.Paused)
-                {
-                    paused++;
-                }
-                else
-                {
-                    collecting++;
-                }
-            }
-            else
-            {
-                _portTaskIds.Remove(port);
-                PortCards[port - 1].SetIdle();
-            }
-        }
-
-        // 2) 新任务分配到第一个空闲端口（端口映射保持稳定）
-        var assigned = _portTaskIds.Values.ToHashSet();
-        foreach (var task in tasks.Where(t => !assigned.Contains(t.TaskId)))
-        {
-            var port = Enumerable.Range(1, PortCards.Count).FirstOrDefault(p => !_portTaskIds.ContainsKey(p));
-            if (port == 0)
-            {
-                break;
-            }
-
-            _portTaskIds[port] = task.TaskId;
-            PortCards[port - 1].UpdateFromTask(task);
-            if (task.Status == CollectTaskStatus.Paused)
-            {
-                paused++;
-            }
-            else
-            {
-                collecting++;
-            }
-        }
-
-        PortStatsText = $"采集中 {collecting} · 已暂停 {paused} · 空闲 {PortCards.Count - collecting - paused}";
-    }
-
-    /// <summary>按配置（行数/每行卡片数/宽高）重建卡片网格；配置变更时保留端口→任务映射。</summary>
+    /// <summary>按配置重建卡片网格（保留已有卡片的设备绑定）</summary>
     private void EnsureCardLayout()
     {
         var total = Math.Clamp(_workbench.Rows, 1, 10) * Math.Clamp(_workbench.Columns, 1, 10);
         var width = (double)Math.Clamp(_workbench.CardWidth, 120, 500);
         var height = (double)Math.Clamp(_workbench.CardHeight, 100, 400);
+
         if (PortCards.Count == total && Columns == _workbench.Columns && CardWidth == width && CardHeight == height)
-        {
             return;
-        }
 
         Columns = Math.Clamp(_workbench.Columns, 1, 10);
         CardWidth = width;
@@ -257,44 +329,45 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
             rebuilt.Add(card);
         }
 
-        foreach (var port in _portTaskIds.Keys.Where(p => p > total).ToList())
-        {
-            _portTaskIds.Remove(port);
-        }
-
         PortCards.Clear();
         foreach (var card in rebuilt)
-        {
             PortCards.Add(card);
-        }
+
+        UpdatePortStats();
     }
 
-    /// <summary>
-    /// 创建新卡片
-    /// </summary>
-    /// <param name="portIndex">端口编号</param>
-    /// <returns></returns>
     private UsbPortCardViewModel CreateCard(int portIndex) => new(
         portIndex,
-        c => _ = OperateAsync(c, s => s.PauseAsync(c.TaskId!.Value)),
-        c => _ = OperateAsync(c, s => s.ResumeAsync(c.TaskId!.Value)),
-        c => _ = OperateAsync(c, s => s.CancelAsync(c.TaskId!.Value)),
-        c => _ = OperateAsync(c, s => s.StartAsync(c.TaskId!.Value)),
-        c => _ = ToggleEmergencyAsync(c),
+        pause: c => _ = OperateAsync(c, s => s.PauseAsync(c.TaskId!.Value)),
+        resume: c => _ = OperateAsync(c, s => s.ResumeAsync(c.TaskId!.Value)),
+        cancel: c => _ = OperateAsync(c, s => s.CancelAsync(c.TaskId!.Value)),
+        retry: c => _ = OperateAsync(c, s => s.StartAsync(c.TaskId!.Value)),
+        priority: c => _ = ToggleEmergencyAsync(c),
         CardWidth,
         CardHeight);
 
-    /// <summary>
-    /// 紧急优先上传切换
-    /// </summary>
-    /// <param name="card">采集卡片</param>
-    /// <returns></returns>
+    // ---- 用户操作（命令） ----
+
+    private async Task OperateAsync(UsbPortCardViewModel card, Func<ICollectTaskService, Task> action)
+    {
+        if (!CanOperate || card.TaskId is null)
+            return;
+
+        try
+        {
+            await action(_collectService);
+            // 操作成功后，事件会驱动更新，无需主动刷新
+        }
+        catch
+        {
+            // 操作失败由采集服务写入状态，事件会同步
+        }
+    }
+
     private async Task ToggleEmergencyAsync(UsbPortCardViewModel card)
     {
         if (!CanOperate || card.TaskId is null)
-        {
             return;
-        }
 
         try
         {
@@ -303,84 +376,21 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
             StatusMessage = ok
                 ? target ? $"已设为紧急优先（上限 {_collectOptions.MaxEmergencyTasks}）" : "已取消紧急优先"
                 : $"紧急优先已达上限（{_collectOptions.MaxEmergencyTasks}），请先取消其他优先任务";
-            await RefreshDataAsync();
+            // 状态变更会由事件更新，无需主动刷新
         }
         catch (Exception ex)
         {
             StatusMessage = $"操作失败：{ex.Message}";
         }
     }
+    // ---- 其他公共方法 ----
 
-    private async Task RefreshTodayAsync()
-    {
-        try
-        {
-            var today = DateTime.Today;
-            var rows = (await _files.GetListAsync(f => f.Status == CollectFileStatus.Completed && f.CollectedAt >= today))
-                .Select(f => new { f.Size }).ToList();
-            TodayText = $"{rows.Count} 个 · {FormatSize(rows.Sum(r => r.Size))}";
-        }
-        catch
-        {
-            TodayText = "—";
-        }
-    }
-
-    /// <summary>
-    /// 刷新授权状态
-    /// </summary>
-    private async Task RefreshLicenseAsync()
-    {
-        try
-        {
-            var check = await _license.CheckAsync();
-            OnlineText = check.Message;
-        }
-        catch
-        {
-            OnlineText = "授权状态未知";
-        }
-    }
-
-    /// <summary>
-    /// 操作
-    /// </summary>
-    /// <param name="card">采集卡片</param>
-    /// <param name="action">执行动作命令</param>
-    /// <returns></returns>
-    private async Task OperateAsync(UsbPortCardViewModel card, Func<ICollectTaskService, Task> action)
-    {
-        if (!CanOperate || card.TaskId is null)
-        {
-            return;
-        }
-
-        try
-        {
-            await action(_collectService);
-            await RefreshDataAsync();
-        }
-        catch
-        {
-            // 操作失败由采集服务写入状态
-        }
-    }
-
-    /// <summary>
-    /// 获取采集任务文件列表
-    /// </summary>
-    /// <param name="taskId">采集任务Id</param>
-    /// <returns></returns>
     public async Task<IReadOnlyList<CollectFileDto>> GetTaskFilesAsync(long taskId) =>
         await _collectService.GetTaskFilesAsync(taskId);
 
     private static string FormatSize(long bytes)
     {
-        if (bytes <= 0)
-        {
-            return "0 B";
-        }
-
+        if (bytes <= 0) return "0 B";
         var units = new[] { "B", "KB", "MB", "GB", "TB" };
         var value = (double)bytes;
         var unit = 0;
@@ -389,13 +399,28 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
             value /= 1024;
             unit++;
         }
-
         return $"{value:F1} {units[unit]}";
     }
+
+    // ---- 会话权限 ----
+
+    private void OnSessionChanged()
+    {
+        CanOperate = _sessions.IsAuthenticated &&
+                     _operationAccess.HasPermission(_sessions.Current, "collect");
+    }
+
+    // ---- 释放资源 ----
 
     public void Dispose()
     {
         _sessions.SessionChanged -= OnSessionChanged;
-        _timer.Stop();
+        _monitorTimer.Stop();
+        _licenseTimer.Stop();
+        _heartbeatTimer.Stop();
+        _eventService.TaskProgressUpdated -= OnTaskProgressUpdated;
+        _eventService.TaskStatusChanged -= OnTaskStatusChanged;
+        _eventService.DeviceConnected -= OnDeviceConnected;
+        _eventService.DeviceDisconnected -= OnDeviceDisconnected;
     }
 }

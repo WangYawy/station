@@ -1,4 +1,5 @@
 using Station.Application.Collecting;
+using Station.Domain.Collecting;
 
 namespace Station.Infrastructure.Collecting;
 

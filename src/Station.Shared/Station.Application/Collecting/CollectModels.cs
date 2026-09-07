@@ -3,15 +3,6 @@ using Station.Domain.Enums;
 
 namespace Station.Application.Collecting;
 
-/// <summary>接入的记录仪信息；识别后带归属（用户/部门）。</summary>
-public sealed record CollectDeviceInfo(
-    string Name,
-    string? Serial,
-    ProtocolType Protocol,
-    long? UserId = null,
-    long? DeptId = null,
-    string? RootPath = null);
-
 public sealed record CollectTaskDto(
     long TaskId,
     string TaskNo,

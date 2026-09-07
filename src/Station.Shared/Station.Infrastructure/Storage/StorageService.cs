@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Station.Application.Storage;
 using Station.Domain.Security;
+using Station.Domain.Storage;
 
 namespace Station.Infrastructure.Storage;
 
@@ -9,7 +10,6 @@ public sealed class StorageService : IStorageService
     private readonly IEnumerable<IStorageTarget> _targets;
     private readonly IStorageConfiguration _config;
     private readonly IHashService _hashService;
-    private readonly IDirectoryTemplateRenderer _renderer;
     private readonly ILogger<StorageService> _logger;
 
     public StorageService(
@@ -22,7 +22,6 @@ public sealed class StorageService : IStorageService
         _targets = targets;
         _config = config;
         _hashService = hashService;
-        _renderer = renderer;
         _logger = logger;
     }
 

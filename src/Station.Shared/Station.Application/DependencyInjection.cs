@@ -1,15 +1,18 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
-using Station.Application.Audit;
 using Station.Application.Alerts;
+using Station.Application.Audit;
 using Station.Application.Authentication;
 using Station.Application.Authorization;
 using Station.Application.Collecting;
 using Station.Application.Licensing;
 using Station.Application.PlatformSync;
 using Station.Application.Recorders;
+using Station.Application.Storage;
 using Station.Application.Uploading;
+using Station.Application.UsbPortCard;
+using Station.Application.UsbPortCard.Events;
 using Station.Application.Users;
 
 namespace Station.Application;
@@ -71,6 +74,7 @@ public static class DependencyInjection
         //});
         // 注册上传服务
         services.AddScoped<IUploadService, UploadService>();
+        services.AddSingleton<IDirectoryTemplateRenderer, DirectoryTemplateRenderer>();
 
         var platformSection = configuration.GetSection(PlatformOptions.SectionName);
         services.Configure<PlatformOptions>(platformSection);
@@ -88,6 +92,8 @@ public static class DependencyInjection
         services.AddScoped<ICommandService, CommandService>();
         services.AddScoped<IFileLedgerService, FileLedgerService>();
         services.AddScoped<IConfigApplyService, ConfigApplyService>();
+        services.AddScoped<IUsbPortCardEventService, UsbPortCardEventService>();
+        services.AddScoped<IUsbPortCardService, UsbPortCardService>();
         // 注册授权服务
         var licenseSection = configuration.GetSection(LicenseOptions.SectionName);
         services.Configure<LicenseOptions>(licenseSection);

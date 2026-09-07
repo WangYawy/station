@@ -1,7 +1,9 @@
+using System.ComponentModel;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
+using Microsoft.AspNetCore.Cors.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
 using Station.Application.Alerts;
 using Station.Application.Audit;
@@ -11,16 +13,19 @@ using Station.Application.Licensing;
 using Station.Application.Recorders;
 using Station.Application.Settings;
 using Station.Application.Uploading;
+using Station.Application.UsbPortCard;
+using Station.Application.UsbPortCard.Events;
 using Station.Contracts;
 using Station.Desktop.Application.OperationAccess;
-using Station.Desktop.Application.Settings;
 using Station.Desktop.Application.Session;
-using Station.Desktop.WebHost.Settings;
+using Station.Desktop.Application.Settings;
 using Station.Desktop.UI.Services;
 using Station.Desktop.UI.ViewModels;
+using Station.Desktop.WebHost.Settings;
+using Station.Domain.Collecting;
 using Station.Domain.Entities;
-using Station.Infrastructure.Repositories;
 using Station.Domain.Repositories;
+using Station.Infrastructure.Repositories;
 
 namespace Station.Desktop.UI.Views;
 
@@ -40,6 +45,7 @@ public partial class ShellWindow : Window
     private readonly IOperationAccessService _operationAccess;
     private readonly IAlertService _alertService;
     private readonly ILicenseService _licenseService;
+
     private readonly SessionIdleTracker _idleTracker;
     private readonly DispatcherTimer _clockTimer;
     private readonly DispatcherTimer _alertTimer;
@@ -154,11 +160,13 @@ public partial class ShellWindow : Window
                 _sessions,
                 services.GetRequiredService<ICollectTaskService>(),
                 services.GetRequiredService<IUploadService>(),
-                services.GetRequiredService<CollectOptions>(),
-                services.GetRequiredService<IRepository<CollectFile>>(),
                 services.GetRequiredService<ILicenseService>(),
                 _operationAccess,
+                services.GetRequiredService<IUsbPortCardService>(),
+                services.GetRequiredService<IUsbPortCardEventService>(),
+                services.GetRequiredService<CollectOptions>(),
                 services.GetRequiredService<WorkbenchOptions>());
+
             ModuleContent.Content = new WorkbenchView { DataContext = viewModel };
             _currentViewModel = viewModel;
             return;

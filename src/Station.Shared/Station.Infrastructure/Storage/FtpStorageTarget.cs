@@ -3,7 +3,7 @@ using Microsoft.Extensions.Options;
 using System.Net;
 using Station.Infrastructure.Security;
 using Station.Domain.Security;
-using Station.Application.Storage;
+using Station.Domain.Storage;
 
 namespace Station.Infrastructure.Storage;
 

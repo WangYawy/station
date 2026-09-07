@@ -1,10 +1,22 @@
-namespace Station.Application.Collecting;
+
+using Station.Contracts;
+
+namespace Station.Domain.Collecting;
 
 /// <summary>采集源文件信息。</summary>
 public sealed record SourceFileInfo(string RelativePath, string FileName, long Size, DateTime ModifiedAt)
 {
     public string Fingerprint => $"{FileName}|{Size}|{ModifiedAt.Ticks}";
 }
+
+/// <summary>接入的记录仪信息；识别后带归属（用户/部门）。</summary>
+public sealed record CollectDeviceInfo(
+    string Name,
+    string? Serial,
+    ProtocolType Protocol,
+    long? UserId = null,
+    long? DeptId = null,
+    string? RootPath = null);
 
 /// <summary>
 /// 记录仪采集源抽象：UMS / MTP / 私有加密（SDK 转 U 盘）统一接口。

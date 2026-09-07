@@ -11,6 +11,9 @@ public enum ProtocolType
 
     /// <summary>私有加密设备（SDK 转 UMS 模式）。</summary>
     PrivateSdk = 2,
+
+    /// <summary>模拟开发/测试。</summary>
+    Simulated = 999
 }
 
 /// <summary>文件类型。</summary>

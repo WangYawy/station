@@ -15,9 +15,21 @@ public sealed record RecorderDto(
 /// <summary>接入识别结果：三层识别（无绑定/疑似篡改/非授权）→ 已绑定。</summary>
 public enum RecorderIdentifyStatus
 {
+    /// <summary>
+    /// 绑定
+    /// </summary>
     Bound,
+    /// <summary>
+    /// 无绑定
+    /// </summary>
     NoBinding,
+    /// <summary>
+    /// 签名无效
+    /// </summary>
     InvalidSignature,
+    /// <summary>
+    /// 未授权记录仪
+    /// </summary>
     UnknownRecorder
 }
 

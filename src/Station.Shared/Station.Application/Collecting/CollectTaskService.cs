@@ -5,6 +5,8 @@ using SqlSugar;
 using Station.Application.IdGenerators;
 using Station.Application.Licensing;
 using Station.Application.PlatformSync;
+using Station.Application.UsbPortCard.Events;
+using Station.Domain.Collecting;
 using Station.Domain.Entities;
 using Station.Domain.Enums;
 using Station.Domain.Repositories;
@@ -38,8 +40,8 @@ public sealed class CollectTaskService : ICollectTaskService
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ConcurrentDictionary<long, TaskControl> _controls = new();
     private readonly ILogger<CollectTaskService> _logger;
-    private readonly IFileChecksumService _checksumService;
     private readonly IFileEncryptionService _encryptionService;
+    private readonly IUsbPortCardEventService _eventService;
 
     public CollectTaskService(
         IRepository<CollectTask> tasks,
@@ -50,8 +52,8 @@ public sealed class CollectTaskService : ICollectTaskService
         ICollectControl collectControl,
         ILicenseService licenseService,
         IServiceScopeFactory scopeFactory,
-        IFileChecksumService checksumService,
         IFileEncryptionService encryptionService,
+        IUsbPortCardEventService eventService,
         ILogger<CollectTaskService> logger)
     {
         _tasks = tasks;
@@ -63,8 +65,8 @@ public sealed class CollectTaskService : ICollectTaskService
         _licenseService = licenseService;
         _scopeFactory = scopeFactory;
         _logger = logger;
-        _checksumService = checksumService;
         _encryptionService = encryptionService;
+        _eventService = eventService;
     }
 
     public async Task<CollectTaskDto> CreateTaskAsync(CollectDeviceInfo device, bool isAuto)
@@ -114,11 +116,12 @@ public sealed class CollectTaskService : ICollectTaskService
         {
             throw new InvalidOperationException("任务正在运行中");
         }
-
-        task.Status = CollectTaskStatus.Scanning;
+        // 1.设备文件扫描
+        task.Status = CollectTaskStatus.Scanning; 
         task.StartedAt ??= DateTime.Now;
         task.ErrorMessage = null;
         await _tasks.UpdateAsync(task);
+        _eventService.PublishTaskStatus(taskId, task.Status, false); // 发布设备状态事件
 
         var device = new CollectDeviceInfo(
             task.RecorderName, task.RecorderSerial, task.Protocol,
@@ -160,7 +163,9 @@ public sealed class CollectTaskService : ICollectTaskService
         task.TotalBytes = accepted.Sum(f => f.Size);
         task.Status = CollectTaskStatus.Collecting;
         await _tasks.UpdateAsync(task);
+        _eventService.PublishTaskStatus(taskId, task.Status, false); // 发布设备状态事件
 
+        // 2.设备文件采集
         var control = new TaskControl();
         _controls[taskId] = control;
         _ = Task.Run(() => RunCollectAsync(taskId, control));
@@ -292,6 +297,9 @@ public sealed class CollectTaskService : ICollectTaskService
         }
     }
 
+    /// <summary>
+    /// 开始文件采集
+    /// </summary>
     private async Task RunCollectAsync(long taskId, TaskControl control)
     {
         // 后台采集使用独立长连接客户端，DB 操作用同步调用（Kdbndp 异步长连接易报 command already in progress）
@@ -300,7 +308,7 @@ public sealed class CollectTaskService : ICollectTaskService
         // 2. 从作用域解析需要的泛型 LoopClient（它们共享同一个 ILoopSqlSugarClient）
         var taskLoop = scope.ServiceProvider.GetRequiredService<ILoopRepository<CollectTask>>();
         var fileLoop = scope.ServiceProvider.GetRequiredService<ILoopRepository<CollectFile>>();
-        
+
         CollectTask? task = null;
         try
         {
@@ -332,22 +340,35 @@ public sealed class CollectTaskService : ICollectTaskService
                     break;
                 }
 
+                // 记录当前文件的起始状态
                 control.CurrentFileId = file.Id;
                 file.Status = CollectFileStatus.Copying;
                 file.Progress = 0;
                 fileLoop.Update(file);
 
+                // 记录任务当前已完成的总字节数（已完成的旧文件总和）
+                long baseCompletedBytes = task.CollectedBytes;
+                // 构造目标路径
                 var destination = Path.Combine(_options.CacheDirectory, task.TaskNo, file.RelativePath);
                 double lastPersistedProgress = -1;
+
+                // 开始复制，传入新的 onProgress 回调
                 await source.CopyAsync(
                     device,
                     new SourceFileInfo(file.RelativePath, file.FileName, file.Size, file.OriginalModifiedAt ?? DateTime.UtcNow),
                     destination,
                     async progress =>
                     {
+                        // 1. 更新单个文件进度
                         file.Progress = progress;
                         var now = DateTime.UtcNow;
                         var bytes = (long)(file.Size * progress);
+                        // 2. 计算任务级总进度，已完成的总字节 = 之前文件的总字节 + 当前文件已复制的字节
+                        long totalDoneBytes = baseCompletedBytes + bytes;
+                        double overallProgress = task.TotalBytes > 0
+                            ? Math.Clamp((double)totalDoneBytes / task.TotalBytes, 0, 1)
+                            : 0;
+                        // 3. 计算速度
                         speedWindow.Enqueue((now, bytes));
                         while (speedWindow.Count > 2)
                         {
@@ -362,8 +383,13 @@ public sealed class CollectTaskService : ICollectTaskService
                             file.SpeedBytesPerSecond = delta;
                             task.SpeedBytesPerSecond = delta;
                         }
-
-                        // 进度落库节流（≥10% 增量），失败不中断复制，最终状态在完成时持久化
+                        // 4. 发布事件：推送任务级总进度（百分比 0~100）和当前速度
+                        _eventService.PublishTaskProgress(
+                            taskId,
+                            overallProgress * 100,  // 转换为百分比
+                            task.SpeedBytesPerSecond
+                        );
+                        // 5. 进度落库节流（≥10% 增量），失败不中断复制，最终状态在完成时持久化
                         if (progress - lastPersistedProgress >= 0.1)
                         {
                             lastPersistedProgress = progress;
@@ -382,6 +408,7 @@ public sealed class CollectTaskService : ICollectTaskService
                 // 校验大小
                 file.Status = CollectFileStatus.Verifying;
                 fileLoop.Update(file);
+
                 var copied = new FileInfo(destination).Length;
                 if (copied != file.Size)
                 {
@@ -402,6 +429,7 @@ public sealed class CollectTaskService : ICollectTaskService
                 task.CollectedBytes += file.Size;
                 task.Status = CollectTaskStatus.Collecting;
                 taskLoop.Update(task);
+                _eventService.PublishTaskStatus(taskId, task.Status, false); // 发布采集任务状态事件
 
                 control.CurrentFileId = 0;
             }
@@ -446,6 +474,8 @@ public sealed class CollectTaskService : ICollectTaskService
                     shared.CompletedAt = DateTime.Now;
                     shared.ErrorMessage = $"收尾异常：{ex.Message}";
                     await _tasks.UpdateAsync(shared);
+                    _eventService.PublishTaskStatus(taskId, shared.Status, false); // 发布设备状态事件
+                    _logger.LogError(ex, "采集任务 {TaskId} 收尾异常（记录仪 {Recorder}）", taskId, task?.RecorderName);
                 }
             }
             catch
@@ -486,6 +516,7 @@ public sealed class CollectTaskService : ICollectTaskService
             task.Status = CollectTaskStatus.Paused;
             taskLoop.Update(task);
             _controls.TryRemove(taskId, out _);
+            _eventService.PublishTaskStatus(taskId, task.Status, false); // 发布采集任务状态事件
             _logger.LogInformation("采集任务 {TaskId} 已暂停", taskId);
             return;
         }
@@ -513,8 +544,10 @@ public sealed class CollectTaskService : ICollectTaskService
 
         taskLoop.Update(task);
         _controls.TryRemove(taskId, out _);
+        _eventService.PublishTaskStatus(taskId, task.Status, false); // 发布采集任务状态事件
         _logger.LogInformation("采集任务 {TaskId} 结束：{Status}（文件 {Total}/{Collected}）",
             taskId, task.Status, task.TotalFiles, task.CollectedFiles);
+       
     }
 
     private void TryErase(CollectTask task)

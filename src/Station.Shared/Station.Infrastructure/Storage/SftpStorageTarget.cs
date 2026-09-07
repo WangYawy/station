@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Options;
 using Renci.SshNet;
-using Station.Application.Storage;
+using Station.Domain.Storage;
 using Station.Domain.Security;
 using Station.Infrastructure.Security;
 

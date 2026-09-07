@@ -2,17 +2,20 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using SqlSugar;
-using Station.Application.Collecting;
+using Station.Application.DeviceDetection;
 using Station.Application.IdGenerators;
 using Station.Application.Recorders;
-using Station.Domain.Security;
 using Station.Application.Services;
 using Station.Application.Storage;
 using Station.Domain;
+using Station.Domain.Collecting;
 using Station.Domain.Repositories;
+using Station.Domain.Security;
+using Station.Domain.Storage;
 using Station.Infrastructure.Backup;
 using Station.Infrastructure.Collecting;
 using Station.Infrastructure.Db;
+using Station.Infrastructure.DeviceDetection;
 using Station.Infrastructure.IdGenerators;
 using Station.Infrastructure.Licensing;
 using Station.Infrastructure.Persistence;
@@ -20,7 +23,6 @@ using Station.Infrastructure.Recorders;
 using Station.Infrastructure.Repositories;
 using Station.Infrastructure.Security;
 using Station.Infrastructure.Storage;
-using static Org.BouncyCastle.Math.EC.ECCurve;
 
 namespace Station.Infrastructure;
 
@@ -59,8 +61,12 @@ public static class DependencyInjection
             options.ConnectionString = StationPaths.RebaseSqliteConnectionString(options.ConnectionString);
             Directory.CreateDirectory(StationPaths.DataDirectory);
         }
-        services.AddSingleton(Options.Create(options));
-        services.AddSingleton(options); // 直接注入 POCO，方便工厂使用
+        services.AddOptions<DbOptions>()
+                .Bind(section)
+                //.ValidateDataAnnotations() // 启用数据注解校验（如 [Required]）
+                .ValidateOnStart();        // 启动时立即校验，失败则应用崩溃（快速失败原则）
+        services.AddSingleton(sp =>
+            sp.GetRequiredService<IOptions<DbOptions>>().Value);
 
         // ==========================================
         // 4. 注册 SqlSugar 工厂（单例）
@@ -146,27 +152,42 @@ public static class DependencyInjection
         services.AddSingleton<ISm4KeyProvider, Sm4KeyProvider>(); // ISm4KeyProvider 的接口定义已移入 Application，但实现在这里注册
         services.AddSingleton<IHashService, Sm3HashService>();
 
+       
         // ==========================================
-        // 采集源（默认ums）
+        // 设备文件采集器
         // MTP 需要根据不同平台引入包，在Desktop.Infrastructure中依赖注入
         // ==========================================
-        services.AddSingleton<UmsCollectSource>();
-        services.AddSingleton<SimulatedCollectSource>();
-        services.AddSingleton<ICollectSource>(sp =>
+        // 1. 注册所有具体采集源实现
+        services.AddScoped<UmsCollectSource>(); // ums采集源
+        services.AddScoped<SimulatedCollectSource>(); // 模拟采集源
+        if (OperatingSystem.IsWindows())
         {
-            var collect = sp.GetRequiredService<CollectOptions>();
-            return collect.SourceMode == "ums"
-                ? sp.GetRequiredService<UmsCollectSource>()
-                : sp.GetRequiredService<SimulatedCollectSource>();
-        });
+            services.AddScoped<MtpCollectSource>(); // mtp windows采集源
+        }
+        else if (OperatingSystem.IsLinux())
+        {
+            services.AddScoped<LinuxMtpCollectSource>(); // mtp linux采集源
+        }
+        // 2. 注册采集源提供者（动态路由）
+        services.AddSingleton<ICollectSourceProvider, CollectSourceProvider>();
         services.AddSingleton<IRecorderRootFileStore, FileSystemRecorderRootFileStore>();
-        services.AddSingleton<ICollectSourceProvider, DefaultCollectSourceProvider>();
         // ==========================================
-        // 存储配置（包含多目标）
+        // 记录仪设备检测器
+        // MTP 需要根据不同平台引入包，在Desktop.Infrastructure中依赖注入
+        // ==========================================
+        services.AddSingleton<IRecorderDeviceDetector, UmsDeviceDetector>();
+        if (OperatingSystem.IsWindows())
+            services.AddSingleton<IRecorderDeviceDetector, MtpDeviceDetector>();
+        else if (OperatingSystem.IsLinux())
+            services.AddSingleton<IRecorderDeviceDetector, LinuxMtpDeviceDetector>();
+        services.AddSingleton<IDevicePresenceService, RecorderConnectMonitor>();
+        services.AddHostedService<RecorderConnectWatcherHostedService>();
+        // ==========================================
+        // 文件存储器（包含多目标）
         // ==========================================
         var storageSection = configuration.GetSection(StorageOptions.SectionName);
         services.Configure<StorageOptions>(storageSection);
-        // 将 StorageOptions 注册为 IStorageConfiguration（用于 Application 层）
+        // 将 StorageOptions 注册为 IStorageConfiguration
         services.AddSingleton<IStorageConfiguration>(sp =>
             sp.GetRequiredService<IOptions<StorageOptions>>().Value);
         // 注册多个存储目标实例
@@ -199,7 +220,6 @@ public static class DependencyInjection
             return targets;
         });
         services.AddScoped<IStorageService, StorageService>(); // 注册存储服务
-
 
         return services;
     }

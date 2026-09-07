@@ -1,4 +1,4 @@
-using Station.Application.Storage;
+using Station.Domain.Storage;
 
 namespace Station.Infrastructure.Storage;
 

@@ -4,6 +4,7 @@ using Station.Contracts;
 using Station.Domain.Entities;
 using Station.Domain.Repositories;
 using Microsoft.Extensions.Logging;
+using Station.Domain.Collecting;
 
 namespace Station.Application.Recorders;
 

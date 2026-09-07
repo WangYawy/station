@@ -1,6 +1,6 @@
 using Station.Contracts;
 
-namespace Station.Application.Collecting;
+namespace Station.Domain.Collecting;
 
 /// <summary>
 /// 按设备协议选择采集源：一台采集站可同时接入多个设备（全 UMS / 全 MTP / 混合），

@@ -1,5 +1,5 @@
 using Microsoft.Extensions.Options;
-using Station.Application.Storage;
+using Station.Domain.Storage;
 using Station.Domain.Security;
 using Station.Infrastructure.Security;
 

@@ -10,6 +10,7 @@ using Station.Contracts;
 using Station.Domain.Entities;
 using Station.Domain.Repositories;
 using AuthService = Station.Application.Authorization.IAuthorizationService;
+using Station.Domain.Collecting;
 
 namespace Station.Desktop.WebHost.Controllers;
 

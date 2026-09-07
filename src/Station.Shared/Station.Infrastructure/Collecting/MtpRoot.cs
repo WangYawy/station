@@ -1,7 +1,7 @@
-namespace Station.Desktop.Infrastructure.Collecting;
+namespace Station.Infrastructure.Collecting;
 
 /// <summary>MTP 虚拟根目录约定（无文件系统盘符，形如 MTP://{PnP设备ID}）。</summary>
-internal static class MtpRoot
+public static class MtpRoot
 {
     public const string RootScheme = "MTP://";
 

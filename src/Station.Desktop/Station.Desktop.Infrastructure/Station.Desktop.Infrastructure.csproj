@@ -15,4 +15,8 @@
     <ProjectReference Include="..\..\Station.Shared\Station.Domain\Station.Domain.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Folder Include="Collecting\" />
+  </ItemGroup>
+
 </Project>

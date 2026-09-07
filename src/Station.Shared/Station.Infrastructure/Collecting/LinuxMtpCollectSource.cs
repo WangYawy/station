@@ -2,10 +2,12 @@ using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
 using System.Text;
 using Station.Application.Collecting;
+using Station.Application.DeviceDetection;
 using Station.Application.Recorders;
 using Station.Contracts;
+using Station.Domain.Collecting;
 
-namespace Station.Desktop.Infrastructure.Collecting;
+namespace Station.Infrastructure.Collecting;
 
 /// <summary>
 /// 真实 MTP 采集源（Linux）：基于 libmtp（Ubuntu/Kylin/UOS 包 libmtp9）P/Invoke。

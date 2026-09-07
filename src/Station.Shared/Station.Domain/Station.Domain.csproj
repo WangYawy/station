@@ -12,4 +12,8 @@
     <ProjectReference Include="..\Station.Contracts\Station.Contracts.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Folder Include="DeviceDetection\" />
+  </ItemGroup>
+
 </Project>

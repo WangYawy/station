@@ -4,6 +4,7 @@ using Microsoft.Extensions.Options;
 using Station.Application.Collecting;
 using Station.Contracts;
 using Microsoft.Extensions.Logging;
+using Station.Domain.Collecting;
 
 namespace Station.Desktop.Infrastructure;
 

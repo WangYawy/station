@@ -2,6 +2,10 @@ namespace Station.Application.Storage;
 
 using System.Text.RegularExpressions;
 
+
+/// <summary>
+/// 上传目录模板渲染
+/// </summary>
 public interface IDirectoryTemplateRenderer
 {
     string Render(string template, string stationNo, DateTime date, string recorderName,
@@ -14,10 +18,11 @@ public sealed class CircuitBreakerOpenException : InvalidOperationException
         : base($"存储目标 {targetName} 熔断器已打开，拒绝上传") { }
 }
 
+
 /// <summary>上传目录模板渲染：{StationNo}/{Date}/{RecorderName}/{UserId}/{DeptId}/{FileType}。</summary>
-public class DirectoryTemplateRenderer
+public class DirectoryTemplateRenderer : IDirectoryTemplateRenderer
 {
-    public static string Render(
+    public string Render(
         string template,
         string stationNo,
         DateTime date,

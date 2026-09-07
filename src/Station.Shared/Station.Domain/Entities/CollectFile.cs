@@ -45,7 +45,7 @@ public sealed class CollectFile
     /// </summary>
     public CollectFileStatus Status { get; set; }
 
-    /// <summary>上传进度 0~1。</summary>
+    /// <summary>采集进度 0~1。</summary>
     public double Progress { get; set; }
     /// <summary>
     /// 每秒字节数
@@ -74,6 +74,10 @@ public sealed class CollectFile
     /// 文件上传进度
     /// </summary>
     public double UploadProgress { get; set; }
+    /// <summary>
+    /// 已上传字节数（精确值，用于审计和断点续传）
+    /// </summary>
+    public long UploadedBytes { get; set; }
     /// <summary>
     /// 文件上传每秒字节数
     /// </summary>

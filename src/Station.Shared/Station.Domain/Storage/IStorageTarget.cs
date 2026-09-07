@@ -1,4 +1,4 @@
-namespace Station.Application.Storage;
+namespace Station.Domain.Storage;
 
 /// <summary>待上传文件：本地缓存路径 → 远端相对路径。</summary>
 public sealed record UploadTargetFile(
@@ -13,10 +13,17 @@ public sealed record UploadTargetFile(
 /// </summary>
 public interface IStorageTarget
 {
+    /// <summary>
+    /// 存储目标名称
+    /// </summary>
     string Name { get; }
-
+    /// <summary>
+    /// 上传文件至存储目标
+    /// </summary>
     Task UploadAsync(UploadTargetFile file, Func<double, Task>? onProgress, CancellationToken cancellationToken);
-
+    /// <summary>
+    /// 获取远端文件大小
+    /// </summary>
     Task<long> GetRemoteSizeAsync(string remotePath, CancellationToken cancellationToken);
 
     /// <summary>计算远端文件 SM3（上传后二次校验）。</summary>

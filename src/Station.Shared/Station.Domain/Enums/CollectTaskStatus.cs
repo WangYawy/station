@@ -27,7 +27,7 @@ public enum CollectTaskStatus
     /// </summary>
     Completed = 4,
     /// <summary>
-    /// 中途断线/拔出
+    /// 中断，断线/拔出
     /// </summary>
     Interrupted = 5,
     /// <summary>

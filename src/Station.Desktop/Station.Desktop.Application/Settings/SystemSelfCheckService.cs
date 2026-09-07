@@ -4,6 +4,8 @@ using Station.Application.Collecting;
 using Station.Application.Settings;
 using Station.Application.Storage;
 using Microsoft.Extensions.Logging;
+using Station.Domain.Storage;
+using Station.Domain.Collecting;
 
 namespace Station.Desktop.Application.Settings;
 

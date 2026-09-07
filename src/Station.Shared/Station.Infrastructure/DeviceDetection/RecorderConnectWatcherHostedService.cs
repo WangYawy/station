@@ -1,14 +1,16 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Station.Application.Collecting;
-using Station.Application.Recorders;
-using Station.Application.Alerts;
-using Station.Contracts;
-using Station.Domain.Entities;
-using Station.Domain.Enums;
 using Microsoft.Extensions.Logging;
+using Station.Application.Alerts;
+using Station.Application.Collecting;
+using Station.Application.DeviceDetection;
+using Station.Application.Recorders;
+using Station.Application.UsbPortCard.Events;
+using Station.Contracts;
+using Station.Domain.Collecting;
+using Station.Domain.Entities;
 
-namespace Station.Desktop.Infrastructure.Collecting;
+namespace Station.Infrastructure.DeviceDetection;
 
 /// <summary>
 /// 记录仪接入后台监听：UMS/MTP 设备接入稳定后 → 识别归属（ini/台账）→
@@ -19,23 +21,27 @@ public sealed class RecorderConnectWatcherHostedService : BackgroundService
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly CollectOptions _options;
     private readonly IReadOnlyList<IRecorderDeviceDetector> _detectors;
+    private readonly IUsbPortCardEventService _eventService;
     private readonly ILogger<RecorderConnectWatcherHostedService> _logger;
 
     public RecorderConnectWatcherHostedService(
         IServiceScopeFactory scopeFactory,
         CollectOptions options,
         IEnumerable<IRecorderDeviceDetector> detectors,
+        IUsbPortCardEventService eventService,
+        IDevicePresenceService devicePresenceService,
         ILogger<RecorderConnectWatcherHostedService> logger)
     {
         _scopeFactory = scopeFactory;
         _options = options;
         _detectors = detectors.ToList();
+        _eventService = eventService;
         _logger = logger;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        var monitor = new RecorderConnectMonitor(_options, _detectors, HandleConnectAsync);
+        var monitor = new RecorderConnectMonitor(_options, _detectors, HandleConnectAsync, HandleDisconnectAsync, _eventService);
         while (!stoppingToken.IsCancellationRequested)
         {
             try
@@ -62,6 +68,11 @@ public sealed class RecorderConnectWatcherHostedService : BackgroundService
         }
     }
 
+    /// <summary>
+    /// 设备连接处理句柄
+    /// </summary>
+    /// <param name="device"></param>
+    /// <returns></returns>
     private async Task HandleConnectAsync(DetectedDevice device)
     {
         using var scope = _scopeFactory.CreateScope();
@@ -107,6 +118,26 @@ public sealed class RecorderConnectWatcherHostedService : BackgroundService
                 Detail = $"{device.Name}：{ex.Message}",
                 Source = device.Key
             });
+        }
+    }
+
+    /// <summary>
+    /// 设备断开连接处理句柄
+    /// </summary>
+    /// <param name="device"></param>
+    /// <returns></returns>
+    private async Task HandleDisconnectAsync(DetectedDevice device)
+    {
+        using var scope = _scopeFactory.CreateScope();
+        var collect = scope.ServiceProvider.GetRequiredService<ICollectTaskService>();
+        _logger.LogWarning("记录仪断开：{DeviceName}（{Key}）", device.Name, device.Key);
+
+        // 自动中断该设备上正在运行的采集任务
+        var activeTasks = await collect.GetActiveTasksAsync();
+        var runningTask = activeTasks.FirstOrDefault(t => t.RecorderName == device.Name);
+        if (runningTask is not null)
+        {
+            await collect.InterruptAsync(runningTask.TaskId, "记录仪物理断开");
         }
     }
 }

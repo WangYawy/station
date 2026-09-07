@@ -6,7 +6,7 @@ namespace Station.Domain.Entities;
 
 /// <summary>
 /// 采集任务：一次记录仪连接对应一个任务。
-/// 记录 扫描/采集 进度、速度、操作人、任务结果；同步状态由上传阶段（M8）补充。
+/// 记录 扫描/采集 进度、速度、操作人、任务结果；同步状态由上传阶段补充。
 /// </summary>
 [SugarTable("station_collect_task")]
 [SugarIndex("idx_collect_task_status", nameof(Status), OrderByType.Asc)]

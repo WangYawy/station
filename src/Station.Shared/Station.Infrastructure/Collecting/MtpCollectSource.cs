@@ -4,9 +4,10 @@ using System.Runtime.Versioning;
 using System.Text;
 using Station.Application.Collecting;
 using Station.Application.Recorders;
+using Station.Domain.Collecting;
 using Vanara.PInvoke;
 
-namespace Station.Desktop.Infrastructure.Collecting;
+namespace Station.Infrastructure.Collecting;
 
 /// <summary>
 /// 真实 MTP（媒体传输协议）采集源：通过 Windows 便携设备 API（WPD）枚举/读取/擦除 MTP 记录仪。

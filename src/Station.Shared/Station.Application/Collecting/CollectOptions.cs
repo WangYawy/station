@@ -20,7 +20,7 @@ public sealed class CollectOptions
     /// 采集源模式：simulated（开发默认）/ ums|mtp（真实设备模式）。
     /// 真实模式下按设备实际协议逐台路由（UMS/MTP 可混合接入）。
     /// </summary>
-    public string SourceMode { get; set; } = "simulated";
+    public string SourceMode { get; set; } = "real"; // simulated
 
     /// <summary>UMS 根目录覆盖（开发/测试用；为空时自动枚举可移动磁盘）。</summary>
     public string? UmsRootOverride { get; set; }

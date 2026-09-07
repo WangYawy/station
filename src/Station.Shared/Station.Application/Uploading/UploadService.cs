@@ -19,12 +19,13 @@ public sealed class UploadService : IUploadService
     private readonly IStorageConfiguration _storageConfig;
     private readonly ILogger<UploadService> _logger;
     private readonly IFileEncryptionService _decryptionService;
+    private readonly IDirectoryTemplateRenderer _renderer;
 
     public UploadService(
         ILoopRepository<CollectTask> taskRepo,
         ILoopRepository<CollectFile> fileRepo,
         IStorageService storageService,
-        //IDirectoryTemplateRenderer renderer,
+        IDirectoryTemplateRenderer renderer,
         IFileEncryptionService decryptionService,
         CollectOptions collectOptions,
         IStorageConfiguration storageConfig,
@@ -33,7 +34,7 @@ public sealed class UploadService : IUploadService
         _taskRepo = taskRepo;
         _fileRepo = fileRepo;
         _storageService = storageService;
-        //_renderer = renderer;
+        _renderer = renderer;
         _collectOptions = collectOptions;
         _decryptionService = decryptionService;
         _storageConfig = storageConfig;
@@ -104,7 +105,7 @@ public sealed class UploadService : IUploadService
             _fileRepo.Update(file);
 
             // 渲染远程目录
-            var remoteDir = DirectoryTemplateRenderer.Render(
+            var remoteDir = _renderer.Render(
                 _storageConfig.DirectoryTemplate,
                 _storageConfig.StationNo,
                 task.CreatedAt,

@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Options;
 using Station.Application.Collecting;
+using Station.Domain.Collecting;
 
 namespace Station.Infrastructure.Collecting;
 
@@ -30,7 +31,7 @@ public sealed class UmsCollectSource : ICollectSource
             return Task.FromResult<IReadOnlyList<SourceFileInfo>>([]);
         }
 
-        var list = Directory.GetFiles(root)
+        var list = Directory.GetFiles(root, "*", SearchOption.AllDirectories)
             .Select(path =>
             {
                 var info = new FileInfo(path);
