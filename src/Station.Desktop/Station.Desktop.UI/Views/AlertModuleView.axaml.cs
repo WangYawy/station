@@ -1,6 +1,6 @@
 using Avalonia.Controls;
 
-namespace Station.Desktop.UI.Views;
+namespace Station.Desktop.Views;
 
 public partial class AlertModuleView : UserControl
 {

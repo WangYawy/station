@@ -13,7 +13,7 @@ using Station.Desktop.Application.Session;
 using Station.Domain.Entities;
 using Station.Domain.Enums;
 
-namespace Station.Desktop.UI.ViewModels;
+namespace Station.Desktop.ViewModels;
 
 /// <summary>
 /// 工作台：USB 采集通道卡片（行数/每行卡片数/卡片宽高可配置）+ 统计 + 本机监控。
@@ -35,9 +35,6 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
     private readonly DispatcherTimer _heartbeatTimer;   // 兜底刷新（5秒）
     private readonly DispatcherTimer _monitorTimer;     // 系统监控定时器（2秒）
     private readonly DispatcherTimer _licenseTimer;     // 授权刷新（30秒）
-
-    private int _monitorTicks;
-    private int _licenseTicks;
 
     /// <summary>
     /// 端口卡片集合
@@ -118,6 +115,8 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
         _eventService.TaskStatusChanged += OnTaskStatusChanged;
         _eventService.DeviceConnected += OnDeviceConnected;
         _eventService.DeviceDisconnected += OnDeviceDisconnected;
+        _eventService.DeviceBound += OnDeviceBound;
+        _eventService.DeviceRejected += OnDeviceRejected;
 
         // 2. 初始化卡片集合（根据配置创建空卡片）
         PortCards = [];
@@ -152,15 +151,15 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
 
     }
 
-    // ---- 事件处理方法（UI线程调度） ----
+    #region  // ---- 事件处理方法（UI线程调度） ----
 
     private void OnTaskProgressUpdated(object? sender, TaskProgressUpdatedEvent e)
     {
-        Dispatcher.UIThread.InvokeAsync(() =>
+        Dispatcher.UIThread.Post(() =>
         {
             var card = FindCardByTaskId(e.TaskId);
             card?.UpdateProgress(e.Progress, e.SpeedBytesPerSecond);
-        });
+        }, DispatcherPriority.Background);
     }
 
     private void OnTaskStatusChanged(object? sender, TaskStatusChangedEvent e)
@@ -176,7 +175,6 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
             }
         });
     }
-
     private void OnDeviceConnected(object? sender, DeviceConnectedEvent e)
     {
         Dispatcher.UIThread.InvokeAsync(() =>
@@ -186,6 +184,9 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
             if (card is not null)
             {
                 card.SetDeviceOnline(e.DeviceKey, e.DeviceName, e.Protocol);
+                card.StatusText = "验证中...";
+                card.StatusBadgeBrush = "#fef9c3"; // 黄色
+                card.StatusForeground = "#854d0e";
             }
             // 没有空闲卡片则忽略（或记录日志）
         });
@@ -203,6 +204,41 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
             }
         });
     }
+
+    // 绑定成功 -> 更新为已绑定，准备采集
+    private void OnDeviceBound(object? sender, DeviceBoundEvent e)
+    {
+        Dispatcher.UIThread.InvokeAsync(() =>
+        {
+            var card = FindCardByDeviceKey(e.DeviceKey);
+            if (card is not null)
+            {
+                card.StatusText = "已绑定";
+                card.StatusBadgeBrush = "#dcfce7"; // 绿色
+                card.StatusForeground = "#166534";
+            }
+            // 采集任务启动会在后台完成，卡片会通过 TaskStatusChanged 事件再次更新
+        });
+    }
+
+    // 绑定失败 -> 显示错误
+    private void OnDeviceRejected(object? sender, DeviceRejectedEvent e)
+    {
+        Dispatcher.UIThread.InvokeAsync(() =>
+        {
+            var card = FindCardByDeviceKey(e.DeviceKey);
+            if (card is not null)
+            {
+                card.StatusText = "拒绝接入";
+                card.StatusBadgeBrush = "#fee2e2"; // 红色
+                card.StatusForeground = "#991b1b";
+                card.MetaText = e.Reason;
+                card.CanPriority = card.CanPause = false; // 禁用所有操作
+            }
+        });
+    }
+
+    #endregion
 
     // ---- 辅助查找方法 ----
 

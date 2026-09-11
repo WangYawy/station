@@ -2,7 +2,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Threading;
 
-namespace Station.Desktop.UI.Views;
+namespace Station.Desktop.Views;
 
 /// <summary>新报警弹窗：右下角置顶提示，6 秒自动关闭，点击跳转报警中心。</summary>
 public partial class AlertPopupWindow : Window

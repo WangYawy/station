@@ -1,6 +1,6 @@
 using Avalonia;
 
-namespace Station.Desktop.UI;
+namespace Station.Desktop;
 
 internal static class Program
 {

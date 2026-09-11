@@ -19,15 +19,15 @@ using Station.Contracts;
 using Station.Desktop.Application.OperationAccess;
 using Station.Desktop.Application.Session;
 using Station.Desktop.Application.Settings;
-using Station.Desktop.UI.Services;
-using Station.Desktop.UI.ViewModels;
+using Station.Desktop.Services;
+using Station.Desktop.ViewModels;
 using Station.Desktop.WebHost.Settings;
 using Station.Domain.Collecting;
 using Station.Domain.Entities;
 using Station.Domain.Repositories;
 using Station.Infrastructure.Repositories;
 
-namespace Station.Desktop.UI.Views;
+namespace Station.Desktop.Views;
 
 public partial class ShellWindow : Window
 {

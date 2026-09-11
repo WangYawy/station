@@ -9,7 +9,7 @@ using Station.Contracts;
 using Station.Desktop.Application.Session;
 using Station.Domain.Collecting;
 
-namespace Station.Desktop.UI.ViewModels;
+namespace Station.Desktop.ViewModels;
 
 public sealed record CollectTaskItemViewModel(
     long TaskId,

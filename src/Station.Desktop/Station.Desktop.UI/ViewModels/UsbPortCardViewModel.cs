@@ -5,7 +5,7 @@ using Station.Application.UsbPortCard;
 using Station.Contracts;
 using Station.Domain.Enums;
 
-namespace Station.Desktop.UI.ViewModels;
+namespace Station.Desktop.ViewModels;
 
 /// <summary>
 /// 工作台 30 路 USB 采集通道卡片：实时反映该端口当前任务（采集中/已暂停/空闲），

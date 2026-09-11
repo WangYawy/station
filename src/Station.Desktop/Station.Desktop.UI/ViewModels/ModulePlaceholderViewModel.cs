@@ -1,6 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 
-namespace Station.Desktop.UI.ViewModels;
+namespace Station.Desktop.ViewModels;
 
 public partial class ModulePlaceholderViewModel : ObservableObject
 {

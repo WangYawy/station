@@ -1,7 +1,7 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:app="using:Station.Application.Collecting"
-        x:Class="Station.Desktop.UI.Views.TaskFilesWindow"
+        x:Class="Station.Desktop.Views.TaskFilesWindow"
         Width="640" Height="500"
         WindowStartupLocation="CenterOwner"
         Title="任务文件明细">

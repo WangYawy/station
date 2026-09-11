@@ -1,7 +1,7 @@
 <Project>
   <!--
-    桌面端产品版本号（独立于平台端）。
-    发布时递增本文件中的 <Version>，并打标签 desktop-vX.Y.Z（见 release.yml）。
+    共享层（Station.Shared）版本号：两端共同消费的契约层。
+    仅当契约出现不兼容变更时递增；两端产品各自版本见各自目录的 Directory.Build.props。
   -->
   <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)..\'))" />
   <PropertyGroup>

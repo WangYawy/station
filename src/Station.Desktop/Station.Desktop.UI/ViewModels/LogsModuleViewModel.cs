@@ -2,7 +2,7 @@ using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Station.Application.Audit;
 
-namespace Station.Desktop.UI.ViewModels;
+namespace Station.Desktop.ViewModels;
 
 public sealed record AuditLogRow(
     string TimeText,

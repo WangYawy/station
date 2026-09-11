@@ -1,6 +1,6 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        x:Class="Station.Desktop.UI.Views.AlertPopupWindow"
+        x:Class="Station.Desktop.Views.AlertPopupWindow"
         Width="380" Height="112"
         WindowStartupLocation="Manual"
         ShowInTaskbar="False"

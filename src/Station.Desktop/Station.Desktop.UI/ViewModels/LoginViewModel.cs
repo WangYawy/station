@@ -3,7 +3,7 @@ using CommunityToolkit.Mvvm.Input;
 using Station.Application.Authentication;
 using Station.Desktop.Application.Session;
 
-namespace Station.Desktop.UI.ViewModels;
+namespace Station.Desktop.ViewModels;
 
 public partial class LoginViewModel : ObservableObject
 {

@@ -6,7 +6,7 @@ using Station.Application.Alerts;
 using Station.Contracts;
 using Station.Desktop.Application.Session;
 
-namespace Station.Desktop.UI.ViewModels;
+namespace Station.Desktop.ViewModels;
 
 public sealed record AlertItemViewModel(
     long Id,

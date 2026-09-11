@@ -1,7 +1,7 @@
 using Avalonia.Controls;
 using Station.Application.Collecting;
 
-namespace Station.Desktop.UI.Views;
+namespace Station.Desktop.Views;
 
 public partial class TaskFilesWindow : Window
 {

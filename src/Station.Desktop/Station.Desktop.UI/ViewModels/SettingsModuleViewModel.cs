@@ -10,7 +10,7 @@ using Station.Desktop.Application.Settings;
 using Station.Desktop.WebHost.Settings;
 using Station.Infrastructure.Persistence;
 
-namespace Station.Desktop.UI.ViewModels;
+namespace Station.Desktop.ViewModels;
 
 /// <summary>
 /// 桌面端设置模块：基本/存储/采集/网络/授权/自检（对应单机版 Web 设置页）。

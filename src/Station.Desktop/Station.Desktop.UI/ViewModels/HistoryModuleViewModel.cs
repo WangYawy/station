@@ -3,7 +3,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using Station.Application.Collecting;
 using Station.Domain.Enums;
 
-namespace Station.Desktop.UI.ViewModels;
+namespace Station.Desktop.ViewModels;
 
 public sealed record HistoryTaskRow(
     long TaskId,

@@ -1,6 +1,6 @@
 using System.Diagnostics;
 
-namespace Station.Desktop.UI.Services;
+namespace Station.Desktop.Services;
 
 /// <summary>新报警声音提示：Windows 用控制台蜂鸣，Linux 尽力用 paplay/aplay 播放生成的提示音。</summary>
 public static class DesktopAlertSound

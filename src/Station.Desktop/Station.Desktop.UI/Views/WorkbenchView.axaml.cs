@@ -2,9 +2,9 @@ using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
 using Station.Application.Collecting;
-using Station.Desktop.UI.ViewModels;
+using Station.Desktop.ViewModels;
 
-namespace Station.Desktop.UI.Views;
+namespace Station.Desktop.Views;
 
 public partial class WorkbenchView : UserControl
 {

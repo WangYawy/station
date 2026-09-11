@@ -1,7 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:vm="using:Station.Desktop.UI.ViewModels"
-             x:Class="Station.Desktop.UI.Views.ModulePlaceholderView"
+             xmlns:vm="using:Station.Desktop.ViewModels"
+             x:Class="Station.Desktop.Views.ModulePlaceholderView"
              x:DataType="vm:ModulePlaceholderViewModel">
   <StackPanel Margin="32" Spacing="12" VerticalAlignment="Center" HorizontalAlignment="Center">
     <TextBlock Text="{Binding Title}" FontSize="26" FontWeight="Bold" Foreground="#0a2f6c"

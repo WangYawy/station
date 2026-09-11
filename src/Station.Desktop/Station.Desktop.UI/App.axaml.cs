@@ -4,9 +4,9 @@ using Avalonia.Markup.Xaml;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Station.Desktop.Bootstrapper;
-using Station.Desktop.UI.Views;
+using Station.Desktop.Views;
 
-namespace Station.Desktop.UI;
+namespace Station.Desktop;
 
 public partial class App : Avalonia.Application
 {

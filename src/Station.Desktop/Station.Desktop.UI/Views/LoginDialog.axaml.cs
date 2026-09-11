@@ -1,8 +1,8 @@
 using Avalonia.Controls;
 using Avalonia.Interactivity;
-using Station.Desktop.UI.ViewModels;
+using Station.Desktop.ViewModels;
 
-namespace Station.Desktop.UI.Views;
+namespace Station.Desktop.Views;
 
 public partial class LoginDialog : Window
 {

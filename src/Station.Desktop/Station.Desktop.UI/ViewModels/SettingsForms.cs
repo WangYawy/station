@@ -1,6 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 
-namespace Station.Desktop.UI.ViewModels;
+namespace Station.Desktop.ViewModels;
 
 /// <summary>基本设置表单（本机编号只读）。</summary>
 public partial class BasicSettingsForm : ObservableObject

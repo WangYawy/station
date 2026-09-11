@@ -1,7 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:vm="using:Station.Desktop.UI.ViewModels"
-             x:Class="Station.Desktop.UI.Views.LogsModuleView"
+             xmlns:vm="using:Station.Desktop.ViewModels"
+             x:Class="Station.Desktop.Views.LogsModuleView"
              x:DataType="vm:LogsModuleViewModel">
   <Grid RowDefinitions="Auto,*,Auto" Margin="16" RowSpacing="12">
     <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="12">

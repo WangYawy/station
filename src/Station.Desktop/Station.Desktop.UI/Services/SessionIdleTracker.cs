@@ -3,7 +3,7 @@ using Avalonia.Input;
 using Station.Application.Authentication;
 using Station.Desktop.Application.Session;
 
-namespace Station.Desktop.UI.Services;
+namespace Station.Desktop.Services;
 
 /// <summary>
 /// 会话空闲追踪：无操作达到配置时长（默认 1 分钟）自动退出登录；

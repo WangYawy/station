@@ -3,7 +3,6 @@ using Microsoft.AspNetCore.Mvc;
 using Station.Application.Audit;
 using Station.Application.Alerts;
 using Station.Application.Authorization;
-using Station.Application.Collecting;
 using Station.Application.Recorders;
 using Station.Application.Users;
 using Station.Contracts;
@@ -23,7 +22,7 @@ public class StandaloneAdminController : ControllerBase
     private readonly IUserService _users;
     private readonly IRecorderService _recorders;
     private readonly IAlertService _alerts;
-    private readonly ICollectSource _source;
+    private readonly ICollectSourceProvider _sourceProvider;
     private readonly IRepository<Account> _accounts;
     private readonly IAuditLogService _audit;
     private readonly AuthService _authorization;
@@ -33,7 +32,7 @@ public class StandaloneAdminController : ControllerBase
         IUserService users,
         IRecorderService recorders,
         IAlertService alerts,
-        ICollectSource source,
+        ICollectSourceProvider sourceProvider,
         IRepository<Account> accounts,
         IAuditLogService audit,
         AuthService authorization,
@@ -42,7 +41,7 @@ public class StandaloneAdminController : ControllerBase
         _users = users;
         _recorders = recorders;
         _alerts = alerts;
-        _source = source;
+        _sourceProvider = sourceProvider;
         _accounts = accounts;
         _audit = audit;
         _authorization = authorization;
@@ -262,7 +261,7 @@ public class StandaloneAdminController : ControllerBase
 
         try
         {
-            var root = _source.GetRecorderRoot(
+            var root = _sourceProvider.GetFor(recorder.Protocol).GetRecorderRoot(
                 new CollectDeviceInfo(recorder.SerialNumber, recorder.SerialNumber, recorder.Protocol));
             await _recorders.WriteBindingAsync(recorder.SerialNumber, request.UserId, request.DeptId, root);
             await _audit.WriteAsync(new AuditLog
