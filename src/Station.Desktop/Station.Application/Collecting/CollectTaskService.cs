@@ -43,6 +43,9 @@ public sealed class CollectTaskService : ICollectTaskService
     private readonly IFileEncryptionService _encryptionService;
     private readonly IUsbPortCardEventService _eventService;
 
+    // 上次已发布状态，避免重复事件
+    private readonly ConcurrentDictionary<long, CollectTaskStatus> _lastPublishedStatus = new();
+
     public CollectTaskService(
         IRepository<CollectTask> tasks,
         IRepository<CollectFile> files,
@@ -122,7 +125,7 @@ public sealed class CollectTaskService : ICollectTaskService
         task.StartedAt ??= DateTime.Now;
         task.ErrorMessage = null;
         await _tasks.UpdateAsync(task);
-        _eventService.PublishTaskStatus(taskId, task.Status, false);
+        PublishStatusIfChanged(taskId, task.Status, task.IsEmergency);
 
         var device = new CollectDeviceInfo(
             task.RecorderName, task.RecorderSerial, task.Protocol,
@@ -194,7 +197,7 @@ public sealed class CollectTaskService : ICollectTaskService
         task.TotalBytes = accepted.Sum(f => f.Size);
         task.Status = CollectTaskStatus.Collecting;
         await _tasks.UpdateAsync(task);
-        _eventService.PublishTaskStatus(taskId, task.Status, false);
+        PublishStatusIfChanged(taskId, task.Status, task.IsEmergency);
 
         // ==================== 4. 后台启动采集（LongRunning 专用线程，避免线程池饥饿） ====================
         var control = new TaskControl();
@@ -294,6 +297,7 @@ public sealed class CollectTaskService : ICollectTaskService
 
         task.IsEmergency = isEmergency;
         await _tasks.UpdateAsync(task);
+        _eventService.PublishTaskStatus(taskId, task.Status, task.IsEmergency);
         _logger.LogInformation("任务 {TaskId} 紧急优先标记 -> {Value}", taskId, isEmergency);
         return true;
     }
@@ -326,6 +330,15 @@ public sealed class CollectTaskService : ICollectTaskService
     }
 
     // ---------- 内部 ----------
+    /// <summary>仅在状态真正变化时发布（关键：避免每个文件都重复发布 Collecting）</summary>
+    private void PublishStatusIfChanged(long taskId, CollectTaskStatus status, bool isEmergency)
+    {
+        if (_lastPublishedStatus.TryGetValue(taskId, out var last) && last == status)
+            return;
+
+        _lastPublishedStatus[taskId] = status;
+        _eventService.PublishTaskStatus(taskId, status, isEmergency);
+    }
 
     private async Task SetFinalAsync(long taskId, CollectTaskStatus finalStatus, string? reason = null)
     {
@@ -509,7 +522,7 @@ public sealed class CollectTaskService : ICollectTaskService
                 task.CollectedBytes += file.Size;
                 task.Status = CollectTaskStatus.Collecting;
                 taskLoop.Update(task);
-                _eventService.PublishTaskStatus(taskId, task.Status, false);
+                PublishStatusIfChanged(taskId, task.Status, task.IsEmergency);
 
                 control.CurrentFileId = 0;
             }
@@ -554,7 +567,10 @@ public sealed class CollectTaskService : ICollectTaskService
                     shared.CompletedAt = DateTime.Now;
                     shared.ErrorMessage = $"收尾异常：{ex.Message}";
                     await _tasks.UpdateAsync(shared);
-                    _eventService.PublishTaskStatus(taskId, shared.Status, false);
+
+                    PublishStatusIfChanged(taskId, shared.Status, shared.IsEmergency);
+                    _lastPublishedStatus.TryRemove(taskId, out _);
+
                     _logger.LogError(ex, "采集任务 {TaskId} 收尾异常（记录仪 {Recorder}）", taskId, task?.RecorderName);
                 }
             }
@@ -565,8 +581,7 @@ public sealed class CollectTaskService : ICollectTaskService
         }
     }
 
-    private void FinalizeAsync(long taskId, TaskControl control, ILoopRepository<CollectTask> taskLoop,
-    ILoopRepository<CollectFile> fileLoop)
+    private void FinalizeAsync(long taskId, TaskControl control, ILoopRepository<CollectTask> taskLoop, ILoopRepository<CollectFile> fileLoop)
     {
         var task = taskLoop.GetById(taskId);
         if (task is null)
@@ -596,7 +611,8 @@ public sealed class CollectTaskService : ICollectTaskService
             task.Status = CollectTaskStatus.Paused;
             taskLoop.Update(task);
             _controls.TryRemove(taskId, out _);
-            _eventService.PublishTaskStatus(taskId, task.Status, false); // 发布采集任务状态事件
+            PublishStatusIfChanged(taskId, task.Status, task.IsEmergency);
+            _lastPublishedStatus.TryRemove(taskId, out _);
             _logger.LogInformation("采集任务 {TaskId} 已暂停", taskId);
             return;
         }
@@ -626,7 +642,8 @@ public sealed class CollectTaskService : ICollectTaskService
 
         taskLoop.Update(task);
         _controls.TryRemove(taskId, out _);
-        _eventService.PublishTaskStatus(taskId, task.Status, false); // 发布采集任务状态事件
+        PublishStatusIfChanged(taskId, task.Status, task.IsEmergency);
+        _lastPublishedStatus.TryRemove(taskId, out _);
         _logger.LogInformation("采集任务 {TaskId} 结束：{Status}（文件 {Total}/{Collected}）",
             taskId, task.Status, task.TotalFiles, task.CollectedFiles);
 

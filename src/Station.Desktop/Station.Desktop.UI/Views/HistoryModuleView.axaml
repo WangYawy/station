@@ -74,6 +74,6 @@
       </Border>
     </Grid>
 
-    <TextBlock Grid.Row="2" Text="{Binding IsLoading, StringFormat={}{0}}" FontSize="0" />
+    <TextBlock Grid.Row="2" Text="{Binding IsLoading, StringFormat={}{0}}" FontSize="1" />
   </Grid>
 </UserControl>

@@ -6,7 +6,7 @@ using Station.Application.Collecting;
 using Station.Application.Recorders;
 using Station.Application.Uploading;
 using Station.Contracts;
-using Station.Desktop.Application.Session;
+using Station.Application.Session;
 using Station.Domain.Collecting;
 
 namespace Station.Desktop.ViewModels;

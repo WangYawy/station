@@ -1,116 +1,88 @@
+using System.Collections.Concurrent;
 using System.Collections.ObjectModel;
+using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Station.Application.Collecting;
 using Station.Application.Licensing;
+using Station.Application.Monitoring;
+using Station.Application.OperationAccess;
+using Station.Application.Session;
 using Station.Application.Settings;
 using Station.Application.Uploading;
 using Station.Application.UsbPortCard;
 using Station.Application.UsbPortCard.Events;
-using Station.Desktop.Application.Monitoring;
-using Station.Desktop.Application.OperationAccess;
-using Station.Desktop.Application.Session;
+using Station.Desktop.Views;
 using Station.Domain.Entities;
 using Station.Domain.Enums;
 
 namespace Station.Desktop.ViewModels;
 
 /// <summary>
-/// 工作台：USB 采集通道卡片（行数/每行卡片数/卡片宽高可配置）+ 统计 + 本机监控。
+/// 工作台：USB 采集通道卡片（行数/每行卡片数/卡片宽高可配置）。
 /// 卡片实时反映各端口当前任务（采集中/已暂停/空闲），支持暂停/恢复/取消/重试/查看明细。
 /// </summary>
 public partial class WorkbenchViewModel : ObservableObject, IDisposable
 {
     private readonly ISessionManager _sessions;
     private readonly ICollectTaskService _collectService;
-    private readonly IUploadService _uploadService;
-    private readonly ILicenseService _license;
     private readonly IOperationAccessService _operationAccess;
-    private readonly IUsbPortCardService _cardService;          // 查询服务（快照）
-    private readonly IUsbPortCardEventService _eventService;    // 事件聚合器
+    private readonly IUsbPortCardService _cardService;
+    private readonly IUsbPortCardEventService _eventService;
+    private readonly WindowModeOptions _options;
+    // 心跳
+    private readonly DispatcherTimer _heartbeatTimer;
+    private int _refreshing; // 0/1 标记，防止心跳重入
 
-    private readonly CollectOptions _collectOptions;
-    private readonly WorkbenchOptions _workbench;
-    private readonly SystemMonitorService _monitor;
-    private readonly DispatcherTimer _heartbeatTimer;   // 兜底刷新（5秒）
-    private readonly DispatcherTimer _monitorTimer;     // 系统监控定时器（2秒）
-    private readonly DispatcherTimer _licenseTimer;     // 授权刷新（30秒）
+    // 进度事件
+    private readonly ConcurrentDictionary<long, ProgressSnapshot> _progressBuffer = new();
+    private readonly DispatcherTimer _progressFlushTimer;
+    private readonly record struct ProgressSnapshot(double Percent, double SpeedBytesPerSecond);
 
-    /// <summary>
-    /// 端口卡片集合
-    /// </summary>
+    #region 卡片布局 
     public ObservableCollection<UsbPortCardViewModel> PortCards { get; }
 
-    // 布局配置
-    [ObservableProperty]
-    private int _columns = 5;
+    [ObservableProperty] private int _columns = 5;
+    [ObservableProperty] private int _rows = 6;
+    [ObservableProperty] private bool _canOperate;
 
-    [ObservableProperty]
-    private double _cardWidth = 240;
+    /// <summary>由 WorkbenchView 根据窗口尺寸计算得到的卡片宽度（px）</summary>
+    [ObservableProperty] private double _cardWidth = 240;
 
-    [ObservableProperty]
-    private double _cardHeight = 200;
+    /// <summary>由 WorkbenchView 根据窗口尺寸计算得到的卡片高度（px）</summary>
+    [ObservableProperty] private double _cardHeight = 80;
+    /// <summary>由 View 计算的网格总高度，用于给 UniformGrid 一个确定约束</summary>
+    [ObservableProperty] private double _gridHeight;
 
-    // 状态栏
-    [ObservableProperty]
-    private string _onlineText = "加载中…";
+    /// <summary>卡片最小宽度（来自 WindowModeOptions 配置）</summary>
+    public double MinCardWidth => _options.MinCardWidth;
 
-    [ObservableProperty]
-    private string _todayText = "—";
+    /// <summary>卡片最小高度（来自 WindowModeOptions 配置）</summary>
+    public double MinCardHeight => _options.MinCardHeight;
 
-    [ObservableProperty]
-    private string _pendingUploadText = "—";
-
-    [ObservableProperty]
-    private string _portStatsText = "采集中 0 · 已暂停 0 · 空闲 30";
-
-    [ObservableProperty]
-    private string _statusMessage = string.Empty;
-
-    // 系统监控
-    [ObservableProperty]
-    private string _cpuText = "—";
-
-    [ObservableProperty]
-    private string _memText = "—";
-
-    [ObservableProperty]
-    private string _diskText = "—";
-
-    [ObservableProperty]
-    private string _netText = "—";
-
-    [ObservableProperty]
-    private string _portsText = "—";
-
-    [ObservableProperty]
-    private string _deviceText = "—";
-
-    [ObservableProperty]
-    private bool _canOperate;
+    #endregion
 
     public WorkbenchViewModel(
         ISessionManager sessions,
         ICollectTaskService collectService,
-        IUploadService uploadService,
-        ILicenseService license,
         IOperationAccessService operationAccess,
         IUsbPortCardService cardService,
         IUsbPortCardEventService eventService,
-        CollectOptions collectOptions,
-        WorkbenchOptions workbench)
+        WindowModeOptions options)
     {
         _sessions = sessions;
         _collectService = collectService;
-        _uploadService = uploadService;
-        _license = license;
         _operationAccess = operationAccess;
         _cardService = cardService;
         _eventService = eventService;
-        _collectOptions = collectOptions;
-        _workbench = workbench;
+        _options = options;
 
-        // 1. 订阅事件
+        Columns = Math.Clamp(options.Columns, 1, 10);
+        Rows = Math.Clamp(options.Rows, 1, 10);
+        // 卡片初始尺寸取最小宽高，后续由 View 按实际可用空间刷新
+        CardWidth = options.MinCardWidth;
+        CardHeight = options.MinCardHeight;
+
         _eventService.TaskProgressUpdated += OnTaskProgressUpdated;
         _eventService.TaskStatusChanged += OnTaskStatusChanged;
         _eventService.DeviceConnected += OnDeviceConnected;
@@ -118,127 +90,109 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
         _eventService.DeviceBound += OnDeviceBound;
         _eventService.DeviceRejected += OnDeviceRejected;
 
-        // 2. 初始化卡片集合（根据配置创建空卡片）
         PortCards = [];
         EnsureCardLayout();
 
-        // 3. 会话权限
         _sessions.SessionChanged += OnSessionChanged;
         OnSessionChanged();
-        // 4. 系统监控（每2秒刷新一次）
-        _monitor = new SystemMonitorService(collectOptions);
-        _monitorTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
-        _monitorTimer.Tick += (_, _) => RefreshMonitor();
-        _monitorTimer.Start();
-        // 5. 授权刷新（每30秒）
-        _licenseTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(30) };
-        _licenseTimer.Tick += async (_, _) => await RefreshLicenseAsync();
-        _licenseTimer.Start();
-        // 6. 心跳兜底（每5秒全量刷新）
+
         _heartbeatTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(5) };
-        _heartbeatTimer.Tick += async (_, _) => await RefreshSnapshotAsync();
+        _heartbeatTimer.Tick += async (_, _) =>
+        {
+            await RefreshSnapshotAsync();
+            // 上一次快照尚未返回时跳过本次，避免堆积
+            if (Interlocked.CompareExchange(ref _refreshing, 1, 0) != 0) return;
+            try { await RefreshSnapshotAsync(); }
+            finally { Interlocked.Exchange(ref _refreshing, 0); }
+        };
         _heartbeatTimer.Start();
 
-        // 7. 首次加载：获取今日统计、待上传数量
-        _ = RefreshTodayAsync();
-        _ = RefreshPendingUploadAsync();
-        // 首次快照加载
-        _ = RefreshSnapshotAsync();
-        // 首次授权监控
-        _ = RefreshLicenseAsync();
-        // 首次系统监控
-        RefreshMonitor();
+        // 进度书信
+        _progressFlushTimer = new DispatcherTimer
+        {
+            Interval = TimeSpan.FromMilliseconds(150)  // 6~7 FPS，人眼足够
+        };
+        _progressFlushTimer.Tick += (_, _) => FlushProgressBuffer();
+        _progressFlushTimer.Start();
 
+
+        _ = RefreshSnapshotAsync();
     }
 
     #region  // ---- 事件处理方法（UI线程调度） ----
 
+    // 高频进度：跨线程只写缓冲区，不触碰 UI
     private void OnTaskProgressUpdated(object? sender, TaskProgressUpdatedEvent e)
+    {
+        _progressBuffer[e.TaskId] = new ProgressSnapshot(e.Progress, e.SpeedBytesPerSecond);
+    }
+
+    // 定时合帧：在 UI 线程统一刷新，30 端口最多 6~7 次/s 更新
+    private void FlushProgressBuffer()
+    {
+        if (_progressBuffer.IsEmpty) return;
+
+        foreach (var kv in _progressBuffer)
+        {
+            if (_progressBuffer.TryRemove(kv.Key, out var snap))
+            {
+                FindCardByTaskId(kv.Key)?.UpdateProgress(snap.Percent, snap.SpeedBytesPerSecond);
+            }
+        }
+    }
+
+    // 状态事件：让服务端保证"只在变化时发布"，客户端直接更新（不需 Post 排队）
+    private void OnTaskStatusChanged(object? sender, TaskStatusChangedEvent e)
+    {
+        if (Dispatcher.UIThread.CheckAccess())
+            ApplyStatus(e);
+        else
+            Dispatcher.UIThread.Post(() => ApplyStatus(e), DispatcherPriority.Normal);
+    }
+    private void ApplyStatus(TaskStatusChangedEvent e) => FindCardByTaskId(e.TaskId)?.UpdateStatus(e.Status, e.IsEmergency);
+
+    private void OnDeviceConnected(object? sender, DeviceConnectedEvent e)
     {
         Dispatcher.UIThread.Post(() =>
         {
-            var card = FindCardByTaskId(e.TaskId);
-            card?.UpdateProgress(e.Progress, e.SpeedBytesPerSecond);
-        }, DispatcherPriority.Background);
-    }
-
-    private void OnTaskStatusChanged(object? sender, TaskStatusChangedEvent e)
-    {
-        Dispatcher.UIThread.InvokeAsync(() =>
-        {
-            var card = FindCardByTaskId(e.TaskId);
-            if (card is not null)
-            {
-                card.UpdateStatus(e.Status, e.IsEmergency);
-                // 更新统计
-                UpdatePortStats();
-            }
-        });
-    }
-    private void OnDeviceConnected(object? sender, DeviceConnectedEvent e)
-    {
-        Dispatcher.UIThread.InvokeAsync(() =>
-        {
             // 找到第一个空闲卡片（IsIdle = true）绑定此设备
-            var card = PortCards.FirstOrDefault(c => c.IsIdle && string.IsNullOrEmpty(c.DeviceKey));
-            if (card is not null)
-            {
-                card.SetDeviceOnline(e.DeviceKey, e.DeviceName, e.Protocol);
-                card.StatusText = "验证中...";
-                card.StatusBadgeBrush = "#fef9c3"; // 黄色
-                card.StatusForeground = "#854d0e";
-            }
-            // 没有空闲卡片则忽略（或记录日志）
-        });
+            var card = PortCards.FirstOrDefault(c => c.LinkState == DeviceLinkState.Offline);
+            if (card is null) return; // 无空闲卡片：忽略（建议后续 logger.LogWarning）
+
+            card.SetDeviceOnline(e.DeviceKey, e.DeviceName, e.Protocol);
+        }, DispatcherPriority.Normal);
     }
 
     private void OnDeviceDisconnected(object? sender, DeviceDisconnectedEvent e)
     {
-        Dispatcher.UIThread.InvokeAsync(() =>
+        Dispatcher.UIThread.Post(() =>
         {
             var card = FindCardByDeviceKey(e.DeviceKey);
-            if (card is not null && card.IsIdle) // 只有空闲设备才清理，正在采集的不清理（由状态事件处理）
-            {
-                card.SetIdle();
-                UpdatePortStats();
-            }
-        });
+            card?.SetDeviceOffline();   // 无任务则一起清空；有任务则保留任务显示
+        }, DispatcherPriority.Normal);
     }
 
     // 绑定成功 -> 更新为已绑定，准备采集
     private void OnDeviceBound(object? sender, DeviceBoundEvent e)
     {
-        Dispatcher.UIThread.InvokeAsync(() =>
+        Dispatcher.UIThread.Post(() =>
         {
-            var card = FindCardByDeviceKey(e.DeviceKey);
-            if (card is not null)
-            {
-                card.StatusText = "已绑定";
-                card.StatusBadgeBrush = "#dcfce7"; // 绿色
-                card.StatusForeground = "#166534";
-            }
-            // 采集任务启动会在后台完成，卡片会通过 TaskStatusChanged 事件再次更新
-        });
+            FindCardByDeviceKey(e.DeviceKey)?.SetBound();
+        }, DispatcherPriority.Normal);
     }
 
     // 绑定失败 -> 显示错误
     private void OnDeviceRejected(object? sender, DeviceRejectedEvent e)
     {
-        Dispatcher.UIThread.InvokeAsync(() =>
+        Dispatcher.UIThread.Post(() =>
         {
-            var card = FindCardByDeviceKey(e.DeviceKey);
-            if (card is not null)
-            {
-                card.StatusText = "拒绝接入";
-                card.StatusBadgeBrush = "#fee2e2"; // 红色
-                card.StatusForeground = "#991b1b";
-                card.MetaText = e.Reason;
-                card.CanPriority = card.CanPause = false; // 禁用所有操作
-            }
-        });
+            FindCardByDeviceKey(e.DeviceKey)?.SetRejected(e.Reason);
+        }, DispatcherPriority.Normal);
     }
 
     #endregion
+
+
 
     // ---- 辅助查找方法 ----
 
@@ -249,7 +203,9 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
 
     private UsbPortCardViewModel? FindCardByDeviceKey(string deviceKey)
     {
-        return PortCards.FirstOrDefault(c => c.TaskNo == deviceKey);
+        return PortCards.FirstOrDefault(c =>
+            !string.IsNullOrEmpty(c.DeviceKey) &&
+            string.Equals(c.DeviceKey, deviceKey, StringComparison.Ordinal));
     }
     // ---- 快照刷新（兜底） ----
 
@@ -263,113 +219,29 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
             {
                 PortCards[i].UpdateFromDto(snapshots[i]);
             }
-            // 更新统计
-            UpdatePortStats();
         }
         catch
         {
             // 静默失败
         }
     }
-    // ---- 今日统计 & 待上传 ----
-
-    private async Task RefreshTodayAsync()
-    {
-        try
-        {
-            var stats = await _cardService.GetTodayStatsAsync();
-            TodayText = $"{stats.FileCount} 个 · {FormatSize(stats.TotalBytes)}";
-        }
-        catch
-        {
-            TodayText = "—";
-        }
-    }
-
-    private async Task RefreshPendingUploadAsync()
-    {
-        try
-        {
-            var count = await _uploadService.CountPendingUploadsAsync();
-            PendingUploadText = count.ToString();
-        }
-        catch
-        {
-            PendingUploadText = "—";
-        }
-    }
-
-    // ---- 端口统计 ----
-
-    private void UpdatePortStats()
-    {
-        var collecting = PortCards.Count(c => c.IsCollecting);
-        var paused = PortCards.Count(c => c.IsPaused);
-        var idle = PortCards.Count(c => c.IsIdle);
-        PortStatsText = $"采集中 {collecting} · 已暂停 {paused} · 空闲 {idle}";
-    }
-
-    // ---- 系统监控 ----
-
-    private void RefreshMonitor()
-    {
-        var lines = _monitor.Snapshot();
-        CpuText = ValueOf(lines, 0);
-        MemText = ValueOf(lines, 1);
-        DiskText = ValueOf(lines, 2);
-        NetText = ValueOf(lines, 3);
-        PortsText = ValueOf(lines, 4);
-        DeviceText = ValueOf(lines, 5);
-    }
-
-    private static string ValueOf(IReadOnlyList<MonitorLine> lines, int index) =>
-        lines.Count > index ? lines[index].Value : "—";
-
-    // ---- 授权刷新 ----
-
-    private async Task RefreshLicenseAsync()
-    {
-        try
-        {
-            var check = await _license.CheckAsync();
-            OnlineText = check.Message;
-        }
-        catch
-        {
-            OnlineText = "授权状态未知";
-        }
-    }
-
     // ---- 卡片布局管理 ----
 
     /// <summary>按配置重建卡片网格（保留已有卡片的设备绑定）</summary>
     private void EnsureCardLayout()
     {
-        var total = Math.Clamp(_workbench.Rows, 1, 10) * Math.Clamp(_workbench.Columns, 1, 10);
-        var width = (double)Math.Clamp(_workbench.CardWidth, 120, 500);
-        var height = (double)Math.Clamp(_workbench.CardHeight, 100, 400);
-
-        if (PortCards.Count == total && Columns == _workbench.Columns && CardWidth == width && CardHeight == height)
-            return;
-
-        Columns = Math.Clamp(_workbench.Columns, 1, 10);
-        CardWidth = width;
-        CardHeight = height;
+        var total = Math.Clamp(Rows, 1, 10) * Math.Clamp(Columns, 1, 10);
+        if (PortCards.Count == total) return;
 
         var existing = PortCards.ToList();
-        var rebuilt = new List<UsbPortCardViewModel>();
+        var rebuilt = new List<UsbPortCardViewModel>(total);
         for (var i = 1; i <= total; i++)
         {
             var card = i <= existing.Count ? existing[i - 1] : CreateCard(i);
-            card.SetCardSize(width, height);
             rebuilt.Add(card);
         }
-
         PortCards.Clear();
-        foreach (var card in rebuilt)
-            PortCards.Add(card);
-
-        UpdatePortStats();
+        foreach (var c in rebuilt) PortCards.Add(c);
     }
 
     private UsbPortCardViewModel CreateCard(int portIndex) => new(
@@ -379,8 +251,7 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
         cancel: c => _ = OperateAsync(c, s => s.CancelAsync(c.TaskId!.Value)),
         retry: c => _ = OperateAsync(c, s => s.StartAsync(c.TaskId!.Value)),
         priority: c => _ = ToggleEmergencyAsync(c),
-        CardWidth,
-        CardHeight);
+        details: c => _ = ShowTaskFilesAsync(c));
 
     // ---- 用户操作（命令） ----
 
@@ -409,20 +280,41 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
         {
             var target = !card.IsEmergency;
             var ok = await _collectService.SetEmergencyAsync(card.TaskId.Value, target);
-            StatusMessage = ok
-                ? target ? $"已设为紧急优先（上限 {_collectOptions.MaxEmergencyTasks}）" : "已取消紧急优先"
-                : $"紧急优先已达上限（{_collectOptions.MaxEmergencyTasks}），请先取消其他优先任务";
+            //StatusMessage = ok
+            //    ? target ? $"已设为紧急优先（上限 {_collectOptions.MaxEmergencyTasks}）" : "已取消紧急优先"
+            //    : $"紧急优先已达上限（{_collectOptions.MaxEmergencyTasks}），请先取消其他优先任务";
             // 状态变更会由事件更新，无需主动刷新
         }
         catch (Exception ex)
         {
-            StatusMessage = $"操作失败：{ex.Message}";
+            //StatusMessage = $"操作失败：{ex.Message}";
         }
     }
     // ---- 其他公共方法 ----
 
     public async Task<IReadOnlyList<CollectFileDto>> GetTaskFilesAsync(long taskId) =>
         await _collectService.GetTaskFilesAsync(taskId);
+
+    /// <summary>
+    /// 打开某张卡片的文件明细窗口。
+    /// </summary>
+    private async Task ShowTaskFilesAsync(UsbPortCardViewModel card)
+    {
+        if (card.TaskId is not { } taskId) return;
+
+        // 取 MainWindow 作为 owner
+        var owner = (Avalonia.Application.Current?.ApplicationLifetime
+                     as IClassicDesktopStyleApplicationLifetime)?.MainWindow;
+        if (owner is null) return;
+
+        IReadOnlyList<CollectFileDto> files;
+        try { files = await GetTaskFilesAsync(taskId); }
+        catch { files = []; }
+
+        var window = new TaskFilesWindow($"{card.PortText} · {card.DeviceText}", files);
+
+        await Dispatcher.UIThread.InvokeAsync(() => window.Show(owner));
+    }
 
     private static string FormatSize(long bytes)
     {
@@ -451,12 +343,15 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
     public void Dispose()
     {
         _sessions.SessionChanged -= OnSessionChanged;
-        _monitorTimer.Stop();
-        _licenseTimer.Stop();
         _heartbeatTimer.Stop();
+        _progressFlushTimer.Stop();
+        _progressBuffer.Clear();
+
         _eventService.TaskProgressUpdated -= OnTaskProgressUpdated;
         _eventService.TaskStatusChanged -= OnTaskStatusChanged;
         _eventService.DeviceConnected -= OnDeviceConnected;
         _eventService.DeviceDisconnected -= OnDeviceDisconnected;
+        _eventService.DeviceBound -= OnDeviceBound;
+        _eventService.DeviceRejected -= OnDeviceRejected;
     }
 }

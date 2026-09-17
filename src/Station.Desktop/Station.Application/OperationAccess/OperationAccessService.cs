@@ -3,15 +3,15 @@ using Station.Application.Authentication;
 using Station.Application.Authorization;
 using Station.Domain.Authorization;
 
-namespace Station.Desktop.Application.OperationAccess;
+namespace Station.Application.OperationAccess;
 
 public sealed class OperationAccessService : IOperationAccessService
 {
     private readonly OperationAuthOptions _options;
 
-    public OperationAccessService(IOptions<OperationAuthOptions> options)
+    public OperationAccessService(OperationAuthOptions options)
     {
-        _options = options.Value;
+        _options = options;
     }
 
     public bool IsLoginRequired(string moduleKey) =>

@@ -1,7 +1,7 @@
 using Avalonia.Controls;
 using Avalonia.Input;
 using Station.Application.Authentication;
-using Station.Desktop.Application.Session;
+using Station.Application.Session;
 
 namespace Station.Desktop.Services;
 

@@ -111,6 +111,13 @@ public sealed class RecorderIdentificationService : IRecorderIdentificationServi
             _bindingFile.Write(recorderRootPath, rewritten with { Signature = signature });
         }
 
+        try
+        {
+            recorder.IsActive = true;
+            await _recorders.UpdateAsync(recorder);
+        }
+        catch { }
+
         return new RecorderIdentifyResult(
             RecorderIdentifyStatus.Bound,
             userId,

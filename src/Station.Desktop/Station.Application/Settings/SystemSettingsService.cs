@@ -24,11 +24,11 @@ public sealed class SystemSettingsService : ISystemSettingsService
     private readonly AuthOptions _auth;
     private readonly PlatformOptions _platform;
     private readonly StationOptions _station;
-    private readonly WorkbenchOptions _workbench;
     private readonly IRuntimeSettingsFile _runtimeFile;
     private readonly ILicenseService _license;
     private readonly IAuditLogService _audit;
     private readonly ILogger<SystemSettingsService> _logger;
+    WindowModeOptions _workbench;
 
     private static readonly string[] VideoExtensions = [".mp4", ".avi", ".flv", ".mov"];
 
@@ -41,7 +41,7 @@ public sealed class SystemSettingsService : ISystemSettingsService
         AuthOptions auth,
         PlatformOptions platform,
         StationOptions station,
-        WorkbenchOptions workbench,
+        WindowModeOptions workbench,
         IRuntimeSettingsFile runtimeFile,
         ILicenseService license,
         IAuditLogService audit,
@@ -93,8 +93,8 @@ public sealed class SystemSettingsService : ISystemSettingsService
             new WorkbenchSettingsDto(
                 _workbench.Rows,
                 _workbench.Columns,
-                _workbench.CardWidth,
-                _workbench.CardHeight,
+               0,
+               0,
                 _collect.MaxEmergencyTasks),
             new LicenseSettingsDto(
                 license.Status.ToString(),
@@ -281,12 +281,12 @@ public sealed class SystemSettingsService : ISystemSettingsService
 
         if (values.TryGetValue("cardWidth", out var width) && int.TryParse(width, out var w))
         {
-            _workbench.CardWidth = Math.Clamp(w, 120, 500);
+            _workbench.MinCardWidth = Math.Clamp(w, 120, 500);
         }
 
         if (values.TryGetValue("cardHeight", out var height) && int.TryParse(height, out var h))
         {
-            _workbench.CardHeight = Math.Clamp(h, 100, 400);
+            _workbench.MinCardHeight = Math.Clamp(h, 100, 400);
         }
 
         if (values.TryGetValue("maxEmergencyTasks", out var emergency) && int.TryParse(emergency, out var e))
@@ -341,8 +341,8 @@ public sealed class SystemSettingsService : ISystemSettingsService
         {
             _workbench.Rows,
             _workbench.Columns,
-            _workbench.CardWidth,
-            _workbench.CardHeight
+            _workbench.MinCardWidth,
+            _workbench.MinCardHeight
         });
         station["Auth"] = JsonSerializer.SerializeToNode(new
         {

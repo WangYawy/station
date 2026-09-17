@@ -1,4 +1,4 @@
-namespace Station.Desktop.Application.OperationAccess;
+namespace Station.Application.OperationAccess;
 
 /// <summary>
 /// 操作权限配置：哪些模块的操作需要登录后才能执行（对应原型"操作权限管理"）。
@@ -12,7 +12,7 @@ public sealed class OperationAuthOptions
     /// <summary>需要登录的模块键集合（workbench/collect/history/logs/settings）。</summary>
     public List<string> RequiredModules { get; set; } =
     [
-        "workbench",
+        //"workbench",
         "collect",
         "history",
         "logs",

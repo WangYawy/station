@@ -1,33 +1,24 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        x:Class="Station.Desktop.Views.ShellWindow"
-        Width="1280" Height="820"
-        MinWidth="1024" MinHeight="680"
-        WindowStartupLocation="CenterScreen"
-        Background="{DynamicResource AppBackground}"
-        Title="视音频数据采集站 · 桌面端">
-
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
+        x:Class="Station.Desktop.Views.ShellWindow2"
+        Title="ShellWindow2">
   <Grid RowDefinitions="Auto,Auto,Auto,*,Auto">
 
     <!-- =================== 顶部导航 =================== -->
-    <!-- 顶栏：去掉 2px 粗边，改成 1px -->
-<Border Grid.Row="0"
-        Height="{DynamicResource ShellTopNavHeight}"
-        Background="{DynamicResource TopNavBackground}"
-        BorderBrush="{DynamicResource TopNavBorder}"
-        BorderThickness="0,0,0,1"
-        Padding="{DynamicResource PaddingTopNav}">
+    <Border Grid.Row="0"
+            Height="{DynamicResource ShellTopNavHeight}"
+            Background="{DynamicResource TopNavBackground}"
+            BorderBrush="{DynamicResource TopNavBorder}"
+            BorderThickness="0,0,0,2"
+            Padding="{DynamicResource PaddingTopNav}">
       <Grid ColumnDefinitions="Auto,*,Auto">
 
-        <!-- 品牌区：图标 + 标题，间距 10，标题字号 14，字重 SemiBold -->
-        <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
-          <PathIcon Data="{StaticResource IconShield}"
-                    Width="22" Height="22"
-                    Foreground="{DynamicResource BrandAccent}"
-                    VerticalAlignment="Center"/>
-          <TextBlock Classes="brand-title" Text="视音频数据采集站"
-                     FontSize="14" FontWeight="SemiBold"
-                     VerticalAlignment="Center"/>
+        <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+          <TextBlock Classes="brand-logo" Text="🛡"/>
+          <TextBlock Classes="brand-title" Text="视音频数据采集站"/>
         </StackPanel>
 
         <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8"

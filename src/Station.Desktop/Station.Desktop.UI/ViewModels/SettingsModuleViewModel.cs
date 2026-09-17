@@ -4,11 +4,9 @@ using CommunityToolkit.Mvvm.Input;
 using Station.Application.Authorization;
 using Station.Application.Licensing;
 using Station.Application.Settings;
-using Station.Desktop.Application.OperationAccess;
-using Station.Desktop.Application.Session;
-using Station.Desktop.Application.Settings;
-using Station.Desktop.WebHost.Settings;
-using Station.Infrastructure.Persistence;
+using Station.Application.OperationAccess;
+using Station.Application.Session;
+using Station.Application.Settings;
 
 namespace Station.Desktop.ViewModels;
 
@@ -19,7 +17,7 @@ namespace Station.Desktop.ViewModels;
 public partial class SettingsModuleViewModel : ObservableObject, IDisposable
 {
     private readonly ISystemSettingsService _settings;
-    private readonly INetworkSettingsService _network;
+    //private readonly INetworkSettingsService _network;
     private readonly ISystemSelfCheckService _selfCheck;
     private readonly ILicenseService _license;
 
@@ -97,14 +95,14 @@ public partial class SettingsModuleViewModel : ObservableObject, IDisposable
 
     public SettingsModuleViewModel(
         ISystemSettingsService settings,
-        INetworkSettingsService network,
+        //INetworkSettingsService network,
         ISystemSelfCheckService selfCheck,
         ILicenseService license,
         ISessionManager sessions,
         IOperationAccessService operationAccess)
     {
         _settings = settings;
-        _network = network;
+        // _network = network;
         _selfCheck = selfCheck;
         _license = license;
 
@@ -120,7 +118,7 @@ public partial class SettingsModuleViewModel : ObservableObject, IDisposable
         try
         {
             var core = await _settings.GetCoreAsync();
-            var network = _network.Get();
+            //var network = _network.Get();
 
             Basic.StationNo = core.Basic.StationNo;
             Basic.InstallLocation = core.Basic.InstallLocation;
@@ -155,14 +153,14 @@ public partial class SettingsModuleViewModel : ObservableObject, IDisposable
             Workbench.CardHeight = core.Workbench.CardHeight;
             Workbench.MaxEmergencyTasks = core.Workbench.MaxEmergencyTasks;
 
-            Network.WebPort = network.WebPort;
-            Network.HttpsPort = network.HttpsPort;
-            Network.EnableLan = network.EnableLan;
-            Network.EnableHttps = network.EnableHttps;
-            Network.AllowHttp = network.AllowHttp;
-            Network.CertificateStatus = network.CertificateStatus;
-            Network.MaxFailedAttempts = network.MaxFailedAttempts;
-            Network.LockoutMinutes = network.LockoutMinutes;
+            //Network.WebPort = network.WebPort;
+            //Network.HttpsPort = network.HttpsPort;
+            //Network.EnableLan = network.EnableLan;
+            //Network.EnableHttps = network.EnableHttps;
+            //Network.AllowHttp = network.AllowHttp;
+            //Network.CertificateStatus = network.CertificateStatus;
+            //Network.MaxFailedAttempts = network.MaxFailedAttempts;
+            //Network.LockoutMinutes = network.LockoutMinutes;
 
             LicenseStatus = core.License.Message;
             IsReadOnly = core.ReadOnly;
@@ -268,17 +266,17 @@ public partial class SettingsModuleViewModel : ObservableObject, IDisposable
     {
         try
         {
-            var hints = _network.Update(new Dictionary<string, string>
-            {
-                ["webPort"] = Network.WebPort.ToString(),
-                ["httpsPort"] = Network.HttpsPort.ToString(),
-                ["enableLan"] = Network.EnableLan.ToString(),
-                ["enableHttps"] = Network.EnableHttps.ToString(),
-                ["allowHttp"] = Network.AllowHttp.ToString(),
-                ["maxFailedAttempts"] = Network.MaxFailedAttempts.ToString(),
-                ["lockoutMinutes"] = Network.LockoutMinutes.ToString()
-            });
-            StatusMessage = hints.Count > 0 ? string.Join("；", hints) : "保存成功";
+            //var hints = _network.Update(new Dictionary<string, string>
+            //{
+            //    ["webPort"] = Network.WebPort.ToString(),
+            //    ["httpsPort"] = Network.HttpsPort.ToString(),
+            //    ["enableLan"] = Network.EnableLan.ToString(),
+            //    ["enableHttps"] = Network.EnableHttps.ToString(),
+            //    ["allowHttp"] = Network.AllowHttp.ToString(),
+            //    ["maxFailedAttempts"] = Network.MaxFailedAttempts.ToString(),
+            //    ["lockoutMinutes"] = Network.LockoutMinutes.ToString()
+            //});
+            //StatusMessage = hints.Count > 0 ? string.Join("；", hints) : "保存成功";
         }
         catch (Exception ex)
         {

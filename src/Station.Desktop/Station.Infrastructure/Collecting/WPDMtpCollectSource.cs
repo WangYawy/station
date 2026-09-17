@@ -19,9 +19,9 @@ namespace Station.Infrastructure.Collecting;
 /// 仅支持 Windows；MTP 无盘符，根目录使用虚拟路径 <c>MTP://{PnP设备ID}</c>，
 /// 绑定文件（station_bind.ini）读写同样走 WPD 内容 API（设备不支持写时给出明确错误）。
 ///
-/// ══════════════════════════════════════════════════════════════
+/// ==============================================================
 ///  方案（生产级：内存缓存 + 反查兜底）
-/// ══════════════════════════════════════════════════════════════
+/// ==============================================================
 ///  - <see cref="SourceFileInfo.RelativePath"/> = 设备内【可读路径】（如 "内部共享存储/DCIM/Camera/xxx.jpg"），
 ///    持久化到 DB、供页面展示。
 ///  - <see cref="SourceFileInfo.ObjectPath"/> = "pnpId\u001FobjectId"，【进程内临时句柄，不入库】。
@@ -31,9 +31,9 @@ namespace Station.Infrastructure.Collecting;
 ///      3) 兜底：按可读路径逐级反查（仅缓存失效 / 跨进程重启后首次发生，结果回填缓存）
 ///    同一采集任务（Scan → DB → Copy → Erase）内【零反查】。
 ///  - Scan 扫描【所有存储 × 所有层级】，并按 <see cref="CollectOptions.ScanFolderFilter"/> 过滤文件夹。
-/// ══════════════════════════════════════════════════════════════
+/// ==============================================================
 ///  性能优化（相对首版）
-/// ══════════════════════════════════════════════════════════════
+/// ==============================================================
 ///  1. WpdSession 缓存 Properties / Transfer / 存储列表 / ScanKeys，避免重复 QI 与枚举
 ///  2. GetValues 传入 KeyCollection，只取扫描需要的 6 个属性，减少 COM 封送
 ///  3. 枚举缓冲区从 16 扩大到 256，减少 Next 调用次数
@@ -41,7 +41,7 @@ namespace Station.Infrastructure.Collecting;
 ///  5. ResolveObjectId 乐观返回（不再每次验证 ObjectExists），依赖 EnsureDeviceConnected + 失败重试兜底
 ///  6. CleanupEmptyParentFolders 采用"非空前缀剪枝"，避免重复枚举同一目录
 ///  7. CopyStreamAsync 使用 ArrayPool 复用缓冲区，降低 LOH 压力
-/// ══════════════════════════════════════════════════════════════
+/// ==============================================================
 /// </summary>
 [SupportedOSPlatform("windows")]
 public sealed class WPDMtpCollectSource : ICollectSource, IRecorderFileStore
@@ -85,7 +85,7 @@ public sealed class WPDMtpCollectSource : ICollectSource, IRecorderFileStore
         return MtpRoot.RootScheme + pnpId;
     }
 
-    // ─────────────────────────── ScanAsync ───────────────────────────
+    // --------------------------- ScanAsync ---------------------------
 
     public async Task<IReadOnlyList<SourceFileInfo>> ScanAsync(
         CollectDeviceInfo device,
@@ -119,7 +119,7 @@ public sealed class WPDMtpCollectSource : ICollectSource, IRecorderFileStore
         return list;
     }
 
-    // ─────────────────────────── CopyAsync ───────────────────────────
+    // --------------------------- CopyAsync ---------------------------
 
     public async Task CopyAsync(
         CollectDeviceInfo device,
@@ -157,7 +157,7 @@ public sealed class WPDMtpCollectSource : ICollectSource, IRecorderFileStore
         }
     }
 
-    // ─────────────────────────── EraseAsync ───────────────────────────
+    // --------------------------- EraseAsync ---------------------------
 
     /// <summary>
     /// 只删除【显式指定的文件清单】（建议传「已成功采集到本地」的子集），而非删除设备下所有文件。
@@ -607,7 +607,7 @@ public sealed class WPDMtpCollectSource : ICollectSource, IRecorderFileStore
 
                 var values = session.Properties.GetValues(objectId, session.ScanKeys);
 
-                // ── 存储对象：只下钻，绝不当文件 ──
+                // -- 存储对象：只下钻，绝不当文件 --
                 if (IsStorage(values))
                 {
                     var storageName = GetStorageName(values);
@@ -620,7 +620,7 @@ public sealed class WPDMtpCollectSource : ICollectSource, IRecorderFileStore
                     continue;
                 }
 
-                // ── 文件夹/容器：判断命中并递归 ──
+                // -- 文件夹/容器：判断命中并递归 --
                 if (IsContainer(values))
                 {
                     var folderName = GetObjectName(values);
@@ -644,7 +644,7 @@ public sealed class WPDMtpCollectSource : ICollectSource, IRecorderFileStore
                     continue;
                 }
 
-                // ── 文件：仅当位于「命中目录或其命中后代」内才收集 ──
+                // -- 文件：仅当位于「命中目录或其命中后代」内才收集 --
                 if (matchedAncestor)
                 {
                     var fileName = GetObjectName(values);

@@ -28,9 +28,10 @@ using Station.Desktop.ViewModels;
 using Station.Domain.Collecting;
 
 namespace Station.Desktop.Views;
-
-public partial class ShellWindow : Window
+public partial class ShellWindow2 : Window
 {
+   
+
 
     private static readonly (string Key, string Title)[] ModuleCatalog =
     [
@@ -61,7 +62,7 @@ public partial class ShellWindow : Window
     private readonly Dictionary<string, Button> _navButtons;
     private IDisposable? _currentViewModel;
 
-    public ShellWindow()
+    public ShellWindow2()
     {
         InitializeComponent();
 

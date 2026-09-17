@@ -22,6 +22,10 @@ public sealed record UsbPortCardDto
 
     /// <summary>物理设备是否在线</summary>
     public bool IsConnected { get; init; }
+    /// <summary>设备可用空间</summary>
+    public long? DeviceAvailableBytes { get; init; }
+    /// <summary>设备总空间</summary>
+    public long? DeviceTotalBytes { get; init; }
 
     /// <summary>关联的任务ID（无任务则为null）</summary>
     public long? TaskId { get; init; }

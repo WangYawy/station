@@ -1,0 +1,73 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:Station.Desktop.ViewModels"
+        x:Class="Station.Desktop.Views.ExitConfirmDialog"
+        x:DataType="vm:ExitConfirmViewModel"
+        Width="420"
+        SizeToContent="Height"
+        WindowStartupLocation="CenterOwner"
+        WindowDecorations="None"
+        CanResize="False"
+        ShowInTaskbar="False"
+        Background="{DynamicResource SurfaceBackground}">
+
+  <Grid RowDefinitions="Auto,*,Auto">
+
+    <!-- 标题栏 -->
+    <Border Grid.Row="0"
+            Background="{DynamicResource BrandPrimaryDark}"
+            Padding="20,14">
+      <Grid ColumnDefinitions="Auto,*,Auto">
+        <TextBlock Grid.Column="0" Text="⏻" FontSize="20"
+                   Foreground="#fca5a5" VerticalAlignment="Center"
+                   Margin="0,0,12,0"/>
+        <TextBlock Grid.Column="1" Text="{Binding Title}"
+                   FontSize="17" FontWeight="Bold" Foreground="White"
+                   VerticalAlignment="Center"/>
+        <Button Grid.Column="2" Classes="dialog-close"
+                Content="✕" Click="OnCloseClick"/>
+      </Grid>
+    </Border>
+
+    <!-- 内容 -->
+    <StackPanel Grid.Row="1" Margin="24" Spacing="16">
+      <TextBlock Text="{Binding Message}"
+                 FontSize="14"
+                 Foreground="{DynamicResource TextPrimary}"
+                 TextWrapping="Wrap" LineHeight="22"/>
+
+      <Border Background="{DynamicResource SurfaceSubtle}"
+              CornerRadius="8" Padding="12,10">
+        <StackPanel Orientation="Horizontal" Spacing="8">
+          <TextBlock Text="👤" FontSize="16" VerticalAlignment="Center"/>
+          <TextBlock Text="当前登录：" FontSize="13"
+                     Foreground="{DynamicResource TextSecondary}"
+                     VerticalAlignment="Center"/>
+          <TextBlock Text="{Binding CurrentUserName}"
+                     FontSize="13" FontWeight="SemiBold"
+                     Foreground="{DynamicResource TextPrimary}"
+                     VerticalAlignment="Center"/>
+        </StackPanel>
+      </Border>
+    </StackPanel>
+
+    <!-- 按钮区 -->
+    <Border Grid.Row="2"
+            Background="{DynamicResource SurfaceMuted}"
+            BorderBrush="{DynamicResource SurfaceBorder}"
+            BorderThickness="0,1,0,0"
+            Padding="24,16">
+      <StackPanel Orientation="Horizontal" Spacing="12"
+                  HorizontalAlignment="Right">
+        <Button Classes="dialog-btn"
+                Content="取消"
+                Command="{Binding CancelCommand}"
+                MinWidth="90"/>
+        <Button Classes="dialog-btn danger"
+                Content="{Binding ConfirmText}"
+                Command="{Binding ConfirmCommand}"
+                MinWidth="120"/>
+      </StackPanel>
+    </Border>
+  </Grid>
+</Window>

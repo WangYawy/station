@@ -1,6 +1,6 @@
 using Station.Application.Settings;
 
-namespace Station.Desktop.Application.Settings;
+namespace Station.Application.Settings;
 
 /// <summary>设备自检：USB/MTP 设备、磁盘读写、网络、存储目标。</summary>
 public interface ISystemSelfCheckService

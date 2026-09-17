@@ -4,7 +4,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Station.Application.Alerts;
 using Station.Contracts;
-using Station.Desktop.Application.Session;
+using Station.Application.Session;
 
 namespace Station.Desktop.ViewModels;
 

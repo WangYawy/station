@@ -1,7 +1,7 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Station.Application.Authentication;
-using Station.Desktop.Application.Session;
+using Station.Application.Session;
 
 namespace Station.Desktop.ViewModels;
 

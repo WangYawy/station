@@ -1,8 +1,10 @@
 using Station.Domain.Enums;
 
 namespace Station.Application.UsbPortCard.Events;
+
 /// <summary>
-/// 采集卡片事件服务
+/// USB 端口卡片事件总线（纯发布/订阅，不做内部节流）。
+/// 节流/合帧职责由订阅方（如 WorkbenchViewModel）自行决定。
 /// </summary>
 public interface IUsbPortCardEventService
 {

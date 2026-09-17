@@ -1,0 +1,107 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:Station.Desktop.ViewModels"
+        x:Class="Station.Desktop.Views.PinDialog"
+        x:DataType="vm:PinViewModel"
+        Width="440"
+        SizeToContent="Height"
+        WindowStartupLocation="CenterOwner"
+        WindowDecorations="None"
+        CanResize="False"
+        ShowInTaskbar="False"
+        Background="{DynamicResource SurfaceBackground}">
+
+  <Grid RowDefinitions="Auto,Auto,Auto,Auto">
+
+    <!-- ==================== 标题栏 ==================== -->
+    <Border Grid.Row="0"
+            Background="{DynamicResource BrandPrimaryDark}"
+            Padding="20,14">
+      <Grid ColumnDefinitions="Auto,*,Auto">
+        <TextBlock Grid.Column="0" Text="🔐" FontSize="20"
+                   VerticalAlignment="Center" Margin="0,0,12,0"/>
+        <TextBlock Grid.Column="1" Text="PIN 验证"
+                   FontSize="17" FontWeight="Bold" Foreground="White"
+                   VerticalAlignment="Center"/>
+        <Button Grid.Column="2" Classes="dialog-close"
+                Content="✕" Click="OnCloseClick"/>
+      </Grid>
+    </Border>
+
+    <!-- ==================== PIN 掩码显示 ==================== -->
+    <StackPanel Grid.Row="1" Margin="24,24,24,8" Spacing="8">
+      <TextBlock Text="请输入退出 PIN 码"
+                 FontSize="14"
+                 HorizontalAlignment="Center"
+                 Foreground="{DynamicResource TextSecondary}"/>
+
+      <Border Background="{DynamicResource SurfaceSubtle}"
+              CornerRadius="12"
+              Padding="24,16"
+              Margin="0,8,0,0">
+        <TextBlock Text="{Binding MaskDisplay}"
+                   FontSize="32"
+                   FontFamily="Consolas, Menlo, monospace"
+                   FontWeight="Bold"
+                   LetterSpacing="6"
+                   HorizontalAlignment="Center"
+                   Foreground="{DynamicResource BrandPrimaryDark}"/>
+      </Border>
+
+      <!-- 错误提示 -->
+      <Border IsVisible="{Binding HasError}"
+              Background="{DynamicResource CardEmergencyBg}"
+              BorderBrush="{DynamicResource CardEmergencyBorder}"
+              BorderThickness="1"
+              CornerRadius="6"
+              Padding="10,6"
+              Margin="0,4,0,0">
+        <TextBlock Text="{Binding ErrorMessage}"
+                   FontSize="13"
+                   Foreground="{DynamicResource TextDanger}"
+                   HorizontalAlignment="Center"/>
+      </Border>
+    </StackPanel>
+
+    <!-- ==================== 数字键盘 ==================== -->
+    <UniformGrid Grid.Row="2" Columns="3" Margin="24,8,24,16">
+      <Button Classes="pin-key" Content="1" Command="{Binding AppendCommand}" CommandParameter="1"/>
+      <Button Classes="pin-key" Content="2" Command="{Binding AppendCommand}" CommandParameter="2"/>
+      <Button Classes="pin-key" Content="3" Command="{Binding AppendCommand}" CommandParameter="3"/>
+
+      <Button Classes="pin-key" Content="4" Command="{Binding AppendCommand}" CommandParameter="4"/>
+      <Button Classes="pin-key" Content="5" Command="{Binding AppendCommand}" CommandParameter="5"/>
+      <Button Classes="pin-key" Content="6" Command="{Binding AppendCommand}" CommandParameter="6"/>
+
+      <Button Classes="pin-key" Content="7" Command="{Binding AppendCommand}" CommandParameter="7"/>
+      <Button Classes="pin-key" Content="8" Command="{Binding AppendCommand}" CommandParameter="8"/>
+      <Button Classes="pin-key" Content="9" Command="{Binding AppendCommand}" CommandParameter="9"/>
+
+      <Button Classes="pin-key pin-action" Content="清空"
+              Command="{Binding ClearAllCommand}"/>
+      <Button Classes="pin-key" Content="0"
+              Command="{Binding AppendCommand}" CommandParameter="0"/>
+      <Button Classes="pin-key pin-action" Content="⌫"
+              Command="{Binding BackspaceCommand}"/>
+    </UniformGrid>
+
+    <!-- ==================== 底部按钮 ==================== -->
+    <Border Grid.Row="3"
+            Background="{DynamicResource SurfaceMuted}"
+            BorderBrush="{DynamicResource SurfaceBorder}"
+            BorderThickness="0,1,0,0"
+            Padding="24,16">
+      <StackPanel Orientation="Horizontal" Spacing="12"
+                  HorizontalAlignment="Right">
+        <Button Classes="dialog-btn"
+                Content="取消"
+                Command="{Binding CancelCommand}"
+                MinWidth="90"/>
+        <Button Classes="dialog-btn danger"
+                Content="验证并退出"
+                Command="{Binding SubmitCommand}"
+                MinWidth="130"/>
+      </StackPanel>
+    </Border>
+  </Grid>
+</Window>

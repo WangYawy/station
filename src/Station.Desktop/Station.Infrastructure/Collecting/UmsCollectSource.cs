@@ -56,7 +56,7 @@ public sealed class UmsCollectSource : ICollectSource, IRecorderFileStore
         return removable.RootDirectory.FullName;
     }
 
-    // ─────────────────────────── ScanAsync ───────────────────────────
+    // --------------------------- ScanAsync ---------------------------
 
     public Task<IReadOnlyList<SourceFileInfo>> ScanAsync(
         CollectDeviceInfo device,
@@ -77,7 +77,7 @@ public sealed class UmsCollectSource : ICollectSource, IRecorderFileStore
         return Task.FromResult<IReadOnlyList<SourceFileInfo>>(list);
     }
 
-    // ─────────────────────────── CopyAsync ───────────────────────────
+    // --------------------------- CopyAsync ---------------------------
 
     public async Task CopyAsync(
         CollectDeviceInfo device,
@@ -127,7 +127,7 @@ public sealed class UmsCollectSource : ICollectSource, IRecorderFileStore
         }
     }
 
-    // ─────────────────────────── EraseAsync ───────────────────────────
+    // --------------------------- EraseAsync ---------------------------
 
     /// <summary>
     /// 只删除清单中显式指定的文件，删除成功后再清理因此变空的父目录（保留根目录下两层）。
@@ -185,7 +185,7 @@ public sealed class UmsCollectSource : ICollectSource, IRecorderFileStore
         return deleted;
     }
 
-    // ─────────────────────────── 绑定文件 ───────────────────────────
+    // --------------------------- 绑定文件 ---------------------------
 
     public string? ReadFile(string recorderRoot, string fileName)
     {
@@ -233,7 +233,7 @@ public sealed class UmsCollectSource : ICollectSource, IRecorderFileStore
             .ToList();
     }
 
-    // ─────────────────────────── 递归扫描 ───────────────────────────
+    // --------------------------- 递归扫描 ---------------------------
 
     /// <summary>
     /// 递归遍历目录树，收集匹配文件。
@@ -300,7 +300,7 @@ public sealed class UmsCollectSource : ICollectSource, IRecorderFileStore
         return string.Join(PathSeparator, segments) + PathSeparator + fileName;
     }
 
-    // ─────────────────────────── 过滤 ───────────────────────────
+    // --------------------------- 过滤 ---------------------------
 
     private bool ShouldEnterFolder(string folderName)
     {
@@ -316,7 +316,7 @@ public sealed class UmsCollectSource : ICollectSource, IRecorderFileStore
         return _options.FileExtensions.Contains(ext, StringComparer.OrdinalIgnoreCase);
     }
 
-    // ─────────────────────────── 空目录清理 ───────────────────────────
+    // --------------------------- 空目录清理 ---------------------------
 
     /// <summary>
     /// 清理因删除文件而变为空的父目录。
@@ -402,7 +402,7 @@ public sealed class UmsCollectSource : ICollectSource, IRecorderFileStore
         return idx > 0 ? path[..idx] : null;
     }
 
-    // ─────────────────────────── 路径解析 ───────────────────────────
+    // --------------------------- 路径解析 ---------------------------
 
     /// <summary>
     /// 定位源文件物理路径：

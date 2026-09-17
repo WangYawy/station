@@ -3,7 +3,7 @@ using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using Station.Application.Collecting;
 
-namespace Station.Desktop.Application.Monitoring;
+namespace Station.Application.Monitoring;
 
 public sealed record MonitorLine(string Label, string Value);
 
@@ -32,9 +32,9 @@ public sealed class SystemMonitorService
             new("CPU", CpuPercent()),
             new("内存", MemoryText()),
             new("磁盘", DiskText()),
-            new("网络", NetworkText()),
-            new("监听端口", PortsText()),
-            new("设备", DeviceText())
+            //new("网络", NetworkText()),
+            //new("监听端口", PortsText()),
+            //new("设备", DeviceText())
         ];
     }
 

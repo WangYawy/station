@@ -43,7 +43,7 @@ public sealed class MediaCollectSource : ICollectSource, IRecorderFileStore
         return MtpRoot.RootScheme + deviceId;
     }
 
-    // ─────────────────────────── ScanAsync ───────────────────────────
+    // --------------------------- ScanAsync ---------------------------
 
     public async Task<IReadOnlyList<SourceFileInfo>> ScanAsync(
         CollectDeviceInfo device,
@@ -80,7 +80,7 @@ public sealed class MediaCollectSource : ICollectSource, IRecorderFileStore
         return list;
     }
 
-    // ─────────────────────────── CopyAsync ───────────────────────────
+    // --------------------------- CopyAsync ---------------------------
 
     public async Task CopyAsync(
         CollectDeviceInfo device,
@@ -123,7 +123,7 @@ public sealed class MediaCollectSource : ICollectSource, IRecorderFileStore
             await onProgress(1.0);
     }
 
-    // ─────────────────────────── EraseAsync ───────────────────────────
+    // --------------------------- EraseAsync ---------------------------
 
     /// <summary>
     /// 只删除【显式指定的文件清单】（建议传「已成功采集到本地」的子集），
@@ -181,7 +181,7 @@ public sealed class MediaCollectSource : ICollectSource, IRecorderFileStore
         return deleted;
     }
 
-    // ─────────────────────────── IRecorderFileStore ───────────────────────────
+    // --------------------------- IRecorderFileStore ---------------------------
 
     public string? ReadFile(string recorderRoot, string fileName)
     {
@@ -242,7 +242,7 @@ public sealed class MediaCollectSource : ICollectSource, IRecorderFileStore
             session.DeleteFile(existing);
     }
 
-    // ─────────────────────────── 设备检测 ───────────────────────────
+    // --------------------------- 设备检测 ---------------------------
 
     public static IReadOnlyList<DetectedDevice> DetectDevices(CollectOptions options)
     {
@@ -276,7 +276,7 @@ public sealed class MediaCollectSource : ICollectSource, IRecorderFileStore
         return list;
     }
 
-    // ─────────────────────────── 内部辅助 ───────────────────────────
+    // --------------------------- 内部辅助 ---------------------------
 
     private (string DeviceId, string Friendly) ResolveDevice()
     {
@@ -372,7 +372,7 @@ public sealed class MediaCollectSource : ICollectSource, IRecorderFileStore
         return normalized.StartsWith('\\') ? normalized : "\\" + normalized;
     }
 
-    // ─────────────────────────── 递归扫描 ───────────────────────────
+    // --------------------------- 递归扫描 ---------------------------
 
     /// <summary>
     /// 递归遍历目录树，收集所有匹配的文件。
@@ -449,7 +449,7 @@ public sealed class MediaCollectSource : ICollectSource, IRecorderFileStore
         return string.Join(PathSeparator, segments) + PathSeparator + fileName;
     }
 
-    // ─────────────────────────── 过滤 ───────────────────────────
+    // --------------------------- 过滤 ---------------------------
 
     private bool ShouldEnterFolder(string folderName)
     {
@@ -466,7 +466,7 @@ public sealed class MediaCollectSource : ICollectSource, IRecorderFileStore
         return _options.FileExtensions.Contains(ext, StringComparer.OrdinalIgnoreCase);
     }
 
-    // ─────────────────────────── 空目录清理 ───────────────────────────
+    // --------------------------- 空目录清理 ---------------------------
 
     /// <summary>
     /// 清理因删除文件而变为空的父目录。
@@ -567,7 +567,7 @@ public sealed class MediaCollectSource : ICollectSource, IRecorderFileStore
         return normalized.StartsWith('\\') ? normalized : "\\" + normalized;
     }
 
-    // ─────────────────────────── 绑定文件辅助 ───────────────────────────
+    // --------------------------- 绑定文件辅助 ---------------------------
 
     private string? FindRootFile(MediaDeviceSession session, string fileName)
     {
@@ -606,9 +606,9 @@ public sealed class MediaCollectSource : ICollectSource, IRecorderFileStore
             || storageName.Contains("Phone", StringComparison.OrdinalIgnoreCase);
     }
 
-    // ═══════════════════════════════════════════════════════════════
+    // ===============================================================
     //  MediaDeviceSession：包装 MediaDevice，屏蔽 1.10.0 API 细节
-    // ═══════════════════════════════════════════════════════════════
+    // ===============================================================
 
     private sealed class MediaDeviceSession : IDisposable
     {
@@ -650,10 +650,10 @@ public sealed class MediaCollectSource : ICollectSource, IRecorderFileStore
         }
     }
 
-    // ═══════════════════════════════════════════════════════════════
+    // ===============================================================
     //  ProgressStream：拦截 Write/WriteAsync 上报进度（带时间节流）
     //  MediaDevices.DownloadFile 会把数据写入目标流，因此必须拦截 Write 而非 Read。
-    // ═══════════════════════════════════════════════════════════════
+    // ===============================================================
 
     private sealed class ProgressStream : System.IO.Stream
     {

@@ -14,14 +14,13 @@ public sealed class UsbPortCardService : IUsbPortCardService
     private readonly IDevicePresenceService _devicePresence;
     private readonly ICollectTaskService _collectTaskService;
     private readonly IRepository<CollectFile> _fileRepository;
-    private readonly int _totalSlots = 30; // 可从配置读取
-    private readonly WorkbenchOptions _options;
+    private readonly WindowModeOptions _options;
 
     public UsbPortCardService(
         IDevicePresenceService devicePresence,
         ICollectTaskService collectTaskService,
         IRepository<CollectFile> fileRepository,
-        IOptions<WorkbenchOptions> options)
+        IOptions<WindowModeOptions> options)
     {
         _devicePresence = devicePresence;
         _collectTaskService = collectTaskService;

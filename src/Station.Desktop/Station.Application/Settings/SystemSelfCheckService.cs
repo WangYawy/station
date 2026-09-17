@@ -7,7 +7,7 @@ using Microsoft.Extensions.Logging;
 using Station.Domain.Storage;
 using Station.Domain.Collecting;
 
-namespace Station.Desktop.Application.Settings;
+namespace Station.Application.Settings;
 
 /// <summary>设备自检实现（对应原型"设备自检"分组）。</summary>
 public sealed class SystemSelfCheckService : ISystemSelfCheckService

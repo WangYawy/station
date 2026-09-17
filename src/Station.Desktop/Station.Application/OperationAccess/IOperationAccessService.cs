@@ -1,6 +1,6 @@
 using Station.Application.Authentication;
 
-namespace Station.Desktop.Application.OperationAccess;
+namespace Station.Application.OperationAccess;
 
 /// <summary>
 /// 操作访问控制：模块是否需要登录、登录后是否需要对应权限点。

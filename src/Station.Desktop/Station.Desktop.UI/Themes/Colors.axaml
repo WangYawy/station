@@ -1,0 +1,259 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+  <ResourceDictionary.ThemeDictionaries>
+
+    <!-- ============================================================
+         浅色主题
+         ============================================================ -->
+    <ResourceDictionary x:Key="Light">
+
+      <!-- 品牌色 -->
+      <SolidColorBrush x:Key="BrandPrimaryDark"        Color="#0a2f6c"/>
+      <SolidColorBrush x:Key="BrandPrimary"            Color="#2563eb"/>
+      <SolidColorBrush x:Key="BrandPrimaryHover"       Color="#1e4585"/>
+      <SolidColorBrush x:Key="BrandPrimaryActive"      Color="#1d4ed8"/>
+      <SolidColorBrush x:Key="BrandAccent"             Color="#60a5fa"/>
+
+      <!-- 通用背景 -->
+      <SolidColorBrush x:Key="AppBackground"           Color="#f4f7fa"/>
+      <SolidColorBrush x:Key="SurfaceBackground"       Color="#ffffff"/>
+      <SolidColorBrush x:Key="SurfaceMuted"            Color="#f8fafc"/>
+      <SolidColorBrush x:Key="SurfaceSubtle"           Color="#f1f5f9"/>
+      <SolidColorBrush x:Key="SurfaceBorder"           Color="#e2e8f0"/>
+
+      <!-- 文本 -->
+      <SolidColorBrush x:Key="TextPrimary"             Color="#1e293b"/>
+      <SolidColorBrush x:Key="TextSecondary"           Color="#64748b"/>
+      <SolidColorBrush x:Key="TextTertiary"            Color="#94a3b8"/>
+      <SolidColorBrush x:Key="TextOnDark"              Color="#e2e8f0"/>
+      <SolidColorBrush x:Key="TextOnDarkMuted"         Color="#cbd5e1"/>
+
+      <!-- 顶部导航 -->
+      <SolidColorBrush x:Key="TopNavBackground"        Color="#0a2f6c"/>
+      <SolidColorBrush x:Key="TopNavBorder"            Color="#2563eb"/>
+      <SolidColorBrush x:Key="TopNavItemBg"            Color="Transparent"/>
+      <SolidColorBrush x:Key="TopNavItemHoverBg"       Color="#1e4585"/>
+      <SolidColorBrush x:Key="TopNavItemFg"            Color="#cbd5e1"/>
+      <SolidColorBrush x:Key="TopNavItemHoverFg"       Color="#ffffff"/>
+      <SolidColorBrush x:Key="TopNavItemActiveBg"      Color="#2563eb"/>
+      <SolidColorBrush x:Key="TopNavItemActiveBorder"  Color="#60a5fa"/>
+      <SolidColorBrush x:Key="TopNavItemActiveFg"      Color="#ffffff"/>
+
+      <!-- 底部状态栏 -->
+      <SolidColorBrush x:Key="BottomBarBackground"     Color="#0a2f6c"/>
+      <SolidColorBrush x:Key="BottomBarBorder"         Color="#2563eb"/>
+      <SolidColorBrush x:Key="BottomBarDivider"        Color="#334155"/>
+      <SolidColorBrush x:Key="BottomBarText"           Color="#cbd5e1"/>
+      <SolidColorBrush x:Key="BottomBarClock"          Color="#e2e8f0"/>
+
+      <!-- 公告栏 -->
+      <SolidColorBrush x:Key="NoticeBackground"        Color="#fef3c7"/>
+      <SolidColorBrush x:Key="NoticeBorder"            Color="#fcd34d"/>
+      <SolidColorBrush x:Key="NoticeText"              Color="#92400e"/>
+      <SolidColorBrush x:Key="NoticeIcon"              Color="#d97706"/>
+
+      <!-- 授权 / 会话徽章 -->
+      <SolidColorBrush x:Key="LicenseBg"               Color="#14532d"/>
+      <SolidColorBrush x:Key="LicenseFg"               Color="#bbf7d0"/>
+      <SolidColorBrush x:Key="LicenseLockedBg"         Color="#7f1d1d"/>
+      <SolidColorBrush x:Key="LicenseLockedFg"         Color="#fecaca"/>
+      <SolidColorBrush x:Key="LicenseTrialBg"          Color="#92400e"/>
+      <SolidColorBrush x:Key="LicenseTrialFg"          Color="#fef3c7"/>
+      <SolidColorBrush x:Key="SessionBg"               Color="#1e3a8a"/>
+      <SolidColorBrush x:Key="SessionBorder"           Color="#2563eb"/>
+      <SolidColorBrush x:Key="SessionFg"               Color="#e2e8f0"/>
+      <SolidColorBrush x:Key="SessionDot"              Color="#22c55e"/>
+      <SolidColorBrush x:Key="LogoutButtonBg"          Color="#ef4444"/>
+      <SolidColorBrush x:Key="LogoutButtonFg"          Color="#ffffff"/>
+
+      <!-- 卡片 -->
+      <SolidColorBrush x:Key="CardBackground"          Color="#ffffff"/>
+      <SolidColorBrush x:Key="CardBorderTop"           Color="#2563eb"/>
+      <SolidColorBrush x:Key="CardBorderTopHover"      Color="#1d4ed8"/>
+      <SolidColorBrush x:Key="CardEmergencyBg"         Color="#fef2f2"/>
+      <SolidColorBrush x:Key="CardEmergencyBorder"     Color="#ef4444"/>
+      <SolidColorBrush x:Key="CardIdleBorder"          Color="#94a3b8"/>
+      <SolidColorBrush x:Key="CardTextMuted"           Color="#94a3b8"/>
+
+      <!-- 进度条 -->
+      <SolidColorBrush x:Key="ProgressTrack"           Color="#e2e8f0"/>
+      <SolidColorBrush x:Key="ProgressFill"            Color="#2563eb"/>
+      <SolidColorBrush x:Key="ProgressDone"            Color="#22c55e"/>
+      <SolidColorBrush x:Key="ProgressError"           Color="#fee2e2"/>
+
+      <!-- 状态徽章 -->
+      <SolidColorBrush x:Key="BadgeIdleBg"             Color="#f1f5f9"/>
+      <SolidColorBrush x:Key="BadgeIdleFg"             Color="#94a3b8"/>
+      <SolidColorBrush x:Key="BadgeRunningBg"          Color="#dcfce7"/>
+      <SolidColorBrush x:Key="BadgeRunningFg"          Color="#15803d"/>
+      <SolidColorBrush x:Key="BadgePausedBg"           Color="#fef3c7"/>
+      <SolidColorBrush x:Key="BadgePausedFg"           Color="#b45309"/>
+      <SolidColorBrush x:Key="BadgeErrorBg"            Color="#fee2e2"/>
+      <SolidColorBrush x:Key="BadgeErrorFg"            Color="#b91c1c"/>
+      <SolidColorBrush x:Key="BadgeDoneBg"             Color="#dcfce7"/>
+      <SolidColorBrush x:Key="BadgeDoneFg"             Color="#15803d"/>
+
+      <!-- 卡片按钮 -->
+      <SolidColorBrush x:Key="CardBtnDefaultBg"        Color="#f1f5f9"/>
+      <SolidColorBrush x:Key="CardBtnDefaultFg"        Color="#334155"/>
+      <SolidColorBrush x:Key="CardBtnPrimaryBg"        Color="#2563eb"/>
+      <SolidColorBrush x:Key="CardBtnPrimaryFg"        Color="#ffffff"/>
+      <SolidColorBrush x:Key="CardBtnDangerBg"         Color="#ef4444"/>
+      <SolidColorBrush x:Key="CardBtnDangerFg"         Color="#ffffff"/>
+      <SolidColorBrush x:Key="CardBtnWarningBg"        Color="#f59e0b"/>
+      <SolidColorBrush x:Key="CardBtnWarningFg"        Color="#ffffff"/>
+      <SolidColorBrush x:Key="CardBtnSuccessBg"        Color="#22c55e"/>
+      <SolidColorBrush x:Key="CardBtnSuccessFg"        Color="#ffffff"/>
+      <SolidColorBrush x:Key="CardBtnPriorityBg"       Color="#ea580c"/>
+      <SolidColorBrush x:Key="CardBtnPriorityFg"       Color="#ffffff"/>
+      <SolidColorBrush x:Key="CardBtnPriorityActiveBg" Color="#ef4444"/>
+
+      <!-- 协议标签 -->
+      <SolidColorBrush x:Key="ProtocolTagBg"           Color="#eef2f6"/>
+      <SolidColorBrush x:Key="ProtocolTagFg"           Color="#475569"/>
+
+      <!-- 语义文本色 -->
+      <SolidColorBrush x:Key="TextSuccess"             Color="#16a34a"/>
+      <SolidColorBrush x:Key="TextWarning"             Color="#b45309"/>
+      <SolidColorBrush x:Key="TextDanger"              Color="#b91c1c"/>
+      <SolidColorBrush x:Key="TextInfo"                Color="#2563eb"/>
+
+      <!-- 滚动条 -->
+      <SolidColorBrush x:Key="ScrollBarThumb"          Color="#cbd5e1"/>
+
+      <!-- 阴影 -->
+      <BoxShadows x:Key="CardShadow">0 2 8 0 #14000000</BoxShadows>
+      <BoxShadows x:Key="CardShadowHover">0 6 16 0 #22000000</BoxShadows>
+
+      <SolidColorBrush x:Key="BrandPrimaryLight" Color="#dbeafe"/>
+    </ResourceDictionary>
+
+    <!-- ============================================================
+         深色主题
+         ============================================================ -->
+    <ResourceDictionary x:Key="Dark">
+
+      <!-- 品牌色 -->
+      <SolidColorBrush x:Key="BrandPrimaryDark"        Color="#0a1832"/>
+      <SolidColorBrush x:Key="BrandPrimary"            Color="#3b82f6"/>
+      <SolidColorBrush x:Key="BrandPrimaryHover"       Color="#1e4585"/>
+      <SolidColorBrush x:Key="BrandPrimaryActive"      Color="#1d4ed8"/>
+      <SolidColorBrush x:Key="BrandAccent"             Color="#93c5fd"/>
+
+      <!-- 通用背景 -->
+      <SolidColorBrush x:Key="AppBackground"           Color="#0f172a"/>
+      <SolidColorBrush x:Key="SurfaceBackground"       Color="#1e293b"/>
+      <SolidColorBrush x:Key="SurfaceMuted"            Color="#1a2436"/>
+      <SolidColorBrush x:Key="SurfaceSubtle"           Color="#334155"/>
+      <SolidColorBrush x:Key="SurfaceBorder"           Color="#334155"/>
+
+      <!-- 文本 -->
+      <SolidColorBrush x:Key="TextPrimary"             Color="#f1f5f9"/>
+      <SolidColorBrush x:Key="TextSecondary"           Color="#94a3b8"/>
+      <SolidColorBrush x:Key="TextTertiary"            Color="#64748b"/>
+      <SolidColorBrush x:Key="TextOnDark"              Color="#e2e8f0"/>
+      <SolidColorBrush x:Key="TextOnDarkMuted"         Color="#cbd5e1"/>
+
+      <!-- 顶部导航 -->
+      <SolidColorBrush x:Key="TopNavBackground"        Color="#0a1832"/>
+      <SolidColorBrush x:Key="TopNavBorder"            Color="#3b82f6"/>
+      <SolidColorBrush x:Key="TopNavItemBg"            Color="Transparent"/>
+      <SolidColorBrush x:Key="TopNavItemHoverBg"       Color="#1e293b"/>
+      <SolidColorBrush x:Key="TopNavItemFg"            Color="#cbd5e1"/>
+      <SolidColorBrush x:Key="TopNavItemHoverFg"       Color="#ffffff"/>
+      <SolidColorBrush x:Key="TopNavItemActiveBg"      Color="#3b82f6"/>
+      <SolidColorBrush x:Key="TopNavItemActiveBorder"  Color="#93c5fd"/>
+      <SolidColorBrush x:Key="TopNavItemActiveFg"      Color="#ffffff"/>
+
+      <!-- 底部状态栏 -->
+      <SolidColorBrush x:Key="BottomBarBackground"     Color="#0a1832"/>
+      <SolidColorBrush x:Key="BottomBarBorder"         Color="#3b82f6"/>
+      <SolidColorBrush x:Key="BottomBarDivider"        Color="#334155"/>
+      <SolidColorBrush x:Key="BottomBarText"           Color="#cbd5e1"/>
+      <SolidColorBrush x:Key="BottomBarClock"          Color="#e2e8f0"/>
+
+      <!-- 公告栏 -->
+      <SolidColorBrush x:Key="NoticeBackground"        Color="#78350f"/>
+      <SolidColorBrush x:Key="NoticeBorder"            Color="#b45309"/>
+      <SolidColorBrush x:Key="NoticeText"              Color="#fef3c7"/>
+      <SolidColorBrush x:Key="NoticeIcon"              Color="#fbbf24"/>
+
+      <!-- 授权 / 会话徽章 -->
+      <SolidColorBrush x:Key="LicenseBg"               Color="#14532d"/>
+      <SolidColorBrush x:Key="LicenseFg"               Color="#bbf7d0"/>
+      <SolidColorBrush x:Key="LicenseLockedBg"         Color="#7f1d1d"/>
+      <SolidColorBrush x:Key="LicenseLockedFg"         Color="#fecaca"/>
+      <SolidColorBrush x:Key="LicenseTrialBg"          Color="#78350f"/>
+      <SolidColorBrush x:Key="LicenseTrialFg"          Color="#fef3c7"/>
+      <SolidColorBrush x:Key="SessionBg"               Color="#1e293b"/>
+      <SolidColorBrush x:Key="SessionBorder"           Color="#3b82f6"/>
+      <SolidColorBrush x:Key="SessionFg"               Color="#e2e8f0"/>
+      <SolidColorBrush x:Key="SessionDot"              Color="#22c55e"/>
+      <SolidColorBrush x:Key="LogoutButtonBg"          Color="#dc2626"/>
+      <SolidColorBrush x:Key="LogoutButtonFg"          Color="#ffffff"/>
+
+      <!-- 卡片 -->
+      <SolidColorBrush x:Key="CardBackground"          Color="#1e293b"/>
+      <SolidColorBrush x:Key="CardBorderTop"           Color="#3b82f6"/>
+      <SolidColorBrush x:Key="CardBorderTopHover"      Color="#60a5fa"/>
+      <SolidColorBrush x:Key="CardEmergencyBg"         Color="#451a1a"/>
+      <SolidColorBrush x:Key="CardEmergencyBorder"     Color="#dc2626"/>
+      <SolidColorBrush x:Key="CardIdleBorder"          Color="#475569"/>
+      <SolidColorBrush x:Key="CardTextMuted"           Color="#64748b"/>
+
+      <!-- 进度条 -->
+      <SolidColorBrush x:Key="ProgressTrack"           Color="#334155"/>
+      <SolidColorBrush x:Key="ProgressFill"            Color="#3b82f6"/>
+      <SolidColorBrush x:Key="ProgressDone"            Color="#22c55e"/>
+      <SolidColorBrush x:Key="ProgressError"           Color="#7f1d1d"/>
+
+      <!-- 状态徽章 -->
+      <SolidColorBrush x:Key="BadgeIdleBg"             Color="#334155"/>
+      <SolidColorBrush x:Key="BadgeIdleFg"             Color="#94a3b8"/>
+      <SolidColorBrush x:Key="BadgeRunningBg"          Color="#14532d"/>
+      <SolidColorBrush x:Key="BadgeRunningFg"          Color="#86efac"/>
+      <SolidColorBrush x:Key="BadgePausedBg"           Color="#78350f"/>
+      <SolidColorBrush x:Key="BadgePausedFg"           Color="#fde68a"/>
+      <SolidColorBrush x:Key="BadgeErrorBg"            Color="#7f1d1d"/>
+      <SolidColorBrush x:Key="BadgeErrorFg"            Color="#fecaca"/>
+      <SolidColorBrush x:Key="BadgeDoneBg"             Color="#14532d"/>
+      <SolidColorBrush x:Key="BadgeDoneFg"             Color="#86efac"/>
+
+      <!-- 卡片按钮 -->
+      <SolidColorBrush x:Key="CardBtnDefaultBg"        Color="#334155"/>
+      <SolidColorBrush x:Key="CardBtnDefaultFg"        Color="#e2e8f0"/>
+      <SolidColorBrush x:Key="CardBtnPrimaryBg"        Color="#3b82f6"/>
+      <SolidColorBrush x:Key="CardBtnPrimaryFg"        Color="#ffffff"/>
+      <SolidColorBrush x:Key="CardBtnDangerBg"         Color="#dc2626"/>
+      <SolidColorBrush x:Key="CardBtnDangerFg"         Color="#ffffff"/>
+      <SolidColorBrush x:Key="CardBtnWarningBg"        Color="#d97706"/>
+      <SolidColorBrush x:Key="CardBtnWarningFg"        Color="#ffffff"/>
+      <SolidColorBrush x:Key="CardBtnSuccessBg"        Color="#16a34a"/>
+      <SolidColorBrush x:Key="CardBtnSuccessFg"        Color="#ffffff"/>
+      <SolidColorBrush x:Key="CardBtnPriorityBg"       Color="#ea580c"/>
+      <SolidColorBrush x:Key="CardBtnPriorityFg"       Color="#ffffff"/>
+      <SolidColorBrush x:Key="CardBtnPriorityActiveBg" Color="#dc2626"/>
+
+      <!-- 协议标签 -->
+      <SolidColorBrush x:Key="ProtocolTagBg"           Color="#334155"/>
+      <SolidColorBrush x:Key="ProtocolTagFg"           Color="#cbd5e1"/>
+
+      <!-- 语义文本色 -->
+      <SolidColorBrush x:Key="TextSuccess"             Color="#4ade80"/>
+      <SolidColorBrush x:Key="TextWarning"             Color="#fbbf24"/>
+      <SolidColorBrush x:Key="TextDanger"              Color="#f87171"/>
+      <SolidColorBrush x:Key="TextInfo"                Color="#60a5fa"/>
+
+      <!-- 滚动条 -->
+      <SolidColorBrush x:Key="ScrollBarThumb"          Color="#475569"/>
+
+      <!-- 阴影 -->
+      <BoxShadows x:Key="CardShadow">0 2 8 0 #66000000</BoxShadows>
+      <BoxShadows x:Key="CardShadowHover">0 6 16 0 #99000000</BoxShadows>
+
+      <SolidColorBrush x:Key="BrandPrimaryLight" Color="#1e3a5f"/>
+    </ResourceDictionary>
+
+  </ResourceDictionary.ThemeDictionaries>
+</ResourceDictionary>

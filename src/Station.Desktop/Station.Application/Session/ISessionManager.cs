@@ -1,6 +1,6 @@
 using Station.Application.Authentication;
 
-namespace Station.Desktop.Application.Session;
+namespace Station.Application.Session;
 
 /// <summary>
 /// 桌面端会话管理：保存当前登录会话，驱动 UI 在登录页/主界面间切换，

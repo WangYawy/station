@@ -9,11 +9,15 @@ using Station.Application.Collecting;
 using Station.Application.Licensing;
 using Station.Application.PlatformSync;
 using Station.Application.Recorders;
+using Station.Application.Settings;
 using Station.Application.Storage;
 using Station.Application.Uploading;
 using Station.Application.UsbPortCard;
 using Station.Application.UsbPortCard.Events;
 using Station.Application.Users;
+using Station.Application.OperationAccess;
+using Station.Application.Session;
+using Station.Application.Settings;
 
 namespace Station.Application;
 
@@ -54,24 +58,6 @@ public static class DependencyInjection
         services.AddScoped<IRecorderIdentificationService, RecorderIdentificationService>(); // 记录仪绑定识别服务
         // 注册报警服务
         services.AddScoped<IAlertService, AlertService>();
-        //var storageSection = configuration.GetSection(StorageOptions.SectionName);
-        //services.Configure<StorageOptions>(storageSection);
-        //services.AddSingleton(storageSection.Get<StorageOptions>() ?? new StorageOptions());
-        //services.AddSingleton<IStorageCircuitBreaker>(sp =>
-        //{
-        //    var storage = sp.GetRequiredService<StorageOptions>();
-        //    return new StorageCircuitBreaker(storage.CircuitBreakerThreshold, storage.CircuitBreakerCooldownSeconds);
-        //});
-        //services.AddSingleton<IStorageTarget>(sp =>
-        //{
-        //    var storage = sp.GetRequiredService<StorageOptions>();
-        //    return storage.Target switch
-        //    {
-        //        StorageTargetKind.Ftp => new FtpStorageTarget(Options.Create(storage)),
-        //        StorageTargetKind.Sftp => new SftpStorageTarget(Options.Create(storage)),
-        //        _ => new LocalDiskStorageTarget(Options.Create(storage))
-        //    };
-        //});
         // 注册上传服务
         services.AddScoped<IUploadService, UploadService>();
         services.AddSingleton<IDirectoryTemplateRenderer, DirectoryTemplateRenderer>();
@@ -110,6 +96,26 @@ public static class DependencyInjection
         services.AddScoped<IAuthenticationService, AuthenticationService>();
         // 注册RBAC服务
         services.AddScoped<IUserService, UserService>();
+
+
+        services.AddSingleton<ISessionManager, SessionManager>();
+        var opAuth = configuration.GetSection(OperationAuthOptions.SectionName);
+        services.Configure<OperationAuthOptions>(opAuth);
+        services.AddSingleton(opAuth.Get<OperationAuthOptions>() ?? new OperationAuthOptions());
+        services.AddSingleton<IOperationAccessService, OperationAccessService>();
+
+        // 系统设置（单机版）：基本/存储/采集热应用 + 运行时文件持久化；设备自检
+        var basicSection = configuration.GetSection(StationOptions.SectionName);
+        services.Configure<StationOptions>(basicSection);
+        services.AddSingleton(basicSection.Get<StationOptions>() ?? new StationOptions());
+        
+        services.AddScoped<ISystemSettingsService, SystemSettingsService>();
+        services.AddScoped<ISystemSelfCheckService, SystemSelfCheckService>();
+
+        // 窗口设置
+        var windowsSection = configuration.GetSection(WindowModeOptions.SectionName);
+        services.Configure<WindowModeOptions>(windowsSection);
+        services.AddSingleton(windowsSection.Get<WindowModeOptions>() ?? new WindowModeOptions());
 
         return services;
     }

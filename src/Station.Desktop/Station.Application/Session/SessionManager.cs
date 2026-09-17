@@ -1,7 +1,7 @@
 using Station.Application.Authentication;
 using Station.Application.Authorization;
 
-namespace Station.Desktop.Application.Session;
+namespace Station.Application.Session;
 
 public sealed class SessionManager : ISessionManager
 {

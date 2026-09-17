@@ -1,0 +1,163 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Station.Desktop.ViewModels"
+             x:Class="Station.Desktop.Views.UsbPortCardView"
+             x:DataType="vm:UsbPortCardViewModel">
+
+  <Border Classes="channel-card"
+          Classes.emergency="{Binding IsEmergency}"
+          Classes.idle-card="{Binding IsIdle}"
+          Opacity="{Binding Opacity}"
+          InputElement.IsHoldingEnabled="True"
+          InputElement.IsHoldWithMouseEnabled="False"
+          Holding="OnCardHolding">
+
+    <!-- 右键菜单（触屏长按弹出） -->
+    <Border.ContextMenu>
+      <ContextMenu>
+        <MenuItem Header="查看明细" Command="{Binding DetailsCommand}"
+                  IsEnabled="{Binding !IsIdle}"/>
+        <Separator/>
+        <MenuItem Header="暂停"  Command="{Binding PauseCommand}"   IsVisible="{Binding CanPause}"/>
+        <MenuItem Header="恢复"  Command="{Binding ResumeCommand}"  IsVisible="{Binding CanResume}"/>
+        <MenuItem Header="取消"  Command="{Binding CancelCommand}"  IsVisible="{Binding CanCancel}"/>
+        <MenuItem Header="重试"  Command="{Binding RetryCommand}"   IsVisible="{Binding CanRetry}"/>
+        <MenuItem Header="{Binding PriorityButtonText}" Command="{Binding PriorityCommand}" IsVisible="{Binding CanPriority}"/>
+      </ContextMenu>
+    </Border.ContextMenu>
+
+    <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto,*,Auto">
+
+      <!-- 第 0 行：端口号 + 设备灯 + 紧急标记 | 任务状态徽章 -->
+      <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,6">
+        <!-- 左：设备指示灯 + 端口号 + 链路文本 + 紧急星标 -->
+        <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="5"
+                    VerticalAlignment="Center">
+          <!-- 设备连接态灯 -->
+          <Ellipse Width="8" Height="8"
+                   Fill="{Binding LinkBrush}"
+                   VerticalAlignment="Center"/>
+          <!-- 端口号 -->
+          <TextBlock Classes="card-port" Text="{Binding PortText}"/>
+          <!-- 设备链路短文本（空闲 / 识别中 / 已连接 / 拒绝连接） -->
+          <TextBlock Text="{Binding LinkText}"
+                     FontSize="12"
+                     Foreground="{Binding LinkBrush}"
+                     Opacity="0.9"
+                     VerticalAlignment="Center"/>
+          <!-- 紧急优先星标 -->
+          <TextBlock Text="⭐" FontSize="14"
+                     Foreground="{DynamicResource CardEmergencyBorder}"
+                     IsVisible="{Binding IsEmergency}"
+                     VerticalAlignment="Center"/>
+        </StackPanel>
+
+        <!-- 右：任务状态徽章（只反映任务维度） -->
+        <Border Grid.Column="1" Classes="status-badge"
+                Background="{Binding StatusBadgeBrush}"
+                Classes.running="{Binding IsCollecting}"
+                Classes.paused="{Binding IsPaused}"
+                Classes.error="{Binding IsFailedState}"
+                Classes.done="{Binding IsCompletedState}"
+                Classes.pending="{Binding IsPendingState}">
+          <TextBlock Text="{Binding StatusText}"
+                     Foreground="{Binding StatusForeground}"/>
+        </Border>
+      </Grid>
+      <!-- 行1 设备名 + 设备空间 -->
+      <Grid Grid.Row="1" ColumnDefinitions="*,Auto" Margin="0,0,0,6">
+       
+        <TextBlock Classes="card-device"
+                 Text="{Binding DeviceText}"
+                 TextTrimming="CharacterEllipsis"
+                 Margin="0,0,0,3"/>
+        <TextBlock Classes="card-meta"
+                 Text="{Binding DeviceSpaceText}"
+                 IsVisible="{Binding HasDeviceSpace}"
+                 TextTrimming="CharacterEllipsis"
+                 Margin="0,1,0,1"/>
+      </Grid>
+      
+      <!-- 行2 协议 + 采集模式 -->
+      <TextBlock Grid.Row="2" Classes="card-meta"
+                 Text="{Binding MetaText}"
+                 TextTrimming="CharacterEllipsis"
+                 Margin="0,1,0,1"/>
+
+      <!-- 行3  任务进度统计（有任务时显示） -->
+      <TextBlock Grid.Row="3" Classes="card-meta"
+                 Text="{Binding StorageText}"
+                 TextTrimming="CharacterEllipsis"
+                 Margin="0,1,0,4"/>
+
+      <!-- 行4 提示（拒绝原因 / 授权提示 / 警告），非空时显示 -->
+      <TextBlock Grid.Row="5"
+                 Text="{Binding HintText}"
+                 IsVisible="{Binding HasHint}"
+                 Foreground="{Binding HintBrush}"
+                 FontSize="{DynamicResource FontSizeSmall}"
+                 FontWeight="SemiBold"
+                 TextTrimming="CharacterEllipsis"
+                 Margin="0,0,0,4"/>
+
+      <!-- 行5 进度条 + 速度 + 百分比 -->
+      <StackPanel Grid.Row="4" Spacing="3" Margin="0,2,0,4">
+        <ProgressBar Minimum="0" Maximum="100"
+                     Value="{Binding Progress}"
+                     Height="12" CornerRadius="6"
+                     Foreground="{DynamicResource ProgressFill}"
+                     Background="{DynamicResource ProgressTrack}"/>
+        <Grid ColumnDefinitions="*,Auto">
+          <TextBlock Classes="card-meta-info" Text="{Binding SpeedText}"/>
+          <TextBlock Grid.Column="1"
+                     Text="{Binding ProgressText}"
+                     FontSize="{DynamicResource FontSizeSmall}"
+                     FontWeight="Bold"
+                     Foreground="{DynamicResource TextPrimary}"/>
+        </Grid>
+      </StackPanel>
+
+      <!-- 行6 操作按钮 -->
+      <WrapPanel Grid.Row="5" Orientation="Horizontal"
+                 HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                 Margin="0,4,0,0">
+
+        <Button Classes="card-btn warning"
+                Content="暂停"
+                Command="{Binding PauseCommand}"
+                IsVisible="{Binding CanPause}"
+                Margin="0,0,4,0"/>
+
+        <Button Classes="card-btn primary"
+                Content="恢复"
+                Command="{Binding ResumeCommand}"
+                IsVisible="{Binding CanResume}"
+                Margin="0,0,4,0"/>
+
+        <Button Classes="card-btn danger"
+                Content="取消"
+                Command="{Binding CancelCommand}"
+                IsVisible="{Binding CanCancel}"
+                Margin="0,0,4,0"/>
+
+        <Button Classes="card-btn danger"
+                Content="重试"
+                Command="{Binding RetryCommand}"
+                IsVisible="{Binding CanRetry}"
+                Margin="0,0,4,0"/>
+
+        <Button Classes="card-btn priority"
+                Content="{Binding PriorityButtonText}"
+                Command="{Binding PriorityCommand}"
+                IsVisible="{Binding CanPriority}"
+                Background="{Binding PriorityButtonBrush}"
+                Margin="0,0,4,0"/>
+
+        <Button Classes="card-btn"
+                Content="明细"
+                Command="{Binding DetailsCommand}"
+                IsVisible="{Binding !IsIdle}" />
+      </WrapPanel>
+    </Grid>
+  </Border>
+</UserControl>

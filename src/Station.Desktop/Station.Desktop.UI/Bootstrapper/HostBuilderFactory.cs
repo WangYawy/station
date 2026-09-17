@@ -1,10 +1,14 @@
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Serilog;
-using Station.Desktop.Application;
+using Station.Application;
+using Station.Application;
+using Station.Application.Settings;
 using Station.Desktop.Infrastructure;
 using Station.Desktop.Infrastructure.Settings;
-using Station.Desktop.WebHost;
+using Station.Desktop.Services;
+using Station.Desktop.Services.Kiosk;
 using Station.Infrastructure;
 
 namespace Station.Desktop.Bootstrapper;
@@ -46,11 +50,16 @@ public static class HostBuilderFactory
                 writeToProviders: true)
             .ConfigureServices((context, services) =>
             {
-                services.AddApplicationServices(context.Configuration);
+                // 应用层服务注册
+                services.AddStationApplication(context.Configuration);
                 // 基础设施在应用服务之后注册：采集源（MTP/UMS/模拟）与根文件存取（绑定文件）以桌面端覆盖为准
                 services.AddStatoinInfrastructure(context.Configuration);
+
+                // 桌面注册
+                services.AddSingleton<IKioskGuard>(_ => KioskGuardFactory.Create());
             })
-            .UseWebHostModule(configuration); // 传入外部配置
+            //.UseWebHostModule(configuration); // 传入外部配置
+            ;
     }
 
     /// <summary>
