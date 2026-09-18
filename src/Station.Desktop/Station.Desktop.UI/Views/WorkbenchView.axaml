@@ -4,11 +4,9 @@
              xmlns:views="using:Station.Desktop.Views"
              x:Class="Station.Desktop.Views.WorkbenchView"
              x:DataType="vm:WorkbenchViewModel">
-
   <ScrollViewer HorizontalScrollBarVisibility="Disabled"
                 VerticalScrollBarVisibility="Auto"
                 IsScrollChainingEnabled="True">
-
     <ItemsControl ItemsSource="{Binding PortCards}" Height="{Binding GridHeight}">
       <ItemsControl.ItemsPanel>
         <ItemsPanelTemplate>
@@ -17,7 +15,8 @@
       </ItemsControl.ItemsPanel>
       <ItemsControl.ItemTemplate>
         <DataTemplate x:DataType="vm:UsbPortCardViewModel">
-          <views:UsbPortCardView Margin="4"/>
+          <!-- Margin 8 = 卡片间距 16；必须与 WorkbenchView.axaml.cs 里的 GridSpacing / 2 保持一致 -->
+          <views:UsbPortCardView Margin="8"/>
         </DataTemplate>
       </ItemsControl.ItemTemplate>
     </ItemsControl>

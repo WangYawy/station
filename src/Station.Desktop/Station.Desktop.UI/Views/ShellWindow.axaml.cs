@@ -658,6 +658,7 @@ public partial class ShellWindow : Window
             SessionStatusText.Text = "未登录";
             SessionStatusText.Foreground = Avalonia.Media.Brushes.LightGray;
             LogoutButton.IsVisible = false;
+            NoticeBar.IsVisible = true;
         }
     }
 
@@ -756,14 +757,14 @@ public partial class ShellWindow : Window
         AlertLevel.Critical => "严重",
         _ => "提示"
     };
-    #endregion
 
-    // 公告
+    // 报警
     private async void OnAlertBannerTapped(object? sender, TappedEventArgs e)
     {
         AlertBanner.IsVisible = false;
         await NavigateAsync("alerts");
     }
+    #endregion
 
     // 授权监控
     private async Task RefreshLicenseAsync()
@@ -783,5 +784,11 @@ public partial class ShellWindow : Window
         {
             // 忽略授权刷新异常
         }
+    }
+
+    // 公告栏关闭
+    private void OnNoticeClose(object? sender, RoutedEventArgs e)
+    {
+        NoticeBar.IsVisible = false;
     }
 }

@@ -42,8 +42,8 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
     #region 卡片布局 
     public ObservableCollection<UsbPortCardViewModel> PortCards { get; }
 
-    [ObservableProperty] private int _columns = 5;
-    [ObservableProperty] private int _rows = 6;
+    [ObservableProperty] private int _columns = 4;
+    [ObservableProperty] private int _rows = 5;
     [ObservableProperty] private bool _canOperate;
 
     /// <summary>由 WorkbenchView 根据窗口尺寸计算得到的卡片宽度（px）</summary>

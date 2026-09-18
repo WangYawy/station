@@ -1,69 +1,82 @@
 <ResourceDictionary xmlns="https://github.com/avaloniaui"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+<!-- ============================================================
+     布局高度（沿用原值，上中下三段位置不变）
+     ============================================================ -->
+<x:Double x:Key="ShellTopNavHeight">64</x:Double>
+<x:Double x:Key="ShellNoticeBarHeight">36</x:Double>
+<x:Double x:Key="ShellBottomBarHeight">40</x:Double>
+<x:Double x:Key="ShellIconBtnSize">44</x:Double>
 
-  <!-- ============================================================
-       布局高度
-       ============================================================ -->
-  <x:Double x:Key="ShellTopNavHeight">64</x:Double>
-  <x:Double x:Key="ShellNoticeBarHeight">40</x:Double>
-  <x:Double x:Key="ShellBottomBarHeight">56</x:Double>
-  <x:Double x:Key="ShellCardMinHeight">80</x:Double>
-  <x:Double x:Key="ShellIconBtnSize">48</x:Double>
+<!-- ============================================================
+     卡片尺寸（原 80 太矮，撑不起"独立框架"的感觉）
+     ============================================================ -->
+<x:Double x:Key="ShellCardMinHeight">180</x:Double>
+<x:Double x:Key="ShellCardMinWidth">260</x:Double>
+<!-- 卡片左侧状态竖条宽度（竖条由外框圆角裁切，不单独设圆角） -->
+<x:Double x:Key="CardAccentWidth">4</x:Double>
 
-  <!-- ============================================================
-       控件热区（触屏优先）
-       ============================================================ -->
-  <x:Double x:Key="ControlMinSize">44</x:Double>
-  <x:Double x:Key="NavPillHeight">46</x:Double>
-  <x:Double x:Key="CardBtnMinHeight">40</x:Double>
-  <x:Double x:Key="CardBtnMinWidth">56</x:Double>
-  <x:Double x:Key="TouchTargetMinHeight">44</x:Double>
+<!-- ============================================================
+     控件热区（触屏优先，公安/铁路/煤炭现场多为手套或手指操作）
+     ============================================================ -->
+<x:Double x:Key="ControlMinSize">44</x:Double>
+<x:Double x:Key="NavPillHeight">44</x:Double>
+<x:Double x:Key="CardBtnMinHeight">40</x:Double>
+<x:Double x:Key="CardBtnMinWidth">60</x:Double>
+<x:Double x:Key="TouchTargetMinHeight">44</x:Double>
 
-  <!-- ============================================================
-       圆角
-       ============================================================ -->
-  <CornerRadius x:Key="RadiusPill">30</CornerRadius>
-  <CornerRadius x:Key="RadiusCard">16</CornerRadius>
-  <CornerRadius x:Key="RadiusBadge">10</CornerRadius>
-  <CornerRadius x:Key="RadiusCardBtn">15</CornerRadius>
-  <CornerRadius x:Key="RadiusProgress">6</CornerRadius>
-  <CornerRadius x:Key="RadiusDot">4</CornerRadius>
-  <CornerRadius x:Key="RadiusCircle">9999</CornerRadius>
+<!-- ============================================================
+     圆角（整体收敛，更硬朗、更"工业调度台"）
+     ============================================================ -->
+<CornerRadius x:Key="RadiusPill">22</CornerRadius>
+<CornerRadius x:Key="RadiusCard">12</CornerRadius>
+<!-- 左侧状态竖条的圆角：比卡片小 1px，正好贴合描边内沿 -->
+<CornerRadius x:Key="RadiusCardLeft">11,0,0,11</CornerRadius>
+<CornerRadius x:Key="RadiusBadge">8</CornerRadius>
+<CornerRadius x:Key="RadiusCardBtn">10</CornerRadius>
+<CornerRadius x:Key="RadiusProgress">6</CornerRadius>
+<CornerRadius x:Key="RadiusDot">4</CornerRadius>
+<CornerRadius x:Key="RadiusCircle">9999</CornerRadius>
+<CornerRadius x:Key="RadiusPanel">10</CornerRadius>
 
-  <!-- ============================================================
-       内边距
-       ============================================================ -->
-  <Thickness x:Key="PaddingTopNav">20,0</Thickness>
-  <Thickness x:Key="PaddingNoticeBar">20,0</Thickness>
-  <Thickness x:Key="PaddingBottomBar">20,0</Thickness>
-  <Thickness x:Key="PaddingCard">14</Thickness>
-  <Thickness x:Key="PaddingNavPill">20,10</Thickness>
-  <Thickness x:Key="PaddingCardBtn">14,6</Thickness>
-  <Thickness x:Key="PaddingBadge">10,2</Thickness>
-  <Thickness x:Key="PaddingProtocolTag">8,1</Thickness>
-  <Thickness x:Key="PaddingControlDefault">14,8</Thickness>
+<!-- ============================================================
+     内边距
+     ============================================================ -->
+<Thickness x:Key="PaddingTopNav">20,0</Thickness>
+<Thickness x:Key="PaddingNoticeBar">10,0</Thickness>
+<Thickness x:Key="PaddingBottomBar">10,0</Thickness>
+<!-- 卡片外框不再承担内边距（顶部色条要满宽），改由内容 Grid 承担 -->
+<Thickness x:Key="PaddingCard">0</Thickness>
+<Thickness x:Key="PaddingCardInner">14</Thickness>
+<Thickness x:Key="PaddingNavPill">18,10</Thickness>
+<Thickness x:Key="PaddingCardBtn">14,6</Thickness>
+<Thickness x:Key="PaddingBadge">10,3</Thickness>
+<Thickness x:Key="PaddingProtocolTag">8,2</Thickness>
+<Thickness x:Key="PaddingControlDefault">14,8</Thickness>
+<Thickness x:Key="PaddingContent">12</Thickness>
 
-  <!-- ============================================================
-       间距
-       ============================================================ -->
-  <x:Double x:Key="SpacingGridGap">16</x:Double>
+<!-- ============================================================
+     间距
+     ============================================================ -->
+<x:Double x:Key="SpacingGridGap">16</x:Double>
+<x:Double x:Key="SpacingCardGap">16</x:Double>
+<x:Double x:Key="SpacingSectionGap">12</x:Double>
 
-  <!-- ============================================================
-       滚动条
-       ============================================================ -->
-  <x:Double x:Key="TouchScrollBarWidth">14</x:Double>
-  <x:Double x:Key="ScrollBarThumbMinWidth">12</x:Double>
-  <x:Double x:Key="ScrollBarThumbMinHeight">24</x:Double>
+<!-- ============================================================
+     滚动条（触屏）
+     ============================================================ -->
+<x:Double x:Key="TouchScrollBarWidth">14</x:Double>
+<x:Double x:Key="ScrollBarThumbMinWidth">12</x:Double>
+<x:Double x:Key="ScrollBarThumbMinHeight">28</x:Double>
 
-  <!-- ============================================================
-       字号
-       ============================================================ -->
-  <x:Double x:Key="FontSizeXSmall">10</x:Double>
-  <x:Double x:Key="FontSizeSmall">11</x:Double>
-  <x:Double x:Key="FontSizeBase">12</x:Double>
-  <x:Double x:Key="FontSizeMedium">13</x:Double>
-  <x:Double x:Key="FontSizeLarge">14</x:Double>
-  <x:Double x:Key="FontSizeTitle">20</x:Double>
-  <x:Double x:Key="FontSizeCardPort">17</x:Double>
-
+<!-- ============================================================
+     字号（整体上调 1px：现场多为站立/远距离查看）
+     ============================================================ -->
+<x:Double x:Key="FontSizeXSmall">11</x:Double>
+<x:Double x:Key="FontSizeSmall">12</x:Double>
+<x:Double x:Key="FontSizeBase">13</x:Double>
+<x:Double x:Key="FontSizeMedium">14</x:Double>
+<x:Double x:Key="FontSizeLarge">15</x:Double>
+<x:Double x:Key="FontSizeTitle">20</x:Double>
+<x:Double x:Key="FontSizeCardPort">18</x:Double>
 </ResourceDictionary>

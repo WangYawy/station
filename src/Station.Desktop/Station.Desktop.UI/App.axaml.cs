@@ -1,3 +1,4 @@
+using System.Globalization;
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
@@ -19,6 +20,13 @@ public partial class App : Avalonia.Application
 
     public override void Initialize()
     {
+        // 全局应用中文
+        var zh = new CultureInfo("zh-CN");
+        CultureInfo.DefaultThreadCurrentCulture = zh;
+        CultureInfo.DefaultThreadCurrentUICulture = zh;
+        Thread.CurrentThread.CurrentCulture = zh;
+        Thread.CurrentThread.CurrentUICulture = zh;
+
         AvaloniaXamlLoader.Load(this);
     }
 

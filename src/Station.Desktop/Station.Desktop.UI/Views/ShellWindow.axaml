@@ -6,72 +6,61 @@
         WindowStartupLocation="CenterScreen"
         Background="{DynamicResource AppBackground}"
         Title="视音频数据采集站 · 桌面端">
-
   <Grid RowDefinitions="Auto,Auto,Auto,*,Auto">
-
     <!-- =================== 顶部导航 =================== -->
-    <!-- 顶栏：去掉 2px 粗边，改成 1px -->
-<Border Grid.Row="0"
-        Height="{DynamicResource ShellTopNavHeight}"
-        Background="{DynamicResource TopNavBackground}"
-        BorderBrush="{DynamicResource TopNavBorder}"
-        BorderThickness="0,0,0,1"
-        Padding="{DynamicResource PaddingTopNav}">
+    <Border Grid.Row="0"
+            Height="{DynamicResource ShellTopNavHeight}"
+            Background="{DynamicResource TopNavBackground}"
+            BorderBrush="{DynamicResource TopNavBorder}"
+            BorderThickness="0,0,0,1"
+            Padding="{DynamicResource PaddingTopNav}">
       <Grid ColumnDefinitions="Auto,*,Auto">
-
-        <!-- 品牌区：图标 + 标题，间距 10，标题字号 14，字重 SemiBold -->
+        <!-- 品牌区 -->
         <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
           <PathIcon Data="{StaticResource IconShield}"
-                    Width="22" Height="22"
+                    Width="24" Height="24"
                     Foreground="{DynamicResource BrandAccent}"
                     VerticalAlignment="Center"/>
           <TextBlock Classes="brand-title" Text="视音频数据采集站"
-                     FontSize="14" FontWeight="SemiBold"
+                     FontSize="15" FontWeight="SemiBold"
                      VerticalAlignment="Center"/>
         </StackPanel>
-
+        <!-- 导航区 -->
         <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8"
                     HorizontalAlignment="Center" VerticalAlignment="Center">
           <Button x:Name="NavWorkbench" Tag="workbench" Classes="nav-pill nav-pill-selected" Click="OnNavClick">
             <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-              <PathIcon Data="{StaticResource IconDashboard}" Width="16" Height="16"
-                        VerticalAlignment="Center"/>
+              <PathIcon Data="{StaticResource IconDashboard}" Width="16" Height="16" VerticalAlignment="Center"/>
               <TextBlock Text="采集监控" VerticalAlignment="Center"/>
             </StackPanel>
           </Button>
-
           <Button x:Name="NavData" Tag="data" Classes="nav-pill" Click="OnNavClick">
             <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-              <PathIcon Data="{StaticResource IconDatabase}" Width="16" Height="16"
-                        VerticalAlignment="Center"/>
+              <PathIcon Data="{StaticResource IconDatabase}" Width="16" Height="16" VerticalAlignment="Center"/>
               <TextBlock Text="数据管理" VerticalAlignment="Center"/>
             </StackPanel>
           </Button>
-
           <Button x:Name="NavLogs" Tag="logs" Classes="nav-pill" Click="OnNavClick">
             <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-              <PathIcon Data="{StaticResource IconLog}" Width="16" Height="16"
-                        VerticalAlignment="Center"/>
+              <PathIcon Data="{StaticResource IconLog}" Width="16" Height="16" VerticalAlignment="Center"/>
               <TextBlock Text="日志中心" VerticalAlignment="Center"/>
             </StackPanel>
           </Button>
-
           <Button x:Name="NavSettings" Tag="settings" Classes="nav-pill" Click="OnNavClick">
             <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-              <PathIcon Data="{StaticResource IconSettings}" Width="16" Height="16"
-                        VerticalAlignment="Center"/>
+              <PathIcon Data="{StaticResource IconSettings}" Width="16" Height="16" VerticalAlignment="Center"/>
               <TextBlock Text="设置" VerticalAlignment="Center"/>
             </StackPanel>
           </Button>
         </StackPanel>
-
+        <!-- 右侧工具区 -->
         <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
           <Button Classes="icon-btn" ToolTip.Tip="语言">
             <PathIcon Data="{StaticResource IconGlobe}" />
           </Button>
           <Button x:Name="ThemeToggleButton" Classes="icon-btn" ToolTip.Tip="切换主题"
                   Click="OnToggleThemeClick">
-            <PathIcon x:Name="ThemeToggleIcon" Data="{StaticResource IconGlobe}" Width="20" Height="21"/>
+            <PathIcon x:Name="ThemeToggleIcon" Data="{StaticResource IconMoon}" Width="20" Height="20"/>
           </Button>
           <Button x:Name="NavAlerts" Classes="icon-btn" ToolTip.Tip="报警">
             <Grid>
@@ -81,21 +70,17 @@
               </Border>
             </Grid>
           </Button>
-
           <Border x:Name="LicenseBadge" Classes="license-badge" Margin="8,0,0,0">
             <TextBlock x:Name="LicenseBadgeText" Text="正式版 · 剩余365天"/>
           </Border>
-
           <Border Classes="session-badge" Margin="6,0,0,0">
             <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
               <Border Classes="session-dot"/>
               <TextBlock x:Name="SessionStatusText" Text="未登录"/>
             </StackPanel>
           </Border>
-
           <Button x:Name="LogoutButton" Classes="logout-btn"
                   Content="退出登录" Click="OnLogoutClick" IsVisible="False"/>
-          <!-- 关闭 / 退出程序（Kiosk 后门：按住 Shift 直接退出） -->
           <Button x:Name="CloseAppButton" Classes="icon-btn exit-btn"
                   ToolTip.Tip="退出程序"
                   Click="OnCloseAppClick"
@@ -103,32 +88,29 @@
                   PointerReleased="OnCloseAppPointerReleased"
                   PointerCaptureLost="OnCloseAppPointerCaptureLost"
                   Margin="6,0,0,0">
-            <PathIcon Data="{StaticResource IconClose}" Foreground="White" Width="32" Height="32"/>
+            <PathIcon Data="{StaticResource IconClose}" Width="22" Height="22"/>
           </Button>
         </StackPanel>
       </Grid>
     </Border>
-
     <!-- =================== 公告栏 =================== -->
     <Border Grid.Row="1"
+            x:Name="NoticeBar"
             Height="{DynamicResource ShellNoticeBarHeight}"
             Background="{DynamicResource NoticeBackground}"
             BorderBrush="{DynamicResource NoticeBorder}"
             BorderThickness="0,0,0,1"
             Padding="{DynamicResource PaddingNoticeBar}">
       <Grid ColumnDefinitions="Auto,*,Auto">
-        <TextBlock Grid.Column="0" Margin="0,0,14,0" VerticalAlignment="Center">
-          <PathIcon Data="{StaticResource IconMegaphone}"
-                    Width="16" Height="16"
-                    Foreground="{DynamicResource NoticeIcon}"
-                    VerticalAlignment="Center"/>
-        </TextBlock>
+        <PathIcon Grid.Column="0" Data="{StaticResource IconMegaphone}"
+                  Width="16" Height="16" Margin="0,0,14,0"
+                  Foreground="{DynamicResource NoticeIcon}"
+                  VerticalAlignment="Center"/>
         <TextBlock Grid.Column="1" Classes="notice-text"
                    Text="系统升级通知：2026-07-10 02:00 维护，预计 2 小时。 | 新版本 v1.3 已发布，支持国密算法与存储熔断。"/>
-        <Button Grid.Column="2" Classes="notice-close" Content="✕"/>
+        <Button Grid.Column="2" Classes="notice-close" Content="✕" Click="OnNoticeClose" />
       </Grid>
     </Border>
-
     <!-- =================== 空闲/报警横幅 =================== -->
     <StackPanel Grid.Row="2">
       <Border x:Name="IdleWarningBar" IsVisible="False"
@@ -138,7 +120,7 @@
         <TextBlock x:Name="IdleWarningText"
                    Text="即将自动退出登录，请操作以保持会话"
                    Foreground="{DynamicResource NoticeText}"
-                   FontSize="{DynamicResource FontSizeMedium}" Margin="16,6"
+                   FontSize="{DynamicResource FontSizeMedium}" Margin="16,4"
                    HorizontalAlignment="Center"/>
       </Border>
       <Border x:Name="AlertBanner" IsVisible="False"
@@ -149,23 +131,19 @@
         <TextBlock x:Name="AlertBannerText"
                    Foreground="{DynamicResource TextDanger}"
                    FontSize="{DynamicResource FontSizeMedium}"
-                   Margin="16,6" HorizontalAlignment="Center"/>
+                   Margin="16,4" HorizontalAlignment="Center"/>
       </Border>
     </StackPanel>
-
-    <!-- =================== 主内容区（工作台网格） =================== -->
-    <ContentControl Grid.Row="3" x:Name="ModuleContent" Margin="8" />
-
+    <!-- =================== 主内容区 =================== -->
+    <ContentControl Grid.Row="3" x:Name="ModuleContent" Margin="{DynamicResource PaddingContent}"/>
     <!-- =================== 底部状态栏 =================== -->
     <Border Grid.Row="4"
             Height="{DynamicResource ShellBottomBarHeight}"
             Background="{DynamicResource BottomBarBackground}"
             BorderBrush="{DynamicResource BottomBarBorder}"
-            BorderThickness="0,2,0,0"
+            BorderThickness="0,1,0,0"
             Padding="{DynamicResource PaddingBottomBar}">
       <Grid ColumnDefinitions="*,Auto">
-
-        <!-- 左侧：系统监控指标（可横向滚动，屏小不遮挡） -->
         <ScrollViewer Grid.Column="0"
                       HorizontalScrollBarVisibility="Auto"
                       VerticalScrollBarVisibility="Disabled">
@@ -187,12 +165,9 @@
             <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
               <PathIcon Data="{StaticResource IconHeart}" Width="14" Height="14"
                         Foreground="{DynamicResource TextDanger}" VerticalAlignment="Center"/>
-              <TextBlock x:Name="BarHeartbeat" Classes="bar-item" Text="心跳正常"
-                         Foreground="{DynamicResource TextDanger}"/>
+              <TextBlock x:Name="BarHeartbeat" Classes="bar-item danger" Text="心跳正常"/>
             </StackPanel>
-
             <Border Classes="bar-divider"/>
-
             <!-- CPU -->
             <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
               <PathIcon Data="{StaticResource IconCpu}" Width="14" Height="14"
@@ -214,16 +189,7 @@
               <TextBlock Classes="bar-item" Text="磁盘"/>
               <TextBlock x:Name="BarDiskText" Classes="bar-item" Text="—" />
             </StackPanel>
-            <!-- 网络（吞吐） --><!--
-            <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-              <PathIcon Data="{StaticResource IconEarth}" Width="14" Height="14"
-                        Foreground="{DynamicResource BottomBarText}" VerticalAlignment="Center"/>
-              <TextBlock x:Name="BarNetText" Classes="bar-item" Text="网络"/>
-              <TextBlock Classes="bar-item" Text="—" />
-            </StackPanel>-->
-
             <Border Classes="bar-divider"/>
-
             <!-- 在线设备 -->
             <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
               <PathIcon Data="{StaticResource IconUsb}" Width="14" Height="14"
@@ -247,7 +213,6 @@
             </StackPanel>
           </StackPanel>
         </ScrollViewer>
-
         <!-- 右侧：时钟 -->
         <TextBlock Grid.Column="1" x:Name="ClockText"
                    FontSize="{DynamicResource FontSizeMedium}"

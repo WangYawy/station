@@ -85,6 +85,12 @@ public class RepositoryBase<T> : IRepository<T> where T : class, new()
 
         var total = new RefAsync<int>();
         var items = await query.ToPageListAsync(pageIndex, pageSize, total);
-        return new PageResult<T>(total.Value, items);
+        return new PageResult<T>
+        {
+            PageIndex = pageIndex,
+            PageSize = pageSize,
+            Total = total.Value,
+            Items = items
+        };
     }
 }

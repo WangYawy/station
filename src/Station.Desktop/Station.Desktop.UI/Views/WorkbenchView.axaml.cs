@@ -14,7 +14,7 @@ public partial class WorkbenchView : UserControl
     private const double GridSpacing = 16;
 
     /// <summary>容器四周留白</summary>
-    private const double OuterPadding = 16;
+    private const double OuterPadding = 0;
     private ScrollViewer? _scroll;
 
     public WorkbenchView()
