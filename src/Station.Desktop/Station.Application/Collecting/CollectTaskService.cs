@@ -310,7 +310,14 @@ public sealed class CollectTaskService : ICollectTaskService
 
     public async Task<IReadOnlyList<CollectTaskDto>> GetTasksAsync(int count)
     {
-        var page = await _tasks.ToPageAsync(1, count, orderBy: t => t.CreatedAt, orderType: SqlSugar.OrderByType.Desc);
+        var query = new PageQuery<CollectTask>
+        {
+            PageIndex = 1,
+            PageSize = count,
+            Predicate = null,
+            CountTotal = false
+        };
+        var page = await _tasks.ToPageAsync(query, orderBy: t => t.CreatedAt, descending: true);
         return page.Items.Select(ToDto).ToList();
     }
 

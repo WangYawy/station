@@ -34,7 +34,7 @@
   </Style>
   <Style Selector="Button.nav-pill TextBlock">
     <Setter Property="Foreground" Value="{DynamicResource TopNavItemFg}"/>
-    <Setter Property="FontSize" Value="{DynamicResource FontSizeMedium}"/>
+    <Setter Property="FontSize" Value="{DynamicResource FontSizeCardPort}"/>
     <Setter Property="FontWeight" Value="SemiBold"/>
     <Setter Property="VerticalAlignment" Value="Center"/>
   </Style>
@@ -543,4 +543,175 @@
   <Style Selector="ScrollBar /template/ Thumb:pointerover">
     <Setter Property="Background" Value="{DynamicResource ScrollBarThumbHover}"/>
   </Style>
+
+  <!-- ============================================================
+  筛选区字段
+  ============================================================ -->
+  <Style Selector="TextBlock.field-label">
+    <Setter Property="FontSize" Value="{DynamicResource FontSizeBase}"/>
+    <Setter Property="Foreground" Value="{DynamicResource TextSecondary}"/>
+    <Setter Property="Margin" Value="0,0,0,4"/>
+  </Style>
+
+  <Style Selector="TextBox.field">
+    <Setter Property="FontSize" Value="{DynamicResource FontSizeMedium}"/>
+    <Setter Property="MinHeight" Value="{DynamicResource ControlMinSize}"/>
+    <Setter Property="Padding" Value="{DynamicResource PaddingControlDefault}"/>
+    <Setter Property="Background" Value="{DynamicResource FieldBackground}"/>
+    <Setter Property="Foreground" Value="{DynamicResource FieldForeground}"/>
+    <Setter Property="BorderBrush" Value="{DynamicResource FieldBorder}"/>
+    <Setter Property="BorderThickness" Value="1"/>
+    <Setter Property="CornerRadius" Value="{DynamicResource RadiusCardBtn}"/>
+    <Setter Property="VerticalContentAlignment" Value="Center"/>
+  </Style>
+  <!-- 水印颜色：若你的 Avalonia 版本模板内部名不同，这条不生效直接删掉即可 -->
+  <Style Selector="TextBox.field /template/ TextBlock#PART_Watermark">
+    <Setter Property="Foreground" Value="{DynamicResource FieldWatermark}"/>
+  </Style>
+
+  <Style Selector="ComboBox.field">
+    <Setter Property="FontSize" Value="{DynamicResource FontSizeMedium}"/>
+    <Setter Property="MinHeight" Value="{DynamicResource ControlMinSize}"/>
+    <Setter Property="Padding" Value="{DynamicResource PaddingControlDefault}"/>
+    <Setter Property="CornerRadius" Value="{DynamicResource RadiusCardBtn}"/>
+    <Setter Property="HorizontalAlignment" Value="Stretch"/>
+  </Style>
+
+  <Style Selector="CalendarDatePicker.field">
+    <Setter Property="FontSize" Value="{DynamicResource FontSizeMedium}"/>
+    <Setter Property="MinHeight" Value="{DynamicResource ControlMinSize}"/>
+    <Setter Property="MinWidth" Value="0"/>
+    <Setter Property="Padding" Value="{DynamicResource PaddingControlDefault}"/>
+    <Setter Property="CornerRadius" Value="{DynamicResource RadiusCardBtn}"/>
+    <Setter Property="HorizontalAlignment" Value="Stretch"/>
+  </Style>
+
+  <Style Selector="NumericUpDown.field">
+    <Setter Property="FontSize" Value="{DynamicResource FontSizeMedium}"/>
+    <Setter Property="MinHeight" Value="{DynamicResource ControlMinSize}"/>
+    <Setter Property="CornerRadius" Value="{DynamicResource RadiusCardBtn}"/>
+    <Setter Property="HorizontalAlignment" Value="Stretch"/>
+  </Style>
+
+  <!-- ============================================================
+  筛选区按钮（触屏热区 44）
+  ============================================================ -->
+  <Style Selector="Button.filter-primary">
+    <Setter Property="Background" Value="{DynamicResource BrandPrimaryDark}"/>
+    <Setter Property="Foreground" Value="White"/>
+    <Setter Property="FontSize" Value="{DynamicResource FontSizeMedium}"/>
+    <Setter Property="FontWeight" Value="SemiBold"/>
+    <Setter Property="CornerRadius" Value="{DynamicResource RadiusCardBtn}"/>
+    <Setter Property="Padding" Value="{DynamicResource PaddingControlDefault}"/>
+    <Setter Property="MinHeight" Value="{DynamicResource ControlMinSize}"/>
+    <Setter Property="MinWidth" Value="96"/>
+    <Setter Property="Cursor" Value="Hand"/>
+    <Setter Property="HorizontalContentAlignment" Value="Center"/>
+    <Setter Property="VerticalContentAlignment" Value="Center"/>
+  </Style>
+  <Style Selector="Button.filter-primary:pointerover">
+    <Setter Property="Background" Value="{DynamicResource BrandPrimaryHover}"/>
+  </Style>
+  <Style Selector="Button.filter-primary:pressed">
+    <Setter Property="Background" Value="{DynamicResource BrandPrimaryActive}"/>
+  </Style>
+
+  <Style Selector="Button.filter-ghost">
+    <Setter Property="Background" Value="{DynamicResource SurfaceBackground}"/>
+    <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
+    <Setter Property="BorderBrush" Value="{DynamicResource SurfaceBorder}"/>
+    <Setter Property="BorderThickness" Value="1"/>
+    <Setter Property="FontSize" Value="{DynamicResource FontSizeMedium}"/>
+    <Setter Property="CornerRadius" Value="{DynamicResource RadiusCardBtn}"/>
+    <Setter Property="Padding" Value="{DynamicResource PaddingControlDefault}"/>
+    <Setter Property="MinHeight" Value="{DynamicResource ControlMinSize}"/>
+    <Setter Property="MinWidth" Value="96"/>
+    <Setter Property="Cursor" Value="Hand"/>
+    <Setter Property="HorizontalContentAlignment" Value="Center"/>
+    <Setter Property="VerticalContentAlignment" Value="Center"/>
+  </Style>
+  <Style Selector="Button.filter-ghost:pointerover">
+    <Setter Property="Background" Value="{DynamicResource SurfaceSubtle}"/>
+    <Setter Property="BorderBrush" Value="{DynamicResource FieldHoverBorder}"/>
+  </Style>
+
+  <!-- ============================================================
+  分页条按钮
+  ============================================================ -->
+  <Style Selector="Button.page">
+    <Setter Property="Background" Value="{DynamicResource SurfaceBackground}"/>
+    <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
+    <Setter Property="BorderBrush" Value="{DynamicResource SurfaceBorder}"/>
+    <Setter Property="BorderThickness" Value="1"/>
+    <Setter Property="FontSize" Value="{DynamicResource FontSizeMedium}"/>
+    <Setter Property="CornerRadius" Value="{DynamicResource RadiusCardBtn}"/>
+    <Setter Property="Padding" Value="{DynamicResource PaddingCardBtn}"/>
+    <Setter Property="MinHeight" Value="{DynamicResource ControlMinSize}"/>
+    <Setter Property="MinWidth" Value="{DynamicResource CardBtnMinWidth}"/>
+    <Setter Property="Cursor" Value="Hand"/>
+    <Setter Property="HorizontalContentAlignment" Value="Center"/>
+    <Setter Property="VerticalContentAlignment" Value="Center"/>
+  </Style>
+  <Style Selector="Button.page:pointerover">
+    <Setter Property="Background" Value="{DynamicResource SurfaceSubtle}"/>
+  </Style>
+  <Style Selector="Button.page:disabled">
+    <Setter Property="Opacity" Value="0.45"/>
+  </Style>
+
+  <!-- ============================================================
+  列表页 DataGrid
+  ============================================================ -->
+  <Style Selector="DataGrid.list-grid">
+    <Setter Property="Background" Value="Transparent"/>
+    <Setter Property="BorderThickness" Value="0"/>
+    <Setter Property="RowHeight" Value="{DynamicResource ControlMinSize}"/>
+    <Setter Property="FontSize" Value="{DynamicResource FontSizeMedium}"/>
+    <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
+    <Setter Property="HorizontalGridLinesBrush" Value="{DynamicResource DataGridGridLinesBrush}"/>
+    <Setter Property="VerticalGridLinesBrush" Value="Transparent"/>
+    <Setter Property="GridLinesVisibility" Value="Horizontal"/>
+    <Setter Property="HeadersVisibility" Value="Column"/>
+    <Setter Property="IsReadOnly" Value="True"/>
+    <Setter Property="CanUserResizeColumns" Value="True"/>
+    <Setter Property="CanUserReorderColumns" Value="False"/>
+    <Setter Property="SelectionMode" Value="Single"/>
+  </Style>
+
+  <Style Selector="DataGrid.list-grid DataGridColumnHeader">
+    <Setter Property="Background" Value="{DynamicResource DataGridHeaderBackground}"/>
+    <Setter Property="Foreground" Value="{DynamicResource DataGridHeaderForeground}"/>
+    <Setter Property="FontSize" Value="{DynamicResource FontSizeBase}"/>
+    <Setter Property="FontWeight" Value="SemiBold"/>
+    <Setter Property="MinHeight" Value="42"/>
+    <Setter Property="Padding" Value="12,0"/>
+  </Style>
+
+  <Style Selector="DataGrid.list-grid DataGridRow">
+    <Setter Property="MinHeight" Value="{DynamicResource ControlMinSize}"/>
+  </Style>
+
+  <!-- 焦点框兜底：资源键覆盖之外的第二道保险（模板内局部值，只能用选择器改） -->
+  <Style Selector="DataGrid.list-grid DataGridCell /template/ Rectangle#FocusVisual">
+    <Setter Property="Stroke" Value="{DynamicResource DataGridFocusVisualPrimary}"/>
+    <Setter Property="StrokeThickness" Value="1"/>
+  </Style>
+
+  <!-- ============================================================
+  空态 / 卡片容器
+  ============================================================ -->
+  <Style Selector="TextBlock.list-empty">
+    <Setter Property="FontSize" Value="{DynamicResource FontSizeLarge}"/>
+    <Setter Property="Foreground" Value="{DynamicResource ListEmptyForeground}"/>
+    <Setter Property="HorizontalAlignment" Value="Center"/>
+    <Setter Property="VerticalAlignment" Value="Center"/>
+  </Style>
+
+  <Style Selector="Border.panel-card">
+    <Setter Property="Background" Value="{DynamicResource SurfaceBackground}"/>
+    <Setter Property="CornerRadius" Value="{DynamicResource RadiusCard}"/>
+    <Setter Property="Padding" Value="{DynamicResource PaddingCard}"/>
+    <Setter Property="BoxShadow" Value="{DynamicResource CardShadow}"/>
+  </Style>
+
 </Styles>

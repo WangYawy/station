@@ -20,7 +20,7 @@
      控件热区（触屏优先，公安/铁路/煤炭现场多为手套或手指操作）
      ============================================================ -->
 <x:Double x:Key="ControlMinSize">44</x:Double>
-<x:Double x:Key="NavPillHeight">44</x:Double>
+<x:Double x:Key="NavPillHeight">48</x:Double>
 <x:Double x:Key="CardBtnMinHeight">40</x:Double>
 <x:Double x:Key="CardBtnMinWidth">60</x:Double>
 <x:Double x:Key="TouchTargetMinHeight">44</x:Double>

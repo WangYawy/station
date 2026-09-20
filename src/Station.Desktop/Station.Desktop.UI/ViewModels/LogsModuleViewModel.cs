@@ -5,110 +5,173 @@ using Station.Application.Audit;
 
 namespace Station.Desktop.ViewModels;
 
-/// <summary>结果状态下拉项。</summary>
 public sealed record ResultOption(bool? Value, string Text);
+public sealed record OperationTypeOption(string? Code, string DisplayName);
+public sealed record OperatorOption(string? UserNo, string DisplayName);
+public sealed record TimeRangePreset(string Key, string DisplayName);
 
 /// <summary>
-/// 日志中心：审计/操作日志（登录、配置修改、擦除、导入导出等）。<br/>
-/// 触发策略：仅「查询」「重置」与分页条上的翻页会发起请求，条件变更不自动请求。
+/// 日志中心。<br/>
+/// 触发策略：仅「查询」「重置」「分页」发起请求；条件变更不自动请求。<br/>
+/// 时间范围必选（默认"今天"），从源头杜绝全表扫。
 /// </summary>
 public partial class LogsModuleViewModel : ObservableObject, IDisposable
 {
-    private const string AllTypeText = "全部";
-
     private readonly IAuditLogService _audit;
 
-    /// <summary>列表数据。整体替换而非 Clear+Add，避免后台线程发 CollectionChanged 导致 DataGrid 不重绘。</summary>
     [ObservableProperty] private ObservableCollection<AuditLogDto> _logs = [];
-
-    public ObservableCollection<string> OperationTypes { get; } = [AllTypeText];
-
-    public ObservableCollection<ResultOption> ResultOptions { get; } =
-        [new(null, "全部"), new(true, "成功"), new(false, "失败")];
-
-    /// <summary>分页控制器，View 里直接 DataContext 给 PaginationBar。</summary>
-    public PaginationViewModel Pager { get; }
-
-    // ---------- 状态 ----------
-
     [ObservableProperty] private string _message = string.Empty;
-
     [ObservableProperty] private bool _isEmpty;
 
-    // ---------- 查询条件 ----------
+    // ---------- 搜索条件 ----------
 
-    [ObservableProperty] private string _keyword = string.Empty;
-
-    [ObservableProperty] private string _selectedType = AllTypeText;
-
-    [ObservableProperty] private DateTime? _dateFrom;
-    [ObservableProperty] private DateTime? _dateTo;
-
+    [ObservableProperty] private TimeRangePreset? _selectedTimeRange;
+    [ObservableProperty] private DateTime? _customDateFrom;
+    [ObservableProperty] private DateTime? _customDateTo;
+    [ObservableProperty] private OperationTypeOption? _selectedType;
+    [ObservableProperty] private OperatorOption? _selectedOperator;
     [ObservableProperty] private ResultOption? _selectedResult;
+    [ObservableProperty] private string _detailKeyword = string.Empty;
+
+    /// <summary>是否显示自定义日期区（仅 SelectedTimeRange.Key == "custom" 时）。</summary>
+    public bool IsCustomRange => SelectedTimeRange?.Key == "custom";
+
+    // ---------- 下拉数据 ----------
+
+    public ObservableCollection<TimeRangePreset> TimeRangePresets { get; } = [];
+    public ObservableCollection<OperationTypeOption> OperationTypes { get; } = [];
+    public ObservableCollection<OperatorOption> Operators { get; } = [];
+    public ObservableCollection<ResultOption> ResultOptions { get; } = [];
+
+    public PaginationViewModel Pager { get; }
 
     public LogsModuleViewModel(IAuditLogService audit)
     {
         _audit = audit;
+
+        // 时间预设
+        TimeRangePresets.Add(new("today", "今天"));
+        TimeRangePresets.Add(new("last7", "近 7 天"));
+        TimeRangePresets.Add(new("last30", "近 30 天"));
+        TimeRangePresets.Add(new("thisMonth", "本月"));
+        TimeRangePresets.Add(new("custom", "自定义"));
+        SelectedTimeRange = TimeRangePresets[0];
+
+        // 操作类型（词表零 IO）
+        OperationTypes.Add(new(null, "全部"));
+        foreach (var t in audit.GetOperationTypes())
+            OperationTypes.Add(new(t.Code, t.DisplayName));
+        SelectedType = OperationTypes[0];
+
+        // 结果
+        ResultOptions.Add(new(null, "全部"));
+        ResultOptions.Add(new(true, "成功"));
+        ResultOptions.Add(new(false, "失败"));
         SelectedResult = ResultOptions[0];
 
-        Pager = new PaginationViewModel(15)
-        {
-            Loader = LoadPageAsync,
-            //ShowRefresh = true
-        };
+        // 操作人先占位，异步填充
+        Operators.Add(new(null, "全部操作人"));
+        SelectedOperator = Operators[0];
+
+        Pager = new PaginationViewModel(15) { Loader = LoadPageAsync };
 
         _ = InitializeAsync();
     }
 
     private async Task InitializeAsync()
     {
+        // 先拉首页数据（快）
+        await Pager.LoadAsync(1);
+        // 再拉操作人（IUserService 可能慢，可放后台）
+        _ = LoadOperatorsAsync();
+    }
+
+    private async Task LoadOperatorsAsync()
+    {
         try
         {
-            var types = await _audit.GetOperationTypesAsync();
-            foreach (var t in types)
+            var list = await _audit.GetSelectableOperatorsAsync();
+            await Pager.RunOnUiThreadAsync(() =>
             {
-                if (!string.IsNullOrWhiteSpace(t) && !OperationTypes.Contains(t))
-                {
-                    OperationTypes.Add(t);
-                }
-            }
+                Operators.Clear();
+                Operators.Add(new(null, "全部操作人"));
+                foreach (var o in list)
+                    Operators.Add(new(o.UserNo, $"{o.UserName}（{o.UserNo}）"));
+                SelectedOperator = Operators[0];
+            });
         }
         catch
         {
-            // 类型下拉拉不到不影响主流程，保留“全部”即可
+            // 忽略：下拉拉不到不影响主流程
         }
-
-        await Pager.LoadAsync(1);
     }
 
     // ---------- 命令 ----------
 
-    /// <summary>点「查询」：条件生效并回到第 1 页。</summary>
     [RelayCommand]
     private Task SearchAsync() => Pager.LoadAsync(1);
 
+    /// <summary>重置 = 恢复默认条件（今天 / 全部 / 全部 / 全部 / 空详情）+ 回到第 1 页。</summary>
     [RelayCommand]
     private void Reset()
     {
-        Keyword = string.Empty;
-        SelectedType = AllTypeText;
-        DateFrom = null;
-        DateTo = null;
+        SelectedTimeRange = TimeRangePresets[0];
+        CustomDateFrom = null;
+        CustomDateTo = null;
+        SelectedType = OperationTypes[0];
+        SelectedOperator = Operators.Count > 0 ? Operators[0] : null;
         SelectedResult = ResultOptions[0];
+        DetailKeyword = string.Empty;
 
-        Pager.Reset(Pager.PageSize);          // 抑制自动重载，避免多打一次后端
-        _ = Pager.LoadAsync(1);   // 只发这一次请求
+        Pager.Reset(Pager.PageSize);
+        _ = Pager.LoadAsync(1);
+    }
+
+    // ---------- 联动 ----------
+
+    partial void OnSelectedTimeRangeChanged(TimeRangePreset? value)
+    {
+        OnPropertyChanged(nameof(IsCustomRange));
+        if (value?.Key != "custom")
+        {
+            CustomDateFrom = null;
+            CustomDateTo = null;
+        }
     }
 
     // ---------- 加载 ----------
 
-    /// <summary>加载指定页；返回 null 表示失败（分页状态保持不变）。</summary>
+    private (DateTime? from, DateTime? to) ResolveRange()
+    {
+        var key = SelectedTimeRange?.Key ?? "today";
+        var today = DateTime.Today;
+        return key switch
+        {
+            "today" => (today, today),
+            "last7" => (today.AddDays(-6), today),
+            "last30" => (today.AddDays(-29), today),
+            "thisMonth" => (new DateTime(today.Year, today.Month, 1), today),
+            "custom" => (CustomDateFrom?.Date, CustomDateTo?.Date),
+            _ => (today, today)
+        };
+    }
+
     private async Task<PageState?> LoadPageAsync(int page)
     {
-        if (DateFrom.HasValue && DateTo.HasValue && DateFrom.Value.Date > DateTo.Value.Date)
+        var (from, to) = ResolveRange();
+
+        if (SelectedTimeRange?.Key == "custom")
         {
-            Message = "开始日期不能晚于结束日期";
-            return null;
+            if (from is null || to is null)
+            {
+                Message = "请选择开始和结束日期";
+                return null;
+            }
+            if (from.Value.Date > to.Value.Date)
+            {
+                Message = "开始日期不能晚于结束日期";
+                return null;
+            }
         }
 
         Message = string.Empty;
@@ -116,21 +179,18 @@ public partial class LogsModuleViewModel : ObservableObject, IDisposable
         try
         {
             var result = await _audit.SearchAsync(
-                keyword: Keyword,
-                operationType: SelectedType == AllTypeText ? null : SelectedType,
-                from: DateFrom?.Date,
-                to: DateTo?.Date,
+                from: from,
+                to: to,
+                operationType: SelectedType?.Code,
+                operatorNo: SelectedOperator?.UserNo,
                 success: SelectedResult?.Value,
+                detailKeyword: DetailKeyword,
                 pageIndex: page,
                 pageSize: Pager.PageSize);
 
             var rows = result.Items;
-            //await Pager.RunOnUiThreadAsync(() =>
-            //{
-                Logs = new ObservableCollection<AuditLogDto>(rows);   // 整体替换，不是 Clear+Add
-                IsEmpty = rows.Count == 0;
-            //});
-
+            Logs = new ObservableCollection<AuditLogDto>(rows);
+            IsEmpty = rows.Count == 0;
             return new PageState(result.PageIndex, result.PageSize, result.Total);
         }
         catch (Exception ex)
@@ -142,7 +202,5 @@ public partial class LogsModuleViewModel : ObservableObject, IDisposable
         }
     }
 
-    public void Dispose()
-    {
-    }
+    public void Dispose() { }
 }

@@ -1,6 +1,3 @@
-// 说明：Service 层完成全部格式化（时间文本、结果文本、结果颜色），
-//       ViewModel 与 View 直接使用，不再做二次包装。
-
 namespace Station.Application.Audit;
 
 /// <summary>日志中心列表项。</summary>
@@ -12,8 +9,11 @@ public sealed record AuditLogDto
     /// <summary>操作人（姓名缺失时回退账号，再缺失为 system）。</summary>
     public required string Operator { get; init; }
 
-    /// <summary>操作类型，如 Login / ConfigChange / Erase / Import / Export。</summary>
+    /// <summary>操作类型 Code，如 login / backup.auto。</summary>
     public required string Type { get; init; }
+
+    /// <summary>操作类型显示名，如 登录 / 自动备份；未登记 code 原样回退。</summary>
+    public required string TypeText { get; init; }
 
     /// <summary>操作对象。</summary>
     public required string Target { get; init; }

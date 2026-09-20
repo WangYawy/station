@@ -78,14 +78,16 @@ public sealed class AlertService : IAlertService
         AlertStatus? status,
         int count)
     {
-        var page = await _alerts.ToPageAsync(
-            1,
-            count,
-            predicate: a =>
+        var query = new PageQuery<Alert>
+        {
+            PageIndex = 1,
+            PageSize = count,
+            Predicate = a =>
                 (level == null || a.Level == level) &&
                 (status == null || a.Status == status),
-            orderBy: a => a.CreatedAt,
-            orderType: OrderByType.Desc);
+            CountTotal = false
+        };
+        var page = await _alerts.ToPageAsync(query, orderBy: a => a.CreatedAt, descending: true);
         return page.Items.Select(ToDto).ToList();
     }
 

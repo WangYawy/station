@@ -1,3 +1,4 @@
+using Station.Domain.Audit;
 using Station.Domain.Entities;
 using Station.Domain.Repositories;
 
@@ -8,29 +9,38 @@ public interface IAuditLogService
 {
     /// <summary>写入一条审计日志。</summary>
     Task WriteAsync(AuditLog entry);
-
     /// <summary>
-    /// 按条件检索审计日志（后端分页）。<br/>
-    /// 所有条件均为可选，null 表示不过滤。
+    /// 按条件检索审计日志（后端分页）。所有条件均可选，null 表示不过滤。
     /// </summary>
-    /// <param name="keyword">关键词：模糊匹配 操作人姓名/账号、操作对象、详情；空白视为不过滤。</param>
-    /// <param name="operationType">操作类型，精确匹配；null 或空白表示全部。</param>
-    /// <param name="from">起始时间（含），按天取整到 00:00:00。</param>
-    /// <param name="to">结束时间（含当日），内部会 +1 天做左闭右开。</param>
+    /// <param name="from">起始日期（含），按天取整到 00:00:00。</param>
+    /// <param name="to">结束日期（含当日），内部 +1 天做左闭右开。</param>
+    /// <param name="operationType">操作类型 Code，精确匹配。</param>
+    /// <param name="operatorNo">操作人 UserNo，精确匹配。</param>
     /// <param name="success">结果：true=成功，false=失败，null=全部。</param>
-    /// <param name="pageIndex">页码，从 1 开始。</param>
-    /// <param name="pageSize">每页条数。</param>
-    /// <param name="ct">取消令牌。</param>
+    /// <param name="detailKeyword">仅对 Detail 列做中缀模糊匹配。</param>
     Task<PageResult<AuditLogDto>> SearchAsync(
-        string? keyword = null,
-        string? operationType = null,
         DateTime? from = null,
         DateTime? to = null,
+        string? operationType = null,
+        string? operatorNo = null,
         bool? success = null,
+        string? detailKeyword = null,
         int pageIndex = 1,
         int pageSize = 20,
         CancellationToken ct = default);
 
-    /// <summary>枚举下拉框可选的操作类型。</summary>
-    Task<IReadOnlyList<string>> GetOperationTypesAsync(CancellationToken ct = default);
+    /// <summary>操作类型受控词表，同步零 IO。</summary>
+    IReadOnlyList<AuditOperationTypeDescriptor> GetOperationTypes();
+
+    /// <summary>
+    /// 操作人下拉：按当前登录人角色过滤。<br/>
+    /// admin → 全部；其他 → 仅自己。未登录返回空。
+    /// </summary>
+    Task<IReadOnlyList<OperatorOptionDto>> GetSelectableOperatorsAsync(CancellationToken ct = default);
+
+    /// <summary>
+    /// 归档：把 <c>CreatedAt &lt; now - retentionDays</c> 的记录迁到 AuditLogArchive。<br/>
+    /// 返回迁移条数；失败抛异常由调用方记录。
+    /// </summary>
+    Task<int> ArchiveAsync(int retentionDays, CancellationToken ct = default);
 }

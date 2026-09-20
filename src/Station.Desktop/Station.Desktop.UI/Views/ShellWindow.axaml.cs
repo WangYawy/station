@@ -61,6 +61,8 @@ public partial class ShellWindow : Window
     private readonly Dictionary<string, Button> _navButtons;
     private IDisposable? _currentViewModel;
 
+    private LogsModuleViewModel? _logsViewModel;   // 日志模块 VM 缓存
+
     public ShellWindow()
     {
         InitializeComponent();
@@ -574,10 +576,9 @@ public partial class ShellWindow : Window
         if (moduleKey == "logs" && overrideTitle is null)
         {
             var services = App.Services!;
-            var viewModel = new LogsModuleViewModel(
+            _logsViewModel ??= new LogsModuleViewModel(
                 services.GetRequiredService<IAuditLogService>());
-            ModuleContent.Content = new LogsModuleView { DataContext = viewModel };
-            _currentViewModel = viewModel;
+            ModuleContent.Content = new LogsModuleView { DataContext = _logsViewModel };
             return;
         }
 
@@ -790,5 +791,14 @@ public partial class ShellWindow : Window
     private void OnNoticeClose(object? sender, RoutedEventArgs e)
     {
         NoticeBar.IsVisible = false;
+    }
+
+    protected override void OnClosed(EventArgs e)
+    {
+        _logsViewModel?.Dispose();
+        _logsViewModel = null;
+        _currentViewModel?.Dispose();
+        _currentViewModel = null;
+        base.OnClosed(e);
     }
 }

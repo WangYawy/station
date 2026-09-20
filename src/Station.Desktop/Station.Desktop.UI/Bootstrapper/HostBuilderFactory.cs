@@ -56,7 +56,7 @@ public static class HostBuilderFactory
                 services.AddStatoinInfrastructure(context.Configuration);
 
                 // 桌面注册
-                services.AddSingleton<IKioskGuard>(_ => KioskGuardFactory.Create());
+                services.AddStatoinDesktop(context.Configuration);
             })
             //.UseWebHostModule(configuration); // 传入外部配置
             ;

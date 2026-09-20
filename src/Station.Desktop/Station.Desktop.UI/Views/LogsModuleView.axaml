@@ -11,79 +11,45 @@
     <conv:StringToBrushConverter x:Key="StringToBrush" />
   </UserControl.Resources>
 
-  <UserControl.Styles>
-    <Style Selector="TextBlock.label">
-      <Setter Property="FontSize" Value="12" />
-      <Setter Property="Foreground" Value="#64748b" />
-      <Setter Property="Margin" Value="0,0,0,4" />
-    </Style>
-    <Style Selector="Button.primary">
-      <Setter Property="Background" Value="#0a2f6c" />
-      <Setter Property="Foreground" Value="White" />
-      <Setter Property="CornerRadius" Value="6" />
-      <Setter Property="Padding" Value="18,7" />
-      <Setter Property="FontSize" Value="12" />
-    </Style>
-    <Style Selector="Button.ghost">
-      <Setter Property="Background" Value="White" />
-      <Setter Property="Foreground" Value="#334155" />
-      <Setter Property="BorderBrush" Value="#e2e8f0" />
-      <Setter Property="BorderThickness" Value="1" />
-      <Setter Property="CornerRadius" Value="6" />
-      <Setter Property="Padding" Value="18,7" />
-      <Setter Property="FontSize" Value="12" />
-    </Style>
-    <Style Selector="ComboBox">
-      <Setter Property="FontSize" Value="12" />
-      <Setter Property="MinHeight" Value="32" />
-    </Style>
-
-    <!-- CalendarDatePicker 统一外观 -->
-    <Style Selector="CalendarDatePicker">
-      <Setter Property="FontSize" Value="12" />
-      <Setter Property="MinHeight" Value="32" />
-      <Setter Property="MinWidth" Value="0" />
-      <Setter Property="HorizontalAlignment" Value="Stretch" />
-    </Style>
-
-    <!-- DataGrid 视觉统一到现有白卡片风格 -->
-    <Style Selector="DataGrid">
-      <Setter Property="Background" Value="Transparent" />
-      <Setter Property="BorderThickness" Value="0" />
-      <Setter Property="RowHeight" Value="34" />
-      <Setter Property="FontSize" Value="12" />
-      <Setter Property="HorizontalGridLinesBrush" Value="#eef2f6" />
-    </Style>
-    <Style Selector="DataGridColumnHeader">
-      <Setter Property="FontSize" Value="12" />
-      <Setter Property="Foreground" Value="#94a3b8" />
-      <Setter Property="FontWeight" Value="Normal" />
-    </Style>
-  </UserControl.Styles>
-
-  <Grid RowDefinitions="Auto,Auto,*,Auto" Margin="16" RowSpacing="12">
+  <Grid RowDefinitions="Auto,Auto,*,Auto"
+        Margin="{DynamicResource PaddingCard}"
+        RowSpacing="{DynamicResource SpacingGridGap}">
 
     <!-- 标题 -->
     <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
-      <TextBlock Text="日志中心" FontSize="18" FontWeight="Bold" Foreground="#0a2f6c"
+      <TextBlock Text="日志中心"
+                 FontSize="{DynamicResource FontSizeTitle}"
+                 FontWeight="Bold"
+                 Foreground="{DynamicResource BrandPrimaryDark}"
                  VerticalAlignment="Center" />
-      <TextBlock Grid.Column="1" Text="{Binding Message}" FontSize="12" Foreground="#ef4444"
-                 VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
-      <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8"
+
+      <TextBlock Grid.Column="1"
+                 Text="{Binding Message}"
+                 FontSize="{DynamicResource FontSizeBase}"
+                 Foreground="{DynamicResource TextDanger}"
+                 VerticalAlignment="Center"
+                 TextTrimming="CharacterEllipsis" />
+
+      <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="10"
                   IsVisible="{Binding Pager.IsLoading}">
-        <ProgressBar Width="90" Height="4" IsIndeterminate="True" VerticalAlignment="Center" />
-        <TextBlock Text="加载中…" FontSize="12" Foreground="#94a3b8" VerticalAlignment="Center" />
+        <ProgressBar Width="120" Height="6" IsIndeterminate="True"
+                     Foreground="{DynamicResource ProgressFill}"
+                     VerticalAlignment="Center" />
+        <TextBlock Text="加载中…"
+                   FontSize="{DynamicResource FontSizeBase}"
+                   Foreground="{DynamicResource TextTertiary}"
+                   VerticalAlignment="Center" />
       </StackPanel>
     </Grid>
 
-    <!-- 搜索条件：日期用 CalendarDatePicker（宽度受控，不会溢出压住邻居） -->
-    <Border Grid.Row="1" Background="White" CornerRadius="12" Padding="12"
-            BoxShadow="0 2 8 0 #14000000">
-      <Grid ColumnDefinitions="3*,150,180,180,110,Auto,Auto" ColumnSpacing="12">
-        <StackPanel Grid.Column="0">
-          <TextBlock Classes="label" Text="关键词" />
-          <TextBox Text="{Binding Keyword}" Watermark="操作人 / 对象 / 详情，回车查询"
-                   FontSize="12" MinHeight="32">
+    <!-- 搜索条件：两行 -->
+    <Border Grid.Row="1" Classes="panel-card" Padding="12">
+      <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto" ColumnSpacing="12">
+        <StackPanel Grid.Column="0" HorizontalAlignment="Stretch">
+          <TextBlock Classes="field-label" Text="详情关键词" />
+          <TextBox Classes="field"
+                   Text="{Binding DetailKeyword}"
+                   Watermark="仅搜索详情列，回车查询">
             <TextBox.KeyBindings>
               <KeyBinding Gesture="Enter" Command="{Binding SearchCommand}" />
             </TextBox.KeyBindings>
@@ -91,95 +57,138 @@
         </StackPanel>
 
         <StackPanel Grid.Column="1">
-          <TextBlock Classes="label" Text="操作类型" />
-          <ComboBox ItemsSource="{Binding OperationTypes}" SelectedItem="{Binding SelectedType}"
-                    HorizontalAlignment="Stretch" />
-        </StackPanel>
-
-        <StackPanel Grid.Column="2">
-          <TextBlock Classes="label" Text="开始日期" />
-          <CalendarDatePicker SelectedDate="{Binding DateFrom, Mode=TwoWay}"
-                              SelectedDateFormat="Custom" CustomDateFormatString="yyyy-MM-dd"
-                              PlaceholderText="选择开始日期"
-                              FirstDayOfWeek="Monday" IsTodayHighlighted="True" />
-        </StackPanel>
-
-        <StackPanel Grid.Column="3">
-          <TextBlock Classes="label" Text="结束日期" />
-          <CalendarDatePicker SelectedDate="{Binding DateTo, Mode=TwoWay}"
-                              SelectedDateFormat="Custom" CustomDateFormatString="yyyy-MM-dd"
-                              PlaceholderText="选择结束日期"
-                              FirstDayOfWeek="Monday" IsTodayHighlighted="True" />
-        </StackPanel>
-
-        <StackPanel Grid.Column="4">
-          <TextBlock Classes="label" Text="结果" />
-          <ComboBox ItemsSource="{Binding ResultOptions}" SelectedItem="{Binding SelectedResult}"
-                    HorizontalAlignment="Stretch">
+          <TextBlock Classes="field-label" Text="操作人" />
+          <ComboBox Classes="field" Width="200"
+                    ItemsSource="{Binding Operators}"
+                    SelectedItem="{Binding SelectedOperator}">
             <ComboBox.ItemTemplate>
-              <DataTemplate x:DataType="vm:ResultOption">
-                <TextBlock Text="{Binding Text}" FontSize="12" />
+              <DataTemplate x:DataType="vm:OperatorOption">
+                <TextBlock Text="{Binding DisplayName}"
+                           FontSize="{DynamicResource FontSizeMedium}" />
               </DataTemplate>
             </ComboBox.ItemTemplate>
           </ComboBox>
         </StackPanel>
 
-        <Button Grid.Column="5" Classes="ghost" Content="重置" Command="{Binding ResetCommand}"
+        <StackPanel Grid.Column="2">
+          <TextBlock Classes="field-label" Text="操作类型" />
+          <ComboBox Classes="field" Width="140"
+                    ItemsSource="{Binding OperationTypes}"
+                    SelectedItem="{Binding SelectedType}">
+            <ComboBox.ItemTemplate>
+              <DataTemplate x:DataType="vm:OperationTypeOption">
+                <TextBlock Text="{Binding DisplayName}"
+                           FontSize="{DynamicResource FontSizeMedium}" />
+              </DataTemplate>
+            </ComboBox.ItemTemplate>
+          </ComboBox>
+        </StackPanel>
+
+        <StackPanel Grid.Column="3">
+          <TextBlock Classes="field-label" Text="结果" />
+          <ComboBox Classes="field" Width="100"
+                    ItemsSource="{Binding ResultOptions}"
+                    SelectedItem="{Binding SelectedResult}">
+            <ComboBox.ItemTemplate>
+              <DataTemplate x:DataType="vm:ResultOption">
+                <TextBlock Text="{Binding Text}"
+                           FontSize="{DynamicResource FontSizeMedium}" />
+              </DataTemplate>
+            </ComboBox.ItemTemplate>
+          </ComboBox>
+        </StackPanel>
+
+        <StackPanel Grid.Column="4">
+          <TextBlock Classes="field-label" Text="时间范围" />
+          <ComboBox Classes="field" Width="120"
+                    ItemsSource="{Binding TimeRangePresets}"
+                    SelectedItem="{Binding SelectedTimeRange}">
+            <ComboBox.ItemTemplate>
+              <DataTemplate x:DataType="vm:TimeRangePreset">
+                <TextBlock Text="{Binding DisplayName}"
+                           FontSize="{DynamicResource FontSizeMedium}" />
+              </DataTemplate>
+            </ComboBox.ItemTemplate>
+          </ComboBox>
+        </StackPanel>
+
+        <StackPanel Grid.Column="5" IsVisible="{Binding IsCustomRange}">
+          <TextBlock Classes="field-label" Text="开始日期" />
+          <CalendarDatePicker Classes="field" Width="160"
+                              SelectedDate="{Binding CustomDateFrom, Mode=TwoWay}"
+                              SelectedDateFormat="Custom"
+                              CustomDateFormatString="yyyy-MM-dd"
+                              PlaceholderText="选择开始"
+                              FirstDayOfWeek="Monday"
+                              IsTodayHighlighted="True" />
+        </StackPanel>
+
+        <StackPanel Grid.Column="6" IsVisible="{Binding IsCustomRange}">
+          <TextBlock Classes="field-label" Text="结束日期" />
+          <CalendarDatePicker Classes="field" Width="160"
+                              SelectedDate="{Binding CustomDateTo, Mode=TwoWay}"
+                              SelectedDateFormat="Custom"
+                              CustomDateFormatString="yyyy-MM-dd"
+                              PlaceholderText="选择结束"
+                              FirstDayOfWeek="Monday"
+                              IsTodayHighlighted="True" />
+        </StackPanel>
+
+        <Button Grid.Column="7" Classes="filter-ghost" Content="重置"
+                Command="{Binding ResetCommand}"
                 VerticalAlignment="Bottom" />
-        <Button Grid.Column="6" Classes="primary" Content="查询" Command="{Binding SearchCommand}"
+        <Button Grid.Column="8" Classes="filter-primary" Content="查询"
+                Command="{Binding SearchCommand}"
                 VerticalAlignment="Bottom" />
       </Grid>
+
     </Border>
 
-    <!-- 列表：全部用 DataGridTemplateColumn，绑定类型写死，不再依赖列 Binding 的类型推断 -->
-    <Border Grid.Row="2" Background="White" CornerRadius="12" Padding="6"
-            BoxShadow="0 2 8 0 #14000000">
+    <!-- 列表 -->
+    <Border Grid.Row="2" Classes="panel-card" Padding="6">
       <Panel>
-        <DataGrid ItemsSource="{Binding Logs}"
-                  AutoGenerateColumns="False"
-                  IsReadOnly="True"
-                  CanUserResizeColumns="True"
-                  CanUserReorderColumns="False"
-                  CanUserSortColumns="True"
-                  SelectionMode="Single"
-                  GridLinesVisibility="Horizontal"
-                  HeadersVisibility="Column">
+        <DataGrid Classes="list-grid" ItemsSource="{Binding Logs}"
+                  AutoGenerateColumns="False">
           <DataGrid.Columns>
-            <DataGridTemplateColumn Header="时间" Width="150" SortMemberPath="TimeText">
+            <DataGridTemplateColumn Header="时间" Width="180" SortMemberPath="TimeText">
               <DataGridTemplateColumn.CellTemplate>
                 <DataTemplate x:DataType="audit:AuditLogDto">
-                  <TextBlock Text="{Binding TimeText}" FontSize="12" Foreground="#64748b"
-                             VerticalAlignment="Center" Margin="8,0" />
+                  <TextBlock Text="{Binding TimeText}"
+                             Foreground="{DynamicResource TextSecondary}"
+                             VerticalAlignment="Center" Margin="12,0" />
                 </DataTemplate>
               </DataGridTemplateColumn.CellTemplate>
             </DataGridTemplateColumn>
 
-            <DataGridTemplateColumn Header="操作人" Width="100" SortMemberPath="Operator">
+            <DataGridTemplateColumn Header="操作人" Width="120" SortMemberPath="Operator">
               <DataGridTemplateColumn.CellTemplate>
                 <DataTemplate x:DataType="audit:AuditLogDto">
-                  <TextBlock Text="{Binding Operator}" FontSize="12" Foreground="#334155"
+                  <TextBlock Text="{Binding Operator}"
+                             Foreground="{DynamicResource TextPrimary}"
                              TextTrimming="CharacterEllipsis"
-                             VerticalAlignment="Center" Margin="8,0" />
+                             VerticalAlignment="Center" Margin="12,0" />
                 </DataTemplate>
               </DataGridTemplateColumn.CellTemplate>
             </DataGridTemplateColumn>
 
-            <DataGridTemplateColumn Header="操作类型" Width="110" SortMemberPath="Type">
+            <DataGridTemplateColumn Header="操作类型" Width="130" SortMemberPath="Type">
               <DataGridTemplateColumn.CellTemplate>
                 <DataTemplate x:DataType="audit:AuditLogDto">
-                  <TextBlock Text="{Binding Type}" FontSize="12" Foreground="#334155"
+                  <TextBlock Text="{Binding TypeText}"
+                             Foreground="{DynamicResource TextPrimary}"
                              TextTrimming="CharacterEllipsis"
-                             VerticalAlignment="Center" Margin="8,0" />
+                             VerticalAlignment="Center" Margin="12,0" />
                 </DataTemplate>
               </DataGridTemplateColumn.CellTemplate>
             </DataGridTemplateColumn>
 
-            <DataGridTemplateColumn Header="对象" Width="140" SortMemberPath="Target">
+            <DataGridTemplateColumn Header="对象" Width="160" SortMemberPath="Target">
               <DataGridTemplateColumn.CellTemplate>
                 <DataTemplate x:DataType="audit:AuditLogDto">
-                  <TextBlock Text="{Binding Target}" FontSize="12" Foreground="#64748b"
+                  <TextBlock Text="{Binding Target}"
+                             Foreground="{DynamicResource TextSecondary}"
                              TextTrimming="CharacterEllipsis"
-                             VerticalAlignment="Center" Margin="8,0" />
+                             VerticalAlignment="Center" Margin="12,0" />
                 </DataTemplate>
               </DataGridTemplateColumn.CellTemplate>
             </DataGridTemplateColumn>
@@ -187,33 +196,41 @@
             <DataGridTemplateColumn Header="详情" Width="*" SortMemberPath="Detail">
               <DataGridTemplateColumn.CellTemplate>
                 <DataTemplate x:DataType="audit:AuditLogDto">
-                  <TextBlock Text="{Binding Detail}" FontSize="12" Foreground="#64748b"
+                  <TextBlock Text="{Binding Detail}"
+                             Foreground="{DynamicResource TextSecondary}"
                              TextTrimming="CharacterEllipsis"
-                             VerticalAlignment="Center" Margin="8,0" />
+                             VerticalAlignment="Center" Margin="12,0" />
                 </DataTemplate>
               </DataGridTemplateColumn.CellTemplate>
             </DataGridTemplateColumn>
 
-            <DataGridTemplateColumn Header="结果" Width="80" SortMemberPath="ResultText">
+            <DataGridTemplateColumn Header="结果" Width="100" SortMemberPath="ResultText">
               <DataGridTemplateColumn.CellTemplate>
                 <DataTemplate x:DataType="audit:AuditLogDto">
-                  <TextBlock Text="{Binding ResultText}" FontSize="12" FontWeight="SemiBold"
-                             Foreground="{Binding ResultColor, Converter={StaticResource StringToBrush}}"
-                             HorizontalAlignment="Right" VerticalAlignment="Center"
-                             Margin="0,0,16,0" />
+                  <Border CornerRadius="{DynamicResource RadiusBadge}"
+                          Padding="{DynamicResource PaddingBadge}"
+                          HorizontalAlignment="Right"
+                          VerticalAlignment="Center"
+                          Margin="0,0,16,0"
+                          Background="{Binding ResultColor, Converter={StaticResource StringToBrush}, ConverterParameter=bg}">
+                    <TextBlock Text="{Binding ResultText}"
+                               FontSize="{DynamicResource FontSizeBase}"
+                               FontWeight="SemiBold"
+                               Foreground="{Binding ResultColor, Converter={StaticResource StringToBrush}}"
+                               HorizontalAlignment="Center" />
+                  </Border>
                 </DataTemplate>
               </DataGridTemplateColumn.CellTemplate>
             </DataGridTemplateColumn>
           </DataGrid.Columns>
         </DataGrid>
 
-        <TextBlock Text="没有符合条件的日志" FontSize="13" Foreground="#94a3b8"
-                   HorizontalAlignment="Center" VerticalAlignment="Center"
+        <TextBlock Classes="list-empty" Text="没有符合条件的日志"
                    IsVisible="{Binding IsEmpty}" />
       </Panel>
     </Border>
 
-    <!-- 分页：DataContext 必须指向 VM 上的 Pager -->
+    <!-- 分页 -->
     <controls:PaginationBar Grid.Row="3" DataContext="{Binding Pager}" />
 
   </Grid>

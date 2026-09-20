@@ -4,31 +4,22 @@
              x:Class="Station.Desktop.Controls.PaginationBar"
              x:DataType="vm:PaginationViewModel">
 
-  <UserControl.Styles>
-    <Style Selector="Button.page">
-      <Setter Property="Background" Value="White" />
-      <Setter Property="Foreground" Value="#334155" />
-      <Setter Property="BorderBrush" Value="#e2e8f0" />
-      <Setter Property="BorderThickness" Value="1" />
-      <Setter Property="CornerRadius" Value="6" />
-      <Setter Property="Padding" Value="12,6" />
-      <Setter Property="FontSize" Value="12" />
-      <Setter Property="MinWidth" Value="40" />
-    </Style>
-    <Style Selector="ComboBox.page">
-      <Setter Property="FontSize" Value="12" />
-      <Setter Property="MinHeight" Value="32" />
-    </Style>
-  </UserControl.Styles>
+  <!-- 说明：本控件不含业务逻辑，样式全部来自 Themes/Controls.axaml 的 Button.page / ComboBox.field，
+       跟随 Light/Dark 主题，热区走 Dimensions.axaml 的 ControlMinSize(44) -->
 
-  <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+  <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12"
+        MinHeight="{DynamicResource ControlMinSize}">
 
-    <TextBlock Grid.Column="0" Text="{Binding SummaryText}" FontSize="12" Foreground="#64748b"
-               VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+    <TextBlock Grid.Column="0"
+               Text="{Binding SummaryText}"
+               FontSize="{DynamicResource FontSizeBase}"
+               Foreground="{DynamicResource TextSecondary}"
+               VerticalAlignment="Center"
+               TextTrimming="CharacterEllipsis" />
 
     <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
 
-      <ComboBox Classes="page" Width="88"
+      <ComboBox Classes="field" Width="100"
                 ItemsSource="{Binding PageSizeOptions}"
                 SelectedItem="{Binding PageSize}"
                 IsVisible="{Binding ShowPageSizeSelector}" />
@@ -37,15 +28,21 @@
       <Button Classes="page" Content="上一页" Command="{Binding PrevPageCommand}" />
 
       <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding ShowQuickJump}">
-        <TextBlock Text="第" FontSize="12" Foreground="#64748b" VerticalAlignment="Center" />
-        <!-- NumericUpDown 清空输入会抛 Invalid cast from string to decimal?，
+        <TextBlock Text="第"
+                   FontSize="{DynamicResource FontSizeBase}"
+                   Foreground="{DynamicResource TextSecondary}"
+                   VerticalAlignment="Center" />
+        <!-- NumericUpDown.Value 是 decimal?，清空输入会抛 Invalid cast from string to decimal?，
              TargetNullValue / FallbackValue 必须带 -->
-        <NumericUpDown Value="{Binding PageInput, TargetNullValue=0, FallbackValue=0}"
+        <NumericUpDown Classes="field" Width="70"
+                       Value="{Binding PageInput, TargetNullValue=0, FallbackValue=0}"
                        Minimum="1" Maximum="{Binding MaxPage}"
                        Increment="1" FormatString="0" ShowButtonSpinner="False"
-                       Width="56" MinHeight="32" FontSize="12" VerticalAlignment="Center" />
+                       VerticalAlignment="Center" />
         <TextBlock Text="{Binding TotalPages, StringFormat='/ 共 {0} 页'}"
-                   FontSize="12" Foreground="#64748b" VerticalAlignment="Center" />
+                   FontSize="{DynamicResource FontSizeBase}"
+                   Foreground="{DynamicResource TextSecondary}"
+                   VerticalAlignment="Center" />
         <Button Classes="page" Content="跳转" Command="{Binding GoToPageCommand}" />
       </StackPanel>
 

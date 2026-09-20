@@ -1,5 +1,11 @@
-using SqlSugar;
+using System.Linq.Expressions;
+using Microsoft.Extensions.Logging;
 using Station.Application.IdGenerators;
+using Station.Application.Session;
+using Station.Application.Users;
+using Station.Contracts.Api;
+using Station.Domain;
+using Station.Domain.Audit;
 using Station.Domain.Entities;
 using Station.Domain.Repositories;
 
@@ -7,19 +13,26 @@ namespace Station.Application.Audit;
 
 public sealed class AuditLogService : IAuditLogService
 {
-    /// <summary>操作类型下拉的数据采样窗口：只从未来最近的 N 条里聚合，避免全表 DISTINCT。</summary>
-    private const int OperationTypeSampleSize = 2000;
-
     private const int DefaultPageSize = 20;
-    private const int MaxPageSize = 200;
 
     private readonly IRepository<AuditLog> _auditLogs;
     private readonly IIdGenerator _idGenerator;
+    private readonly IUserService _users;
+    private readonly ISessionManager _sessions;
+    private readonly ILogger<AuditLogService> _logger;
 
-    public AuditLogService(IRepository<AuditLog> auditLogs, IIdGenerator idGenerator)
+    public AuditLogService(
+        IRepository<AuditLog> auditLogs,
+        IIdGenerator idGenerator,
+        IUserService users,
+        ISessionManager sessions,
+        ILogger<AuditLogService> logger)
     {
         _auditLogs = auditLogs;
         _idGenerator = idGenerator;
+        _users = users;
+        _sessions = sessions;
+        _logger = logger;
     }
 
     public async Task WriteAsync(AuditLog entry)
@@ -38,46 +51,62 @@ public sealed class AuditLogService : IAuditLogService
     }
 
     public async Task<PageResult<AuditLogDto>> SearchAsync(
-        string? keyword = null,
-        string? operationType = null,
         DateTime? from = null,
         DateTime? to = null,
+        string? operationType = null,
+        string? operatorNo = null,
         bool? success = null,
+        string? detailKeyword = null,
         int pageIndex = 1,
         int pageSize = DefaultPageSize,
         CancellationToken ct = default)
     {
-        pageIndex = pageIndex < 1 ? 1 : pageIndex;
-        pageSize = pageSize < 1 ? DefaultPageSize : Math.Min(pageSize, MaxPageSize);
+        // ---------- 1. 归一化输入 ----------
+        DateTime? fromValue = from?.Date;
+        DateTime? toValue = to?.Date.AddDays(1);   // 左闭右开
+        string? type = string.IsNullOrWhiteSpace(operationType) ? null : operationType.Trim();
+        string? opNo = string.IsNullOrWhiteSpace(operatorNo) ? null : operatorNo.Trim();
+        string? detail = string.IsNullOrWhiteSpace(detailKeyword) ? null : detailKeyword.Trim();
+        int? resultCode = success is null ? null : success.Value ? 1 : 0;
 
-        var key = string.IsNullOrWhiteSpace(keyword) ? null : keyword.Trim();
-        var type = string.IsNullOrWhiteSpace(operationType) ? null : operationType.Trim();
-        var safeKey = key ?? string.Empty;
-        var safeType = type ?? string.Empty;
+        // ---------- 2. 拼过滤条件（从 null 起步，逐个 And） ----------
+        Expression<Func<AuditLog, bool>>? predicate = null;
 
-        // 时间左闭右开：from 取当天 00:00:00，to 取次日 00:00:00
-        var fromValue = from?.Date;
-        var toValue = to?.Date.AddDays(1);
-        var resultCode = success is null ? (int?)null : success.Value ? 1 : 0;
+        if (fromValue is { } fv)
+            predicate = predicate.And(x => x.CreatedAt >= fv);
 
-        var condition = Expressionable.Create<AuditLog>()
-            .AndIF(key is not null, x =>
-                (x.OperatorName != null && x.OperatorName.Contains(safeKey)) ||
-                (x.OperatorAccount != null && x.OperatorAccount.Contains(safeKey)) ||
-                (x.Target != null && x.Target.Contains(safeKey)) ||
-                (x.Detail != null && x.Detail.Contains(safeKey)))
-            .AndIF(type is not null, x => x.OperationType == safeType)
-            .AndIF(fromValue.HasValue, x => x.CreatedAt >= fromValue!.Value)
-            .AndIF(toValue.HasValue, x => x.CreatedAt < toValue!.Value)
-            .AndIF(resultCode.HasValue, x => x.Result == resultCode!.Value);
+        if (toValue is { } tv)
+            predicate = predicate.And(x => x.CreatedAt < tv);
 
+        if (type is not null)
+            predicate = predicate.And(x => x.OperationType == type);
+
+        if (opNo is not null)
+            predicate = predicate.And(x => x.OperatorAccount == opNo);
+
+        if (resultCode is { } rc)
+            predicate = predicate.And(x => x.Result == rc);
+
+        if (detail is not null)
+            predicate = predicate.And(x => x.Detail != null && x.Detail.Contains(detail));
+
+        // ---------- 3. 构造 PageQuery ----------
+        var query = new PageQuery<AuditLog>
+        {
+            Predicate = predicate,                 // 可能为 null（无任何条件）
+            PageIndex = pageIndex < 1 ? 1 : pageIndex,
+            PageSize = pageSize < 1 ? DefaultPageSize : Math.Min(pageSize, AppConst.MaxPageSize),
+            CountTotal = true,
+        };
+
+        // ---------- 4. 执行 ----------
         var page = await _auditLogs.ToPageAsync(
-            pageIndex,
-            pageSize,
-            condition.ToExpression(),
+            query,
             x => x.CreatedAt,
-            OrderByType.Desc);
+            descending: true,
+            ct);
 
+        // ---------- 5. 映射 DTO ----------
         var items = new List<AuditLogDto>(page.Items.Count);
         foreach (var log in page.Items)
         {
@@ -85,13 +114,14 @@ public sealed class AuditLogService : IAuditLogService
             {
                 TimeText = log.CreatedAt.ToString("yyyy-MM-dd HH:mm:ss"),
                 Operator = string.IsNullOrWhiteSpace(log.OperatorName)
-                    ? string.IsNullOrWhiteSpace(log.OperatorAccount) ? "system" : log.OperatorAccount
-                    : log.OperatorName,
+                                ? (string.IsNullOrWhiteSpace(log.OperatorAccount) ? "system" : log.OperatorAccount)
+                                : log.OperatorName,
                 Type = log.OperationType,
+                TypeText = AuditOperationTypes.DisplayOf(log.OperationType),
                 Target = log.Target ?? string.Empty,
                 Detail = log.Detail ?? string.Empty,
                 ResultText = log.Result == 1 ? "成功" : "失败",
-                ResultColor = log.Result == 1 ? "#22c55e" : "#ef4444"
+                ResultColor = log.Result == 1 ? "#22c55e" : "#ef4444",
             });
         }
 
@@ -100,24 +130,72 @@ public sealed class AuditLogService : IAuditLogService
             Items = items,
             Total = page.Total,
             PageIndex = page.PageIndex,
-            PageSize = page.PageSize
+            PageSize = page.PageSize,
         };
     }
 
-    public async Task<IReadOnlyList<string>> GetOperationTypesAsync(CancellationToken ct = default)
-    {
-        var recent = await _auditLogs.ToPageAsync(
-            1,
-            OperationTypeSampleSize,
-            null,
-            x => x.CreatedAt,
-            OrderByType.Desc);
+    /// <summary>操作类型词表来自代码常量，零 IO。</summary>
+    public IReadOnlyList<AuditOperationTypeDescriptor> GetOperationTypes()
+       => AuditOperationTypes.All;
 
-        return recent.Items
-            .Select(x => x.OperationType)
-            .Where(x => !string.IsNullOrWhiteSpace(x))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .OrderBy(x => x, StringComparer.OrdinalIgnoreCase)
+    // ---------- 操作人目录 ----------
+
+    public async Task<IReadOnlyList<OperatorOptionDto>> GetSelectableOperatorsAsync(CancellationToken ct = default)
+    {
+        var current = _sessions.Current;
+        if (current is null) return [];
+
+        var users = await _users.GetUsersAsync();
+
+        var isAdmin = current.Roles?.Any(r =>
+            string.Equals(r, "admin", StringComparison.OrdinalIgnoreCase)) == true;
+
+        // 非管理员只看自己；current.UserName 为登录账号，对应 UserDto.UserNo
+        var filtered = isAdmin
+            ? users
+            : users.Where(u => string.Equals(u.UserNo, current.UserName, StringComparison.OrdinalIgnoreCase));
+
+        return filtered
+            .OrderBy(u => u.Name, StringComparer.OrdinalIgnoreCase)
+            .Select(u => new OperatorOptionDto(u.UserNo, u.Name))
             .ToList();
+    }
+
+    // ---------- 归档 ----------
+
+    public async Task<int> ArchiveAsync(int retentionDays, CancellationToken ct = default)
+    {
+        return 0;
+
+        //        if (retentionDays <= 0) return 0;
+
+        //        var cutoff = DateTime.Now.AddDays(-retentionDays);
+
+        //        // 用裸 SQL INSERT...SELECT，百万级不落内存
+        //        const string insertSql = @"
+        //INSERT INTO AuditLogArchive
+        //    (Id, CreatedAt, OperatorAccount, OperatorName, OperationType, Target, Detail, Result)
+        //SELECT Id, CreatedAt, OperatorAccount, OperatorName, OperationType, Target, Detail, Result
+        //FROM AuditLog
+        //WHERE CreatedAt < @cutoff";
+
+        //        const string deleteSql = @"DELETE FROM AuditLog WHERE CreatedAt < @cutoff";
+
+        //        await _db.Ado.BeginTranAsync();
+        //        try
+        //        {
+        //            var inserted = await _db.Ado.ExecuteCommandAsync(insertSql, new { cutoff });
+        //            if (inserted > 0)
+        //            {
+        //                await _db.Ado.ExecuteCommandAsync(deleteSql, new { cutoff });
+        //            }
+        //            await _db.Ado.CommitTranAsync();
+        //            return inserted;
+        //        }
+        //        catch
+        //        {
+        //            await _db.Ado.RollbackTranAsync();
+        //            throw;
+        //        }
     }
 }

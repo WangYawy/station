@@ -1,3 +1,4 @@
+using System;
 using System.Globalization;
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
@@ -7,6 +8,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using Station.Application.Settings;
 using Station.Desktop.Bootstrapper;
+using Station.Desktop.Services;
 using Station.Desktop.Views;
 
 namespace Station.Desktop;
