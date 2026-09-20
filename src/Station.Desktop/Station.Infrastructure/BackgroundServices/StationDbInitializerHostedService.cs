@@ -26,8 +26,16 @@ public sealed class StationDbInitializerHostedService : IHostedService
     public async Task StartAsync(CancellationToken cancellationToken)
     {
         _initializer.EnsureCreated(
-            typeof(CollectTask), typeof(CollectFile), typeof(Recorder), typeof(Alert),
-            typeof(SyncOutbox), typeof(VideoFile), typeof(LicenseInfo), typeof(ClockState));
+            typeof(CollectTask),
+            typeof(CollectFile),
+            typeof(Recorder), 
+            typeof(Alert),
+            typeof(SyncOutbox), 
+            typeof(VideoFile), 
+            typeof(LicenseInfo), 
+            typeof(ClockState),
+            typeof(SysCryptoPolicy),
+            typeof(SysSetting));
         // 存量库补列：紧急优先标记（新库由 CodeFirst 自动创建）
         //_initializer.EnsureColumn("station_collect_task", "IsEmergency", "int");
         //// 存量库补列：设备根路径（多设备/混合协议按任务路由）

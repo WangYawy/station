@@ -34,14 +34,13 @@ public partial class App : Avalonia.Application
 
     public override void OnFrameworkInitializationCompleted()
     {
-        // 在创建任何窗口之前注入配置到资源字典
-        ApplyWindowModeOptions();
-
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
             _host = HostBuilderFactory.Create().Build();
             _host.StartAsync().GetAwaiter().GetResult();
             Services = _host.Services;
+            // 在创建任何窗口之前注入配置到资源字典
+            ApplyWindowModeOptions();
 
             desktop.MainWindow = new ShellWindow();
 

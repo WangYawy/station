@@ -27,6 +27,7 @@ public sealed class AuditLog
 
     [SugarColumn(IsNullable = true, Length = 64)]
     public string? SourceIp { get; set; }
+    public string? ClientInfo { get; set; } // Desktop/Web/Platform
 
     [SugarColumn(Length = 32)]
     public string OperationType { get; set; } = string.Empty;

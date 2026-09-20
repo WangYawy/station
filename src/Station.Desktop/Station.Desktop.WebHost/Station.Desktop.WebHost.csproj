@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <RootNamespace>Station.Desktop.WebHost</RootNamespace>
@@ -10,6 +10,10 @@
 
   <ItemGroup>
     <Content Include="wwwroot\**" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Station.Application\Station.Application.csproj" />
   </ItemGroup>
 
 </Project>

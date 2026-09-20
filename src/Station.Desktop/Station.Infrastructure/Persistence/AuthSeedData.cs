@@ -17,6 +17,7 @@ public static class AuthSeedData
         typeof(Permission),
         typeof(RolePermission),
         typeof(UserRole),
-        typeof(AuditLog)
+        typeof(AuditLog),
+        typeof(AuditLogArchive)
     ];
 }

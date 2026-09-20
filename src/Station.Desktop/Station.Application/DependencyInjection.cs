@@ -17,7 +17,6 @@ using Station.Application.UsbPortCard.Events;
 using Station.Application.Users;
 using Station.Application.OperationAccess;
 using Station.Application.Session;
-using Station.Application.Settings;
 
 namespace Station.Application;
 

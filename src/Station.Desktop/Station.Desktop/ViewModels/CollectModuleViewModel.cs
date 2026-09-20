@@ -60,14 +60,12 @@ public partial class CollectModuleViewModel : ObservableObject, IDisposable
         IUploadService uploadService,
         IRecorderService recorderService,
         IRecorderIdentificationService identification,
-        ICollectSource source,
         ISessionManager sessions)
     {
         _service = service;
         _uploadService = uploadService;
         _recorderService = recorderService;
         _identification = identification;
-        _source = source;
         _sessions = sessions;
         _timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(500) };
         _timer.Tick += async (_, _) => await RefreshAsync();

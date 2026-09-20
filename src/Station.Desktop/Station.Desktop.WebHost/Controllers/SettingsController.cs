@@ -1,11 +1,9 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Station.Application.Audit;
-using Station.Application.Authorization;
 using Station.Application.Exporting;
 using Station.Application.Licensing;
 using Station.Application.Settings;
-using Station.Desktop.Application.Settings;
 using Station.Desktop.WebHost.Settings;
 using Station.Domain.Entities;
 using AuthService = Station.Application.Authorization.IAuthorizationService;

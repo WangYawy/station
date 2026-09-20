@@ -1,5 +1,5 @@
-using Station.Application.Settings;
 using Station.Infrastructure;
+using Station.Application.Settings;
 
 namespace Station.Desktop.Infrastructure.Settings;
 

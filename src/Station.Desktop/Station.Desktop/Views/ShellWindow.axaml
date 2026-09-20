@@ -1,0 +1,358 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="Station.Desktop.Views.ShellWindow"
+        x:DataType="vm:ShellViewModel"
+        xmlns:vm="clr-namespace:Station.Desktop.ViewModels"
+        xmlns:views="clr-namespace:Station.Desktop.Views"
+        xmlns:alerts="using:Station.Application.Alerts"
+        Width="1280" Height="820"
+        MinWidth="1024" MinHeight="680"
+        WindowStartupLocation="CenterScreen"
+        Background="{DynamicResource AppBackground}"
+        Title="视音频数据采集站 · 桌面端">
+
+  <Window.Styles>
+    <Style Selector="PathIcon.bar-state-icon">
+      <Setter Property="Foreground" Value="{DynamicResource BottomBarText}"/>
+    </Style>
+    <Style Selector="PathIcon.bar-state-icon.ok">
+      <Setter Property="Foreground" Value="{DynamicResource TextSuccess}"/>
+    </Style>
+    <Style Selector="PathIcon.bar-state-icon.warning">
+      <Setter Property="Foreground" Value="{DynamicResource TextWarning}"/>
+    </Style>
+    <Style Selector="PathIcon.bar-state-icon.danger">
+      <Setter Property="Foreground" Value="{DynamicResource TextDanger}"/>
+    </Style>
+  </Window.Styles>
+
+  <!-- 最外层：承载 Shell + 报警抽屉 -->
+  <Grid>
+    <Grid RowDefinitions="Auto,Auto,Auto,*,Auto">
+      <!-- =================== 顶部导航 =================== -->
+      <Border Grid.Row="0"
+              Height="{DynamicResource ShellTopNavHeight}"
+              Background="{DynamicResource TopNavBackground}"
+              BorderBrush="{DynamicResource TopNavBorder}"
+              BorderThickness="0,0,0,1"
+              Padding="{DynamicResource PaddingTopNav}">
+        <Grid ColumnDefinitions="Auto,*,Auto">
+          <!-- 品牌区 -->
+          <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+            <PathIcon Data="{StaticResource IconShield}"
+                      Width="24" Height="24"
+                      Foreground="{DynamicResource BrandAccent}"
+                      VerticalAlignment="Center"/>
+            <TextBlock Classes="brand-title" Text="视音频数据采集站"
+                       FontSize="15" FontWeight="SemiBold"
+                       VerticalAlignment="Center"/>
+          </StackPanel>
+
+          <!-- 导航区 -->
+          <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8"
+                      HorizontalAlignment="Center" VerticalAlignment="Center">
+            <Button x:Name="NavWorkbench" Tag="workbench"
+                    Classes="nav-pill"
+                    Classes.nav-pill-selected="{Binding IsWorkbenchSelected}"
+                    Command="{Binding NavigateCommand}" CommandParameter="workbench">
+              <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                <PathIcon Data="{StaticResource IconDashboard}" Width="16" Height="16" VerticalAlignment="Center"/>
+                <TextBlock Text="采集监控" VerticalAlignment="Center"/>
+              </StackPanel>
+            </Button>
+
+            <Button x:Name="NavData" Tag="data"
+                    Classes="nav-pill"
+                    Classes.nav-pill-selected="{Binding IsDataSelected}"
+                    Command="{Binding NavigateCommand}" CommandParameter="data">
+              <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                <PathIcon Data="{StaticResource IconDatabase}" Width="16" Height="16" VerticalAlignment="Center"/>
+                <TextBlock Text="数据管理" VerticalAlignment="Center"/>
+              </StackPanel>
+            </Button>
+
+            <Button x:Name="NavLogs" Tag="logs"
+                    Classes="nav-pill"
+                    Classes.nav-pill-selected="{Binding IsLogsSelected}"
+                    Command="{Binding NavigateCommand}" CommandParameter="logs">
+              <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                <PathIcon Data="{StaticResource IconLog}" Width="16" Height="16" VerticalAlignment="Center"/>
+                <TextBlock Text="日志中心" VerticalAlignment="Center"/>
+              </StackPanel>
+            </Button>
+
+            <Button x:Name="NavSettings" Tag="settings"
+                    Classes="nav-pill"
+                    Classes.nav-pill-selected="{Binding IsSettingsSelected}"
+                    Command="{Binding NavigateCommand}" CommandParameter="settings">
+              <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                <PathIcon Data="{StaticResource IconSettings}" Width="16" Height="16" VerticalAlignment="Center"/>
+                <TextBlock Text="设置" VerticalAlignment="Center"/>
+              </StackPanel>
+            </Button>
+          </StackPanel>
+
+          <!-- 右侧工具区 -->
+          <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+            <Button x:Name="ThemeToggleButton" Classes="icon-btn" ToolTip.Tip="切换主题"
+                    Command="{Binding ToggleThemeCommand}">
+              <PathIcon x:Name="ThemeToggleIcon" Data="{Binding ThemeIcon}"
+                        Width="20" Height="20"/>
+            </Button>
+
+            <Button x:Name="NavAlerts" Classes="icon-btn" ToolTip.Tip="报警"
+                    Command="{Binding OpenAlertsCommand}">
+              <Grid>
+                <PathIcon Data="{StaticResource IconBell}"/>
+                <Border Classes="alert-badge">
+                  <TextBlock Text="3"/>
+                </Border>
+              </Grid>
+            </Button>
+
+            <Border x:Name="LicenseBadge" Classes="license-badge" Margin="8,0,0,0"
+                    Background="{Binding LicenseBadgeBackground}">
+              <TextBlock x:Name="LicenseBadgeText"
+                         Text="{Binding LicenseBadgeText}"
+                         Foreground="{Binding LicenseBadgeForeground}"/>
+            </Border>
+
+            <!-- session-badge：可点击 -->
+            <Border Classes="session-badge" Margin="6,0,0,0"
+                    Cursor="Hand"
+                    Tapped="OnSessionBadgeTapped">
+              <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                <Border Classes="session-dot"/>
+                <TextBlock Text="{Binding SessionDisplayText}"
+                           Foreground="{Binding SessionTextBrush}"/>
+              </StackPanel>
+            </Border>
+
+            <!-- 关闭程序按钮（保留原逻辑） -->
+            <Button x:Name="CloseAppButton" Classes="icon-btn exit-btn"
+                    ToolTip.Tip="退出程序"
+                    Click="OnCloseAppClick"
+                    PointerPressed="OnCloseAppPointerPressed"
+                    PointerReleased="OnCloseAppPointerReleased"
+                    PointerCaptureLost="OnCloseAppPointerCaptureLost"
+                    Margin="6,0,0,0">
+              <PathIcon Data="{StaticResource IconClose}" Width="22" Height="22"/>
+            </Button>
+          </StackPanel>
+        </Grid>
+      </Border>
+
+      <!-- =================== 公告栏 =================== -->
+      <Border Grid.Row="1"
+              x:Name="NoticeBar"
+              IsVisible="{Binding IsNoticeBarVisible}"
+              Height="{DynamicResource ShellNoticeBarHeight}"
+              Background="{DynamicResource NoticeBackground}"
+              BorderBrush="{DynamicResource NoticeBorder}"
+              BorderThickness="0,0,0,1"
+              Padding="{DynamicResource PaddingNoticeBar}">
+        <Grid ColumnDefinitions="Auto,*,Auto">
+          <PathIcon Grid.Column="0" Data="{StaticResource IconMegaphone}"
+                    Width="16" Height="16" Margin="0,0,14,0"
+                    Foreground="{DynamicResource NoticeIcon}"
+                    VerticalAlignment="Center"/>
+          <TextBlock Grid.Column="1" Classes="notice-text"
+                     Text="系统升级通知：2026-07-10 02:00 维护，预计 2 小时。 | 新版本 v1.3 已发布，支持国密算法与存储熔断。"/>
+          <Button Grid.Column="2" Classes="notice-close" Content="✕"
+                  Command="{Binding CloseNoticeBarCommand}"/>
+        </Grid>
+      </Border>
+
+      <!-- =================== 空闲/报警横幅 =================== -->
+      <StackPanel Grid.Row="2">
+        <Border x:Name="IdleWarningBar"
+                IsVisible="{Binding IsIdleWarningVisible}"
+                Background="{DynamicResource NoticeBackground}"
+                BorderBrush="{DynamicResource NoticeBorder}"
+                BorderThickness="0,0,0,1">
+          <TextBlock Text="{Binding IdleWarningText}"
+                     Foreground="{DynamicResource NoticeText}"
+                     FontSize="{DynamicResource FontSizeMedium}" Margin="16,4"
+                     HorizontalAlignment="Center"/>
+        </Border>
+
+        <Border x:Name="AlertBanner"
+                IsVisible="{Binding IsAlertBannerVisible}"
+                Background="{DynamicResource CardEmergencyBg}"
+                BorderBrush="{DynamicResource CardEmergencyBorder}"
+                BorderThickness="0,0,0,1"
+                Tapped="OnAlertBannerTapped" Cursor="Hand">
+          <TextBlock Text="{Binding AlertBannerText}"
+                     Foreground="{DynamicResource TextDanger}"
+                     FontSize="{DynamicResource FontSizeMedium}"
+                     Margin="16,4" HorizontalAlignment="Center"/>
+        </Border>
+      </StackPanel>
+
+      <!-- =================== 主内容区 =================== -->
+      <ContentControl Grid.Row="3" x:Name="ModuleContent"
+                      Content="{Binding CurrentModule}"
+                      Margin="{DynamicResource PaddingContent}"/>
+
+      <!-- =================== 底部状态栏 =================== -->
+      <Border Grid.Row="4"
+              Height="{DynamicResource ShellBottomBarHeight}"
+              Background="{DynamicResource BottomBarBackground}"
+              BorderBrush="{DynamicResource BottomBarBorder}"
+              BorderThickness="0,1,0,0"
+              Padding="{DynamicResource PaddingBottomBar}">
+        <Grid ColumnDefinitions="*,Auto">
+          <ScrollViewer Grid.Column="0"
+                        HorizontalScrollBarVisibility="Auto"
+                        VerticalScrollBarVisibility="Disabled">
+            <StackPanel Orientation="Horizontal" Spacing="14" VerticalAlignment="Center">
+              <!-- 本机 IP -->
+              <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                <PathIcon Data="{StaticResource IconServer}" Width="14" Height="14"
+                          Foreground="{DynamicResource BottomBarText}" VerticalAlignment="Center"/>
+                <TextBlock Classes="bar-item" Text="本机IP: "/>
+                <TextBlock Classes="bar-item" Text="{Binding BarIpText}"/>
+              </StackPanel>
+
+              <!-- 网络状态 -->
+              <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                <PathIcon Data="{StaticResource IconWifi}" Width="14" Height="14"
+                          Classes="bar-state-icon"
+                          Classes.ok="{Binding IsNetOk}"
+                          Classes.warning="{Binding IsNetWarn}"
+                          Classes.danger="{Binding IsNetDown}"
+                          VerticalAlignment="Center"/>
+                <TextBlock Classes="bar-item"
+                           Classes.success="{Binding IsNetOk}"
+                           Classes.warning="{Binding IsNetWarn}"
+                           Classes.danger="{Binding IsNetDown}"
+                           Text="{Binding BarNetStateText}"/>
+              </StackPanel>
+
+              <!-- 心跳 -->
+              <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                <PathIcon Data="{StaticResource IconHeart}" Width="14" Height="14"
+                          Classes="bar-state-icon"
+                          Classes.ok="{Binding IsHbOk}"
+                          Classes.warning="{Binding IsHbWarn}"
+                          Classes.danger="{Binding IsHbDown}"
+                          VerticalAlignment="Center"/>
+                <TextBlock Classes="bar-item"
+                           Classes.success="{Binding IsHbOk}"
+                           Classes.warning="{Binding IsHbWarn}"
+                           Classes.danger="{Binding IsHbDown}"
+                           Text="{Binding BarHeartbeatText}"/>
+              </StackPanel>
+
+              <Border Classes="bar-divider"/>
+
+              <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                <PathIcon Data="{StaticResource IconCpu}" Width="14" Height="14"
+                          Foreground="{DynamicResource BottomBarText}" VerticalAlignment="Center"/>
+                <TextBlock Classes="bar-item" Text="CPU"/>
+                <TextBlock Classes="bar-item" Text="{Binding BarCpuText}"/>
+              </StackPanel>
+
+              <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                <PathIcon Data="{StaticResource IconMemory}" Width="14" Height="14"
+                          Foreground="{DynamicResource BottomBarText}" VerticalAlignment="Center"/>
+                <TextBlock Classes="bar-item" Text="内存"/>
+                <TextBlock Classes="bar-item" Text="{Binding BarMemText}"/>
+              </StackPanel>
+
+              <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                <PathIcon Data="{StaticResource IconDisk}" Width="14" Height="14"
+                          Foreground="{DynamicResource BottomBarText}" VerticalAlignment="Center"/>
+                <TextBlock Classes="bar-item" Text="磁盘"/>
+                <TextBlock Classes="bar-item" Text="{Binding BarDiskText}"/>
+              </StackPanel>
+
+              <Border Classes="bar-divider"/>
+
+              <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                <PathIcon Data="{StaticResource IconUsb}" Width="14" Height="14"
+                          Foreground="{DynamicResource BottomBarText}" VerticalAlignment="Center"/>
+                <TextBlock Classes="bar-item" Text="在线"/>
+                <TextBlock Classes="bar-item" Text="{Binding BarOnlineText}"/>
+              </StackPanel>
+
+              <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                <PathIcon Data="{StaticResource IconMovie}" Width="14" Height="14"
+                          Foreground="{DynamicResource BottomBarText}" VerticalAlignment="Center"/>
+                <TextBlock Classes="bar-item" Text="今日"/>
+                <TextBlock Classes="bar-item" Text="{Binding BarTodayText}"/>
+              </StackPanel>
+
+              <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                <PathIcon Data="{StaticResource IconCloudUpload}" Width="14" Height="14"
+                          Foreground="{DynamicResource TextWarning}" VerticalAlignment="Center"/>
+                <TextBlock Classes="bar-item warning" Text="待上传"/>
+                <TextBlock Classes="bar-item" Text="{Binding BarPendingText}"/>
+              </StackPanel>
+            </StackPanel>
+          </ScrollViewer>
+
+          <TextBlock Grid.Column="1" Text="{Binding ClockText}"
+                     FontSize="{DynamicResource FontSizeMedium}"
+                     Foreground="{DynamicResource BottomBarClock}"
+                     FontFamily="Consolas, Menlo, monospace"
+                     VerticalAlignment="Center"/>
+        </Grid>
+      </Border>
+    </Grid>
+
+    <!-- =================== 报警抽屉：遮罩 =================== -->
+    <Border x:Name="AlertDrawerOverlay"
+            IsVisible="{Binding IsAlertDrawerOpen}"
+            Background="#80000000"
+            Tapped="OnAlertDrawerOverlayTapped"/>
+
+    <!-- =================== 报警抽屉：右侧面板 =================== -->
+    <Border x:Name="AlertDrawerHost"
+            HorizontalAlignment="Right"
+            Width="360"
+            Background="{DynamicResource SurfaceBackground}"
+            BorderBrush="{DynamicResource TopNavBorder}"
+            BorderThickness="1,0,0,0"
+            RenderTransform="{Binding AlertDrawerTransform}">
+      <Border.Transitions>
+        <Transitions>
+          <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.25"/>
+        </Transitions>
+      </Border.Transitions>
+
+      <Grid RowDefinitions="Auto,*,Auto">
+        <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="16,12">
+          <TextBlock Grid.Column="0" Text="待处理报警"
+                     FontSize="15" FontWeight="SemiBold"
+                     VerticalAlignment="Center"/>
+          <Button Grid.Column="1" Classes="icon-btn"
+                  Command="{Binding CloseAlertDrawerCommand}">
+            <PathIcon Data="{StaticResource IconClose}" Width="18" Height="18"/>
+          </Button>
+        </Grid>
+
+        <ScrollViewer Grid.Row="1" Padding="12,0">
+          <ItemsControl ItemsSource="{Binding DrawerAlerts}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate DataType="alerts:AlertDto">
+                <Border Classes="alert-item" Margin="0,4" Padding="10">
+                  <StackPanel Spacing="4">
+                    <TextBlock Text="{Binding Title}" FontWeight="SemiBold"
+                               TextWrapping="Wrap"/>
+                    <TextBlock Text="{Binding CreatedAt}" FontSize="12"
+                               Foreground="{DynamicResource TextSecondary}"/>
+                  </StackPanel>
+                </Border>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </ScrollViewer>
+
+        <Button Grid.Row="2" Content="查看全部"
+                HorizontalAlignment="Stretch" Margin="12"
+                Command="{Binding OpenAlertsCommand}"/>
+      </Grid>
+    </Border>
+  </Grid>
+</Window>

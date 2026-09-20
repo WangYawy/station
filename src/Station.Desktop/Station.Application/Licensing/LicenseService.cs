@@ -19,6 +19,8 @@ public sealed class LicenseService : ILicenseService
     private readonly ILicenseSignatureService _licenseSignature;
     private readonly ISecretProtector _secretProtector;
 
+    public event EventHandler<LicenseCheckResult>? LicenseChanged;
+
     public LicenseService(
         IRepository<LicenseInfo> licenses,
         IRepository<ClockState> clockStates,

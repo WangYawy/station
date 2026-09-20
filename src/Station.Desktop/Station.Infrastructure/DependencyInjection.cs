@@ -1,13 +1,14 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using SqlSugar;
 using Station.Application.DeviceDetection;
 using Station.Application.IdGenerators;
 using Station.Application.Services;
+using Station.Application.Settings;
 using Station.Application.Storage;
 using Station.Desktop.Infrastructure;
+using Station.Desktop.Infrastructure.Settings;
 using Station.Domain;
 using Station.Domain.Collecting;
 using Station.Domain.Repositories;
@@ -233,6 +234,9 @@ public static class DependencyInjection
         services.AddHostedService<LocalBackupWorkerHostedService>();
         services.AddHostedService<CacheCleanupWorkerHostedService>();
         services.AddHostedService<ScheduledCollectWorkerHostedService>();
+
+        // 运行时配置文件
+        services.AddSingleton<IRuntimeSettingsFile, RuntimeSettingsFile>();
 
         return services;
     }

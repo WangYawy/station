@@ -1,0 +1,38 @@
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="Station.Desktop.App"
+             xmlns:vm="using:Station.Desktop.ViewModels"
+             xmlns:views="using:Station.Desktop.Views"
+             RequestedThemeVariant="Default">
+  <Application.Styles>
+    <FluentTheme />
+    <StyleInclude Source="avares://Avalonia.Controls.DataGrid/Themes/Fluent.xaml" />
+    <StyleInclude Source="avares://Station.Desktop/Themes/Theme.axaml"/>
+  </Application.Styles>
+
+  <!-- ViewModel → View 映射 -->
+  <Application.DataTemplates>
+    <DataTemplate DataType="vm:WorkbenchViewModel">
+      <views:WorkbenchView/>
+    </DataTemplate>
+    <DataTemplate DataType="vm:HistoryModuleViewModel">
+      <views:HistoryModuleView/>
+    </DataTemplate>
+    <DataTemplate DataType="vm:LogsModuleViewModel">
+      <views:LogsModuleView/>
+    </DataTemplate>
+    <DataTemplate DataType="vm:SettingsModuleViewModel">
+      <views:SettingsModuleView/>
+    </DataTemplate>
+    <DataTemplate DataType="vm:AlertModuleViewModel">
+      <views:AlertModuleView/>
+    </DataTemplate>
+    <DataTemplate DataType="vm:CollectModuleViewModel">
+      <views:CollectModuleView/>
+    </DataTemplate>
+    <DataTemplate DataType="vm:ModulePlaceholderViewModel">
+      <views:ModulePlaceholderView/>
+    </DataTemplate>
+  </Application.DataTemplates>
+
+</Application>

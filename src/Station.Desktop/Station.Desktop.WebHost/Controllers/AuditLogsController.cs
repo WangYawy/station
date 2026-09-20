@@ -17,19 +17,15 @@ namespace Station.Desktop.WebHost.Controllers;
 [Route("api/v1/audit-logs")]
 public class AuditLogsController : ControllerBase
 {
-    private readonly IRepository<AuditLog> _logs;
     private readonly IAuditLogService _logService;
     private readonly AuthService _authorization;
-    private readonly IDataScopeProvider _dataScope;
 
     public AuditLogsController(
-        IRepository<AuditLog> logs,
-        AuthService authorization,
-        IDataScopeProvider dataScope)
+        IAuditLogService logService,
+        AuthService authorization)
     {
-        _logs = logs;
+        _logService = logService;
         _authorization = authorization;
-        _dataScope = dataScope;
     }
 
     [HttpGet]
@@ -45,18 +41,21 @@ public class AuditLogsController : ControllerBase
         {
             return StatusCode(403, new { message = "无审计查看权限" });
         }
-        Expression<Func<AuditLog, bool>> filter = a =>
-             (from == null || a.CreatedAt >= from) &&
-             (to == null || a.CreatedAt <= to) &&
-             (operationType == null || a.OperationType == operationType) &&
-             (string.IsNullOrWhiteSpace(keyword) ||
-              (a.OperatorAccount != null && a.OperatorAccount.Contains(keyword)) ||
-              (a.OperatorName != null && a.OperatorName.Contains(keyword)) ||
-              (a.OperationType != null && a.OperationType.Contains(keyword)) ||  // 加了 null 检查
-              (a.Target != null && a.Target.Contains(keyword)) ||
-              (a.Detail != null && a.Detail.Contains(keyword)));
-        Expression<Func<AuditLog, object>> orderBy = a => a.CreatedAt;
-        var query = await _logs.ToPageAsync(page, size, filter, orderBy);
+
+        //Expression<Func<AuditLog, bool>> filter = a =>
+        //     (from == null || a.CreatedAt >= from) &&
+        //     (to == null || a.CreatedAt <= to) &&
+        //     (operationType == null || a.OperationType == operationType) &&
+        //     (string.IsNullOrWhiteSpace(keyword) ||
+        //      (a.OperatorAccount != null && a.OperatorAccount.Contains(keyword)) ||
+        //      (a.OperatorName != null && a.OperatorName.Contains(keyword)) ||
+        //      (a.OperationType != null && a.OperationType.Contains(keyword)) ||  // 加了 null 检查
+        //      (a.Target != null && a.Target.Contains(keyword)) ||
+        //      (a.Detail != null && a.Detail.Contains(keyword)));
+        //Expression<Func<AuditLog, object>> orderBy = a => a.CreatedAt;
+        //var query = await _logs.ToPageAsync(page, size, filter, orderBy);
+
+        var query = await _logService.SearchAsync();
 
         return Ok(new
         {
@@ -68,9 +67,7 @@ public class AuditLogsController : ControllerBase
                 pageIndex = page,
                 pageSize = size,
                 totalCount = query.Total,
-                items = query.Items.Select(a => new AuditLogView(
-                    a.Id, a.OperatorAccount, a.OperatorName, a.DeptId, a.SourceIp,
-                    a.OperationType, a.Target, a.Detail, a.Result, a.CreatedAt)).ToList()
+                items = query.Items
             }
         });
     }

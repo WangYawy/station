@@ -1,14 +1,9 @@
 using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Serilog;
 using Station.Application;
-using Station.Application;
-using Station.Application.Settings;
-using Station.Desktop.Infrastructure;
 using Station.Desktop.Infrastructure.Settings;
-using Station.Desktop.Services;
-using Station.Desktop.Services.Kiosk;
+using Station.Desktop.WebHost;
 using Station.Infrastructure;
 
 namespace Station.Desktop.Bootstrapper;
@@ -58,8 +53,7 @@ public static class HostBuilderFactory
                 // 桌面注册
                 services.AddStatoinDesktop(context.Configuration);
             })
-            //.UseWebHostModule(configuration); // 传入外部配置
-            ;
+            .UseWebHostModule(configuration); // 传入外部配置
     }
 
     /// <summary>

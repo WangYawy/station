@@ -8,7 +8,7 @@ namespace Station.Domain.Entities;
 /// 审计日志归档表：字段与 <see cref="AuditLog"/> 保持一致。<br/>
 /// 只写不读，不建复合索引；仅建 CreatedAt 索引，为将来"历史查询"留后路。
 /// </summary>
-[SugarTable("AuditLogArchive")]
+[SugarTable("station_audit_log_archive")]
 public sealed class AuditLogArchive
 {
     [SugarColumn(IsPrimaryKey = true)]
