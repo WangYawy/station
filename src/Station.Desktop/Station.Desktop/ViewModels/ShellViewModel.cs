@@ -1,11 +1,6 @@
-using System;
-using System.Collections.Generic;
 using System.Collections.ObjectModel;
-using System.Linq;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
-using System.Threading.Tasks;
-using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Media;
 using Avalonia.Styling;
@@ -21,6 +16,7 @@ using Station.Application.Licensing;
 using Station.Application.Monitoring;
 using Station.Application.OperationAccess;
 using Station.Application.Recorders;
+using Station.Application.Security.Abstractions;
 using Station.Application.Session;
 using Station.Application.Settings;
 using Station.Application.Uploading;
@@ -217,7 +213,10 @@ public partial class ShellViewModel : ObservableObject, IDisposable
                 _services.GetRequiredService<ISystemSelfCheckService>(),
                 _services.GetRequiredService<ILicenseService>(),
                 _sessions,
-                _operationAccess);
+                _operationAccess,
+                _services.GetRequiredService<ICryptoPolicyService>(),
+                _services.GetRequiredService<IKeyRotationService>(),
+                _services.GetRequiredService<IAuditLogService>());
             _currentModuleDisposable = vm as IDisposable;
             CurrentModule = vm;
             return;

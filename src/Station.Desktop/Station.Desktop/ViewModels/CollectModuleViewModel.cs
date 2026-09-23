@@ -83,14 +83,14 @@ public partial class CollectModuleViewModel : ObservableObject, IDisposable
         var device = new CollectDeviceInfo("记录仪-演示", DemoSerial, ProtocolType.Ums);
         var root = _source.GetRecorderRoot(device);
         var result = await _identification.IdentifyAsync(device, root);
-        if (result.Status != RecorderIdentifyStatus.Bound)
+        if (result.Status != RecorderIdentifyStatus.NotFound)
         {
             Message = $"识别失败：{result.Message}";
             await RefreshAsync();
             return;
         }
 
-        var boundDevice = device with { UserId = result.UserId, DeptId = result.DeptId };
+        var boundDevice = device with { UserId = result.User.Id, DeptId = result.Dept.Id };
         var task = await _service.CreateTaskAsync(boundDevice, isAuto: true);
         Message = $"{result.Message}，自动采集已启动（{task.TaskNo}）";
         await RefreshAsync();

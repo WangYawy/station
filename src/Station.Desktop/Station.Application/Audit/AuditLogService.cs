@@ -1,5 +1,6 @@
 using System.Linq.Expressions;
 using Microsoft.Extensions.Logging;
+using SqlSugar;
 using Station.Application.IdGenerators;
 using Station.Application.Session;
 using Station.Application.Users;
@@ -35,7 +36,7 @@ public sealed class AuditLogService : IAuditLogService
         _logger = logger;
     }
 
-    public async Task WriteAsync(AuditLog entry)
+    public async Task WriteAsync(AuditLog entry, CancellationToken ct = default)
     {
         if (entry.CreatedAt == default)
         {
@@ -197,5 +198,31 @@ public sealed class AuditLogService : IAuditLogService
         //            await _db.Ado.RollbackTranAsync();
         //            throw;
         //        }
+    }
+
+    public async Task<List<AuditLog>> GetRecentAsync(
+       IEnumerable<string>? operationTypes = null,
+       int take = 20,
+       CancellationToken ct = default)
+    {
+        var types = operationTypes?.Where(t => !string.IsNullOrWhiteSpace(t)).ToList();
+
+        Expression<Func<AuditLog, bool>>? predicate = null;
+
+        if (types is { Count: > 0 })
+            predicate.And(x => types.Contains(x.OperationType));
+
+        var page = new PageQuery<AuditLog>
+        {
+            PageIndex = 1,
+            PageSize = take,
+            Predicate = predicate,
+            CountTotal = false
+        };
+
+        var query = await _auditLogs.ToPageAsync(page, x => x.CreatedAt,
+             descending: true, ct);
+
+        return query.Items.ToList();
     }
 }

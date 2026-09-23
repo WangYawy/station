@@ -18,6 +18,8 @@ public sealed class BindingOptions
     /// </summary>
     public bool EnableSecret { get; set; }
 
+    public string SecretFile { get; set; } = string.Empty;
+
     /// <summary>ini 签名密钥（SM3 盐，防篡改）。</summary>
     public string Secret { get; set; } = "station-dev-binding-secret";
 

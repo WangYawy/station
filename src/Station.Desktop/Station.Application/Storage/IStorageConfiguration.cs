@@ -1,4 +1,6 @@
 namespace Station.Application.Storage;
+
+
 public interface IStorageConfiguration
 {
     string DirectoryTemplate { get; set; }

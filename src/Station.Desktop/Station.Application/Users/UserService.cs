@@ -1,11 +1,23 @@
-using Station.Domain.Entities;
 using Station.Application.IdGenerators;
-using Station.Domain.Repositories;
-using Station.Domain.Security;
+using Station.Application.Security;
 using Station.Domain;
+using Station.Domain.Entities;
+using Station.Domain.Repositories;
 
 namespace Station.Application.Users;
 
+/// <summary>
+/// 用户/部门/角色/账号管理服务。
+/// 
+/// 【密码依赖】
+///   所有密码哈希动作（创建账号、重置密码）统一走 IPasswordService，
+///   保证与登录校验使用同一套算法策略。
+///   禁止直接依赖 IPasswordHasher / ICryptoPolicyService / ICryptoProviderFactory。
+/// 
+/// 【事务优化】
+///   哈希计算是 CPU 密集操作（PBKDF2 可能耗时 50~200ms），
+///   本服务在进入数据库事务之前先算好哈希，避免长时间占用事务。
+/// </summary>
 public sealed class UserService : IUserService
 {
     private readonly IRepository<Dept> _depts;
@@ -16,7 +28,7 @@ public sealed class UserService : IUserService
     private readonly IRepository<RolePermission> _rolePermissions;
     private readonly IRepository<UserRole> _userRoles;
     private readonly IUnitOfWork _unitOfWork;
-    private readonly IPasswordHasher _passwordHasher;
+    private readonly IPasswordService _passwordService;
     private readonly IIdGenerator _idGenerator;
 
     public UserService(
@@ -28,7 +40,7 @@ public sealed class UserService : IUserService
         IRepository<RolePermission> rolePermissions,
         IRepository<UserRole> userRoles,
         IUnitOfWork unitOfWork,
-        IPasswordHasher passwordHasher,
+        IPasswordService passwordService,
         IIdGenerator idGenerator)
     {
         _depts = depts;
@@ -39,11 +51,13 @@ public sealed class UserService : IUserService
         _rolePermissions = rolePermissions;
         _userRoles = userRoles;
         _unitOfWork = unitOfWork;
-        _passwordHasher = passwordHasher;
+        _passwordService = passwordService;
         _idGenerator = idGenerator;
     }
 
-    // ---------- 部门 ----------
+    // =========================================================
+    // 部门
+    // =========================================================
 
     public async Task<IReadOnlyList<DeptDto>> GetDeptTreeAsync()
     {
@@ -109,7 +123,9 @@ public sealed class UserService : IUserService
         return new OpResult(true);
     }
 
-    // ---------- 用户 ----------
+    // =========================================================
+    // 用户
+    // =========================================================
 
     public async Task<IReadOnlyList<UserDto>> GetUsersAsync()
     {
@@ -117,8 +133,10 @@ public sealed class UserService : IUserService
         return list.Select(ToDto).ToList();
     }
 
-    public async Task<OpResult> CreateUserAsync(UserDto dto, string? userName = null, string? password = null)
+    public async Task<OpResult> CreateUserAsync(
+        UserDto dto, string? userName = null, string? password = null)
     {
+        // ---- 1) 前置校验 ----
         if (await _users.IsAnyAsync(u => u.UserNo == dto.UserNo))
         {
             return new OpResult(false, $"工号 {dto.UserNo} 已存在");
@@ -127,6 +145,13 @@ public sealed class UserService : IUserService
         if (userName is not null && await _accounts.IsAnyAsync(a => a.UserName == userName))
         {
             return new OpResult(false, $"登录名 {userName} 已存在");
+        }
+
+        // ---- 2) 事务外预先计算哈希（CPU 密集，避免占用数据库事务） ----
+        string? passwordHash = null;
+        if (userName is not null && password is not null)
+        {
+            passwordHash = await _passwordService.HashAsync(password);
         }
 
         var user = new User
@@ -138,18 +163,21 @@ public sealed class UserService : IUserService
             IsActive = dto.IsActive
         };
 
+        // ---- 3) 事务内插入（哈希已算好，直接落库） ----
         await _unitOfWork.UseTranAsync(async () =>
         {
             var users = _unitOfWork.GetRepository<User>();
             var accounts = _unitOfWork.GetRepository<Account>();
+
             await users.InsertAsync(user);
-            if (userName is not null && password is not null)
+
+            if (userName is not null && passwordHash is not null)
             {
                 await accounts.InsertAsync(new Account
                 {
                     Id = _idGenerator.NextId(),
                     UserName = userName,
-                    PasswordHash = _passwordHasher.Hash(password),
+                    PasswordHash = passwordHash,
                     UserId = user.Id,
                     IsEnabled = true
                 });
@@ -195,7 +223,9 @@ public sealed class UserService : IUserService
             var userRoles = _unitOfWork.GetRepository<UserRole>();
             var accounts = _unitOfWork.GetRepository<Account>();
             var users = _unitOfWork.GetRepository<User>();
+
             await userRoles.DeleteAsync(ur => ur.UserId == id);
+
             var accountList = await accounts.GetListAsync(a => a.UserId == id);
             foreach (var account in accountList)
             {
@@ -223,7 +253,16 @@ public sealed class UserService : IUserService
         {
             var userRoles = _unitOfWork.GetRepository<UserRole>();
             await userRoles.DeleteAsync(ur => ur.UserId == userId);
-            var links = roleIds.Distinct().Select(roleId => new UserRole { Id = _idGenerator.NextId(), UserId = userId, RoleId = roleId }).ToList();
+
+            var links = roleIds.Distinct()
+                .Select(roleId => new UserRole
+                {
+                    Id = _idGenerator.NextId(),
+                    UserId = userId,
+                    RoleId = roleId
+                })
+                .ToList();
+
             if (links.Count > 0)
             {
                 await userRoles.InsertRangeAsync(links);
@@ -235,9 +274,12 @@ public sealed class UserService : IUserService
         return new OpResult(true);
     }
 
-    // ---------- 账号 ----------
+    // =========================================================
+    // 账号
+    // =========================================================
 
-    public async Task<CreateAccountResult> CreateAccountAsync(long userId, string userName, string password)
+    public async Task<CreateAccountResult> CreateAccountAsync(
+        long userId, string userName, string password)
     {
         if (await _users.GetByIdAsync(userId) is null)
         {
@@ -249,11 +291,14 @@ public sealed class UserService : IUserService
             return new CreateAccountResult(false, $"登录名 {userName} 已存在");
         }
 
+        // 走门面生成哈希（与登录校验算法一致）
+        var passwordHash = await _passwordService.HashAsync(password);
+
         var account = new Account
         {
             Id = _idGenerator.NextId(),
             UserName = userName,
-            PasswordHash = _passwordHasher.Hash(password),
+            PasswordHash = passwordHash,
             UserId = userId,
             IsEnabled = true
         };
@@ -269,14 +314,17 @@ public sealed class UserService : IUserService
             return new OpResult(false, "账号不存在");
         }
 
-        account.PasswordHash = _passwordHasher.Hash(newPassword);
+        // 走门面生成哈希（与登录校验算法一致）
+        account.PasswordHash = await _passwordService.HashAsync(newPassword);
         account.FailedLoginAttempts = 0;
         account.LockedUntil = null;
         await _accounts.UpdateAsync(account);
         return new OpResult(true);
     }
 
-    // ---------- 角色与权限 ----------
+    // =========================================================
+    // 角色与权限
+    // =========================================================
 
     public async Task<IReadOnlyList<RoleDto>> GetRolesAsync()
     {
@@ -348,6 +396,7 @@ public sealed class UserService : IUserService
             var rolePermissions = _unitOfWork.GetRepository<RolePermission>();
             var userRoles = _unitOfWork.GetRepository<UserRole>();
             var roles = _unitOfWork.GetRepository<Role>();
+
             await rolePermissions.DeleteAsync(rp => rp.RoleId == id);
             await userRoles.DeleteAsync(ur => ur.RoleId == id);
             await roles.DeleteByIdAsync(id);
@@ -368,7 +417,16 @@ public sealed class UserService : IUserService
         {
             var rolePermissions = _unitOfWork.GetRepository<RolePermission>();
             await rolePermissions.DeleteAsync(rp => rp.RoleId == roleId);
-            var links = permissionIds.Distinct().Select(pid => new RolePermission { Id = _idGenerator.NextId(), RoleId = roleId, PermissionId = pid }).ToList();
+
+            var links = permissionIds.Distinct()
+                .Select(pid => new RolePermission
+                {
+                    Id = _idGenerator.NextId(),
+                    RoleId = roleId,
+                    PermissionId = pid
+                })
+                .ToList();
+
             if (links.Count > 0)
             {
                 await rolePermissions.InsertRangeAsync(links);
@@ -386,9 +444,16 @@ public sealed class UserService : IUserService
         return list.Select(p => new PermissionDto(p.Id, p.Code, p.Name, p.Module)).ToList();
     }
 
-    private static DeptDto ToDto(Dept d) => new(d.Id, d.Code, d.Name, d.ParentId, d.SortOrder, d.IsActive);
+    // =========================================================
+    // DTO 映射
+    // =========================================================
 
-    private static UserDto ToDto(User u) => new(u.Id, u.UserNo, u.Name, u.DeptId, u.IsActive);
+    private static DeptDto ToDto(Dept d) =>
+        new(d.Id, d.Code, d.Name, d.ParentId, d.SortOrder, d.IsActive);
 
-    private static RoleDto ToDto(Role r) => new(r.Id, r.Code, r.Name, r.DataScope, r.IsSystem, r.IsActive);
+    private static UserDto ToDto(User u) =>
+        new(u.Id, u.UserNo, u.Name, u.DeptId, u.IsActive);
+
+    private static RoleDto ToDto(Role r) =>
+        new(r.Id, r.Code, r.Name, r.DataScope, r.IsSystem, r.IsActive);
 }

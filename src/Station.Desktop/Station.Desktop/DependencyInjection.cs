@@ -5,9 +5,11 @@ using System.Text;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Station.Application.Diagnostics;
 using Station.Desktop.Services;
 using Station.Desktop.Services.Kiosk;
 using Station.Desktop.ViewModels;
+using Station.Infrastructure.Diagnostics;
 
 namespace Station.Desktop;
 public static class DependencyInjection
@@ -22,6 +24,11 @@ public static class DependencyInjection
     {
         // 屏蔽
         services.AddSingleton<IKioskGuard>(_ => KioskGuardFactory.Create());
+
+        // 启动自检
+        services.AddSingleton<StartupSelfCheckService>();
+        services.AddSingleton<IStartupSelfCheckService>(sp => sp.GetRequiredService<StartupSelfCheckService>());
+        services.AddSingleton<LicenseOptionsReader>();
 
         return services;
     }

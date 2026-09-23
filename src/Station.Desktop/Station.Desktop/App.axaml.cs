@@ -6,7 +6,9 @@ using Avalonia.Markup.Xaml;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
+using Station.Application.Diagnostics;
 using Station.Application.Settings;
+using Station.Application.Storage;
 using Station.Desktop.Bootstrapper;
 using Station.Desktop.Services;
 using Station.Desktop.Views;
@@ -32,29 +34,62 @@ public partial class App : Avalonia.Application
         AvaloniaXamlLoader.Load(this);
     }
 
-    public override void OnFrameworkInitializationCompleted()
+    public override async void OnFrameworkInitializationCompleted()
     {
-        if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
+        try
         {
-            _host = HostBuilderFactory.Create().Build();
-            _host.StartAsync().GetAwaiter().GetResult();
-            Services = _host.Services;
-            // 在创建任何窗口之前注入配置到资源字典
-            ApplyWindowModeOptions();
-
-            desktop.MainWindow = new ShellWindow();
-
-            desktop.ShutdownRequested += async (_, _) =>
+            if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
             {
-                if (_host is not null)
-                {
-                    await _host.StopAsync();
-                    _host.Dispose();
-                }
-            };
-        }
+                // ---- 主机 ----
+                _host = HostBuilderFactory.Create().Build();
+                _host.StartAsync().GetAwaiter().GetResult();
+                Services = _host.Services;
 
-        base.OnFrameworkInitializationCompleted();
+                // ---- 首次启动 seed ----
+                var storageStore = Services.GetRequiredService<IStorageConfigStore>();
+                await storageStore.SeedIfEmptyAsync();
+
+                // ---- 启动自检 ----
+                var selfCheck = Services.GetRequiredService<IStartupSelfCheckService>();
+                var report = await selfCheck.RunAsync();
+
+
+                // 在创建任何窗口之前注入配置到资源字典
+                ApplyWindowModeOptions();
+
+                desktop.MainWindow = new ShellWindow();
+
+                if (!report.IsHealthy)
+                {
+                    // 弹出自检对话框
+                    var dialog = new SelfCheckDialog(report);
+                    var canContinue = await dialog.ShowDialog<bool>(desktop.MainWindow);
+
+                    if (!canContinue)
+                    {
+                        // 用户选择退出
+                        // Shutdown();
+                        return;
+                    }
+                }
+
+                desktop.ShutdownRequested += async (_, _) =>
+                {
+                    if (_host is not null)
+                    {
+                        await _host.StopAsync();
+                        _host.Dispose();
+                    }
+                };
+            }
+
+            base.OnFrameworkInitializationCompleted();
+        }
+        catch (Exception ex)
+        {
+            // 兜底
+            // await ShowFatalErrorAsync(ex);
+        }
     }
 
     /// <summary>

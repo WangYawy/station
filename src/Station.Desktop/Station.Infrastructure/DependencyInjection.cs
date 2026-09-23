@@ -4,16 +4,14 @@ using Microsoft.Extensions.Options;
 using SqlSugar;
 using Station.Application.DeviceDetection;
 using Station.Application.IdGenerators;
+using Station.Application.Security.Abstractions;
 using Station.Application.Services;
 using Station.Application.Settings;
-using Station.Application.Storage;
 using Station.Desktop.Infrastructure;
 using Station.Desktop.Infrastructure.Settings;
 using Station.Domain;
 using Station.Domain.Collecting;
 using Station.Domain.Repositories;
-using Station.Domain.Security;
-using Station.Domain.Storage;
 using Station.Infrastructure.Backup;
 using Station.Infrastructure.Collecting;
 using Station.Infrastructure.Db;
@@ -23,6 +21,7 @@ using Station.Infrastructure.Licensing;
 using Station.Infrastructure.Persistence;
 using Station.Infrastructure.Repositories;
 using Station.Infrastructure.Security;
+using Station.Infrastructure.Settings;
 using Station.Infrastructure.Storage;
 
 namespace Station.Infrastructure;
@@ -135,20 +134,24 @@ public static class DependencyInjection
         // ==========================================
         // 12. 机器硬件指纹（跨平台）
         // ==========================================
-        services.AddSingleton<IMachineFingerprintProvider>(_ =>
-            OperatingSystem.IsWindows()
-                ? new WindowsMachineFingerprintProvider()
-                : new LinuxMachineFingerprintProvider());
+        services.AddSingleton<IMachineFingerprintProvider>(sp =>
+        {
+            var factory = sp.GetRequiredService<ICryptoProviderFactory>();
+            return OperatingSystem.IsWindows()
+                ? new WindowsMachineFingerprintProvider(factory)
+                : new LinuxMachineFingerprintProvider(factory);
+        });
         // ==========================================
         // 13. 加密 & 秘钥
         // ==========================================
-        services.AddSingleton<IPasswordHasher, Sm3PasswordHasher>();
-        services.AddSingleton<IFileChecksumService, FileChecksumService>();
-        services.AddSingleton<IFileEncryptionService, FileEncryptionService>();
-        services.AddSingleton<ILicenseSignatureService, LicenseSignatureService>();
-        services.AddSingleton<ISecretProtector, Sm4SecretProtector>(); // 适配器模式
-        services.AddSingleton<ISm4KeyProvider, Sm4KeyProvider>(); // ISm4KeyProvider 的接口定义已移入 Application，但实现在这里注册
-        services.AddSingleton<IHashService, Sm3HashService>();
+        //services.AddSingleton<IPasswordHasher, Sm3PasswordHasher>();
+        //services.AddSingleton<IFileChecksumService, FileChecksumService>();
+        //services.AddSingleton<IFileEncryptionService, FileEncryptionService>();
+        //services.AddSingleton<ILicenseSignatureService, LicenseSignatureService>();
+        //services.AddSingleton<ISecretProtector, Sm4SecretProtector>(); // 适配器模式
+        //services.AddSingleton<ISm4KeyProvider, Sm4KeyProvider>(); // ISm4KeyProvider 的接口定义已移入 Application，但实现在这里注册
+        //services.AddSingleton<IHashService, Sm3HashService>();
+        services.AddStationSecurity(configuration);
 
         // ==========================================
         // 14. 记录仪设备文件采集器
@@ -189,41 +192,7 @@ public static class DependencyInjection
         // ==========================================
         // 16. 文件存储器（包含多目标）
         // ==========================================
-        var storageSection = configuration.GetSection(StorageOptions.SectionName);
-        services.Configure<StorageOptions>(storageSection);
-        // 将 StorageOptions 注册为 IStorageConfiguration
-        services.AddSingleton<IStorageConfiguration>(sp =>
-            sp.GetRequiredService<IOptions<StorageOptions>>().Value);
-        // 注册多个存储目标实例
-        services.AddSingleton<IEnumerable<IStorageTarget>>(sp =>
-        {
-            var options = sp.GetRequiredService<IOptions<StorageOptions>>().Value;
-            var targets = new List<IStorageTarget>();
-            var secretProtector = sp.GetRequiredService<ISecretProtector>();
-
-            foreach (var targetConfig in options.Targets)
-            {
-                IStorageTarget target = targetConfig.Kind switch
-                {
-                    StorageTargetKind.Local => new LocalDiskStorageTarget(targetConfig, sp.GetRequiredService<IOptions<StorageOptions>>(), secretProtector),
-                    StorageTargetKind.Ftp => new FtpStorageTarget(targetConfig, sp.GetRequiredService<IOptions<StorageOptions>>(), secretProtector),
-                    StorageTargetKind.Sftp => new SftpStorageTarget(targetConfig, sp.GetRequiredService<IOptions<StorageOptions>>(), secretProtector),
-                    _ => throw new NotSupportedException($"Unsupported storage target: {targetConfig.Kind}")
-                };
-                // 应用熔断装饰器（如果配置了阈值）
-                var threshold = targetConfig.CircuitBreakerThreshold ?? options.CircuitBreakerThreshold;
-                var cooldown = targetConfig.CircuitBreakerCooldownSeconds ?? options.CircuitBreakerCooldownSeconds;
-                if (threshold > 0 && cooldown > 0)
-                {
-                    var breaker = new StorageCircuitBreaker(threshold, cooldown);
-                    target = new CircuitBreakerStorageTarget(target, breaker);
-                }
-
-                targets.Add(target);
-            }
-            return targets;
-        });
-        services.AddScoped<IStorageService, StorageService>(); // 注册存储服务
+        services.AddStationStorage(configuration);
         // ==========================================
         // 17. 后台运行服务
         // ==========================================
@@ -237,6 +206,12 @@ public static class DependencyInjection
 
         // 运行时配置文件
         services.AddSingleton<IRuntimeSettingsFile, RuntimeSettingsFile>();
+
+        // 内存缓存
+        services.AddMemoryCache();
+
+        // 配置持久化
+        services.AddScoped<ISettingStore, SettingStore>();
 
         return services;
     }

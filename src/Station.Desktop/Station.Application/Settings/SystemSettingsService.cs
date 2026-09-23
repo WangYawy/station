@@ -1,13 +1,14 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using Microsoft.Extensions.Logging;
 using Station.Application.Audit;
 using Station.Application.Authentication;
 using Station.Application.Collecting;
 using Station.Application.Licensing;
 using Station.Application.PlatformSync;
-using Station.Domain.Entities;
 using Station.Application.Storage;
-using Microsoft.Extensions.Logging;
+using Station.Domain.Entities;
+using Station.Domain.Security;
 
 namespace Station.Application.Settings;
 
@@ -27,6 +28,7 @@ public sealed class SystemSettingsService : ISystemSettingsService
     private readonly IRuntimeSettingsFile _runtimeFile;
     private readonly ILicenseService _license;
     private readonly IAuditLogService _audit;
+    private readonly IStorageConfigStore _storageConfigStore;
     private readonly ILogger<SystemSettingsService> _logger;
     WindowModeOptions _workbench;
 
@@ -45,6 +47,7 @@ public sealed class SystemSettingsService : ISystemSettingsService
         IRuntimeSettingsFile runtimeFile,
         ILicenseService license,
         IAuditLogService audit,
+        IStorageConfigStore storageConfigStore,
         ILogger<SystemSettingsService> logger)
     {
         _collect = collect;
@@ -56,6 +59,7 @@ public sealed class SystemSettingsService : ISystemSettingsService
         _runtimeFile = runtimeFile;
         _license = license;
         _audit = audit;
+        _storageConfigStore = storageConfigStore;
         _logger = logger;
     }
 
@@ -385,5 +389,48 @@ public sealed class SystemSettingsService : ISystemSettingsService
         }
 
         return child;
+    }
+
+
+    public async Task<int> MigratePasswordsAsync(string operatorAccount, CancellationToken ct = default)
+    {
+        //var policy = await _cryptoPolicy.GetAsync(CryptoUsage.Password, ct);
+        //var target = _factory.GetPasswordHasher(policy.Algorithm);
+
+        //var users = await _db.Queryable<User>().ToListAsync(ct);
+        var ok = 0;
+        //foreach (var user in users)
+        //{
+        //    if (string.IsNullOrEmpty(user.PasswordHash)) continue;
+
+        //    // 尝试用所有允许的算法验证（需要用户明文密码才能重哈希；如无明文，只能标记待迁移）
+        //    // 注意：批量迁移需要用户下次登录时触发（惰性）；此处仅对已知可重哈希的情况生效。
+        //    // 因此通常不直接调用此方法重写，而是查询所有 NeedsRehash 的账号，等下次登录触发。
+        //    // 这里给出“强制迁移”占位：仅把旧格式的标记重写为新格式字段（占位，业务上请与运维确认）。
+        //    ok++; // 占位计数
+        //}
+        return ok;
+    }
+
+    public Task<IReadOnlyList<StorageTargetConfig>> GetStorageTargetsAsync(
+    CancellationToken ct = default)
+    => _storageConfigStore.GetAllAsync(ct);
+
+    public async Task UpdateStorageTargetsAsync(
+        IReadOnlyList<StorageTargetConfig> targets,
+        string operatorAccount,
+        CancellationToken ct = default)
+    {
+        await _storageConfigStore.SaveAllAsync(targets, operatorAccount, ct).ConfigureAwait(false);
+
+        await _audit.WriteAsync(new AuditLog
+        {
+            OperatorAccount = operatorAccount,
+            OperationType = "settings.storage.targets",
+            Target = "storage.targets",
+            Detail = $"更新存储目标：{targets.Count} 项",
+            Result = 1,
+            CreatedAt = DateTime.UtcNow
+        }).ConfigureAwait(false);
     }
 }

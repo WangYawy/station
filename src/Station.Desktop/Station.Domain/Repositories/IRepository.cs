@@ -3,8 +3,6 @@ using SqlSugar;
 
 namespace Station.Domain.Repositories;
 
-
-
 /// <summary>
 /// 通用仓储接口：覆盖业务模块最常见的 CRUD + 分页场景。
 /// </summary>
@@ -12,31 +10,31 @@ public interface IRepository<T> where T : class, new()
 {
     ISugarQueryable<T> AsQueryable();
 
-    Task<T?> GetByIdAsync(long id);
+    Task<T?> GetByIdAsync(long id, CancellationToken ct = default);
 
-    Task<T?> FirstAsync(Expression<Func<T, bool>> predicate);
+    Task<T?> FirstAsync(Expression<Func<T, bool>> predicate, CancellationToken ct = default);
 
-    Task<List<T>> GetListAsync(Expression<Func<T, bool>>? predicate = null);
+    Task<List<T>> GetListAsync(Expression<Func<T, bool>>? predicate = null, CancellationToken ct = default);
 
-    Task<int> CountAsync(Expression<Func<T, bool>>? predicate = null);
+    Task<int> CountAsync(Expression<Func<T, bool>>? predicate = null, CancellationToken ct = default);
 
-    Task<bool> IsAnyAsync(Expression<Func<T, bool>> predicate);
+    Task<bool> IsAnyAsync(Expression<Func<T, bool>> predicate, CancellationToken ct = default);
 
-    Task<int> InsertAsync(T entity);
+    Task<int> InsertAsync(T entity, CancellationToken ct = default);
 
-    Task<int> InsertRangeAsync(IEnumerable<T> entities);
+    Task<int> InsertRangeAsync(IEnumerable<T> entities, CancellationToken ct = default);
 
-    Task<int> UpdateAsync(T entity);
+    Task<int> UpdateAsync(T entity, CancellationToken ct = default);
 
-    Task<int> UpdateRangeAsync(IEnumerable<T> entities);
+    Task<int> UpdateRangeAsync(IEnumerable<T> entities, CancellationToken ct = default);
 
-    Task<int> DeleteByIdAsync(long id);
+    Task<int> DeleteByIdAsync(long id, CancellationToken ct = default);
 
-    Task<int> DeleteAsync(Expression<Func<T, bool>> predicate);
+    Task<int> DeleteAsync(Expression<Func<T, bool>> predicate, CancellationToken ct = default);
 
-    Task<int> SoftDeleteByIdAsync(long id);
+    Task<int> SoftDeleteByIdAsync(long id, CancellationToken ct = default);
 
-    Task<int> SoftDeleteAsync(Expression<Func<T, bool>> predicate);
+    Task<int> SoftDeleteAsync(Expression<Func<T, bool>> predicate, CancellationToken ct = default);
 
     /// <summary>
     /// 单字段排序分页（最常用）。<br/>

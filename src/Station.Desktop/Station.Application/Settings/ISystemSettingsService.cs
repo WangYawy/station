@@ -1,3 +1,5 @@
+using Station.Application.Storage;
+
 namespace Station.Application.Settings;
 
 /// <summary>
@@ -13,4 +15,19 @@ public interface ISystemSettingsService
         string group,
         IReadOnlyDictionary<string, string> values,
         string operatorAccount);
+
+    /// <summary>迁移密码哈希</summary>
+    Task<int> MigratePasswordsAsync(string operatorAccount, CancellationToken ct = default);
+
+    /// <summary>读取存储目标列表（含明文密码，供 UI 展示）。</summary>
+    Task<IReadOnlyList<StorageTargetConfig>> GetStorageTargetsAsync(CancellationToken ct = default);
+
+    /// <summary>
+    /// 覆盖保存存储目标列表。
+    /// 密码字段处理："明文空"= 保留原密文；"明文非空"= 加密后存。
+    /// </summary>
+    Task UpdateStorageTargetsAsync(
+        IReadOnlyList<StorageTargetConfig> targets,
+        string operatorAccount,
+        CancellationToken ct = default);
 }

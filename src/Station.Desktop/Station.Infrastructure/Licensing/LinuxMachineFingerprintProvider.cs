@@ -1,18 +1,30 @@
+using System.Text;
+using Station.Application.Security;
+using Station.Application.Security.Abstractions;
 using Station.Contracts.Registration;
-using Station.Infrastructure.Security;
+using Station.Domain.Security;
 
 namespace Station.Infrastructure.Licensing;
 
 /// <summary>
 /// Linux/信创 机器指纹：DMI（CPU 用 product_uuid、主板用 board_serial）+ 磁盘序列号 + MAC。
 /// 读取 /sys/class/dmi/id 与 /sys/block/*/device/serial；无权限/缺失时回退 "unknown"。
+/// 
+/// 【算法固定】机器指纹固定使用 SM3，不读策略表。
+///   原因：指纹是机器身份，算法变更会导致所有授权失效。
 /// </summary>
 public sealed class LinuxMachineFingerprintProvider : IMachineFingerprintProvider
 {
-    private readonly string _sysfsRoot;
+    private const string FingerprintAlgorithm = CryptoAlgorithm.Sm3;
 
-    public LinuxMachineFingerprintProvider(string? sysfsRoot = null)
+    private readonly string _sysfsRoot;
+    private readonly IHasher _hasher;
+
+    public LinuxMachineFingerprintProvider(
+        ICryptoProviderFactory factory,
+        string? sysfsRoot = null)
     {
+        _hasher = factory.GetHasher(FingerprintAlgorithm);
         _sysfsRoot = sysfsRoot ?? "/sys";
     }
 
@@ -25,7 +37,9 @@ public sealed class LinuxMachineFingerprintProvider : IMachineFingerprintProvide
         DiskSerial = FindDiskSerial(),
         MacAddress = MachineFingerprintUtil.FirstMac()
     };
-    public string CollectFingerprint() => Sm3Checksum.ComputeString(CollectParts().ToRaw());
+
+    public string CollectFingerprint() =>
+        _hasher.ComputeHash(Encoding.UTF8.GetBytes(CollectParts().ToRaw()));
 
     private string FindDiskSerial()
     {

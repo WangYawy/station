@@ -4,6 +4,7 @@ using Microsoft.Extensions.Options;
 using SqlSugar;
 using Station.Application.IdGenerators;
 using Station.Application.PlatformSync;
+using Station.Application.Security.Abstractions;
 using Station.Contracts;
 using Station.Contracts.Reporting;
 using Station.Domain.Entities;
@@ -16,7 +17,7 @@ namespace Station.Application.Collecting;
 
 public sealed class FileLedgerService : IFileLedgerService
 {
-    private readonly IRepository<VideoFile> _ledger;
+    private readonly IRepository<UploadedFile> _ledger;
     private readonly IRepository<User> _users;
     private readonly IRepository<Dept> _depts;
     private readonly ISyncOutboxService _outbox;
@@ -26,12 +27,11 @@ public sealed class FileLedgerService : IFileLedgerService
     private readonly CollectOptions _collectOptions;
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly JsonSerializerOptions _json = new(JsonSerializerDefaults.Web);
-    private readonly IFileChecksumService _checksumService;
-    private readonly IFileEncryptionService _encryptionService;
-
+    private readonly ICryptoPolicyService _cryptoPolicy;
+    private readonly ICryptoProviderFactory _cryptoFactory;
 
     public FileLedgerService(
-        IRepository<VideoFile> ledger,
+        IRepository<UploadedFile> ledger,
         IRepository<User> users,
         IRepository<Dept> depts,
         ISyncOutboxService outbox,
@@ -40,9 +40,8 @@ public sealed class FileLedgerService : IFileLedgerService
         IOptions<PlatformOptions> platformOptions,
         CollectOptions collectOptions,
         IServiceScopeFactory scopeFactory,
-        IFileEncryptionService encryptionService,
-        IFileChecksumService checksumService
-        )
+        ICryptoPolicyService cryptoPolicy,
+        ICryptoProviderFactory cryptoFactory)
     {
         _ledger = ledger;
         _users = users;
@@ -53,8 +52,8 @@ public sealed class FileLedgerService : IFileLedgerService
         _platformOptions = platformOptions.Value;
         _collectOptions = collectOptions;
         _scopeFactory = scopeFactory;
-        _checksumService = checksumService;
-        _encryptionService = encryptionService;
+        _cryptoPolicy = cryptoPolicy;
+        _cryptoFactory = cryptoFactory;
     }
 
     public async Task<int> ProcessCompletedTaskAsync(long taskId)
@@ -77,18 +76,20 @@ public sealed class FileLedgerService : IFileLedgerService
         var user = task.OperatorUserId is null ? null : await _users.GetByIdAsync(task.OperatorUserId.Value);
         var dept = task.DeptId is null ? null : await _depts.GetByIdAsync(task.DeptId.Value);
 
+        var p = _cryptoPolicy.GetAsync(CryptoUsage.FileSig);
+
         foreach (var file in files)
         {
             var cachePath = Path.Combine(_collectOptions.CacheDirectory, task.TaskNo, file.RelativePath);
-            file.Sm3 ??= _collectOptions.EncryptCache
-                ? _checksumService.Compute(_encryptionService.CreateDecryptStream(cachePath))
-                : _checksumService.ComputeFile(cachePath);
+            //file.Sm3 ??= _collectOptions.EncryptCache ? 
+            //    ? _checksumService.Compute(_encryptionService.CreateDecryptStream(cachePath))
+            //    : _checksumService.ComputeFile(cachePath);
             file.FileNo = FileNo.Create(_platformOptions.StationCode, file.Id);
             fileLoop.Update(file);
 
             if (!await _ledger.IsAnyAsync(v => v.FileNo == file.FileNo))
             {
-                await _ledger.InsertAsync(new VideoFile
+                await _ledger.InsertAsync(new UploadedFile
                 {
                     Id = _idGenerator.NextId(),
                     LocalFileId = file.Id,
@@ -96,7 +97,7 @@ public sealed class FileLedgerService : IFileLedgerService
                     FileName = file.FileName,
                     Size = file.Size,
                     Kind = FileKindMapper.Map(file.FileName),
-                    Sm3 = file.Sm3,
+                    Signature = file.Signature,
                     CollectedAt = task.StartedAt ?? task.CreatedAt,
                     OriginalTime = file.OriginalModifiedAt,
                     UserId = task.OperatorUserId,
@@ -115,7 +116,7 @@ public sealed class FileLedgerService : IFileLedgerService
                     FileName = file.FileName,
                     Size = file.Size,
                     Kind = FileKindMapper.Map(file.FileName),
-                    Sm3 = file.Sm3,
+                    Sm3 = file.Signature,
                     CollectedAt = task.StartedAt ?? task.CreatedAt,
                     OriginalTime = file.OriginalModifiedAt,
                     UserNo = user?.UserNo,

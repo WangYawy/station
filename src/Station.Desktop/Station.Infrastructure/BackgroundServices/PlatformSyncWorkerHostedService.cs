@@ -2,15 +2,16 @@ using System.Runtime.InteropServices;
 using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Station.Application.Collecting;
 using Station.Application.Licensing;
 using Station.Application.PlatformSync;
+using Station.Application.Security;
+using Station.Contracts.Alerts;
 using Station.Contracts.Registration;
 using Station.Contracts.Reporting;
 using Station.Infrastructure.Licensing;
-using Station.Infrastructure.Security;
-using Microsoft.Extensions.Logging;
 
 namespace Station.Desktop.Infrastructure;
 
@@ -24,6 +25,7 @@ public sealed class PlatformSyncWorkerHostedService : BackgroundService
     private readonly PlatformOptions _options;
     private readonly IStationContext _stationContext;
     private readonly IMachineFingerprintProvider _fingerprint;
+    private readonly IReportingSigner _reportingSigner;
     private DateTime _lastCommandPoll = DateTime.MinValue;
     private readonly ILogger<PlatformSyncWorkerHostedService> _logger;
 
@@ -31,12 +33,14 @@ public sealed class PlatformSyncWorkerHostedService : BackgroundService
         IServiceScopeFactory scopeFactory,
         IStationContext stationContext,
         IMachineFingerprintProvider fingerprint,
+        IReportingSigner reportingSigner,
         IOptions<PlatformOptions> options,
         ILogger<PlatformSyncWorkerHostedService> logger)
     {
         _scopeFactory = scopeFactory;
         _stationContext = stationContext;
         _fingerprint = fingerprint;
+        _reportingSigner = reportingSigner;
         _options = options.Value;
         _logger = logger;
     }
@@ -112,14 +116,13 @@ public sealed class PlatformSyncWorkerHostedService : BackgroundService
                 ExpiresAt = check.ExpiresAt,
                 DaysLeft = check.DaysLeft
             };
-            if (!string.IsNullOrWhiteSpace(reporting.PrivateKeyPem))
+
+            if (!string.IsNullOrWhiteSpace(reporting.PrivateKeyFile))
             {
-                statusReport = statusReport with
-                {
-                    Signature = Sm2LicenseSigner.Sign(
-                        reporting.PrivateKeyPem,
-                        LicenseStatusReportSignature.Canonical(statusReport))
-                };
+                var canonical = LicenseStatusReportSignature.Canonical(statusReport);
+                var (signature, _) = await _reportingSigner.SignAsync(canonical);
+                if (signature is not null)
+                    statusReport = statusReport with { Signature = signature };
             }
 
             await scope.ServiceProvider.GetRequiredService<ISyncOutboxService>()

@@ -106,7 +106,7 @@ public sealed class CommandExecutor : ICommandExecutor
         var checks = new List<string>();
         try
         {
-            var isConnected = _dbHealthService.IsConnected();
+            var isConnected = _dbHealthService.IsConnected().GetAwaiter().GetResult();
             checks.Add(isConnected ? "数据库连接正常" : $"数据库响应异常");
         }
         catch (Exception ex)

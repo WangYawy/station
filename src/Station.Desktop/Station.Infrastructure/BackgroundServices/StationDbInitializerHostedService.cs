@@ -31,7 +31,7 @@ public sealed class StationDbInitializerHostedService : IHostedService
             typeof(Recorder), 
             typeof(Alert),
             typeof(SyncOutbox), 
-            typeof(VideoFile), 
+            typeof(UploadedFile), 
             typeof(LicenseInfo), 
             typeof(ClockState),
             typeof(SysCryptoPolicy),

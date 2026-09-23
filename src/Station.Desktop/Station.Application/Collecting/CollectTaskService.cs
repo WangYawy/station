@@ -5,6 +5,9 @@ using SqlSugar;
 using Station.Application.IdGenerators;
 using Station.Application.Licensing;
 using Station.Application.PlatformSync;
+using Station.Application.Security;
+using Station.Application.Security.Models;
+using Station.Application.Storage;
 using Station.Application.UsbPortCard.Events;
 using Station.Domain.Collecting;
 using Station.Domain.Entities;
@@ -40,7 +43,9 @@ public sealed class CollectTaskService : ICollectTaskService
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ConcurrentDictionary<long, TaskControl> _controls = new();
     private readonly ILogger<CollectTaskService> _logger;
-    private readonly IFileEncryptionService _encryptionService;
+    private readonly IFileEncryptionService _fileEncryption;
+    private readonly IFileSigningService _fileSigning;
+    private readonly StorageOptions _storageConfig;
     private readonly IUsbPortCardEventService _eventService;
 
     // 上次已发布状态，避免重复事件
@@ -55,7 +60,9 @@ public sealed class CollectTaskService : ICollectTaskService
         ICollectControl collectControl,
         ILicenseService licenseService,
         IServiceScopeFactory scopeFactory,
-        IFileEncryptionService encryptionService,
+        IFileEncryptionService fileEncryption,
+        IFileSigningService fileSigning,
+        StorageOptions storageConfig,
         IUsbPortCardEventService eventService,
         ILogger<CollectTaskService> logger)
     {
@@ -68,7 +75,9 @@ public sealed class CollectTaskService : ICollectTaskService
         _licenseService = licenseService;
         _scopeFactory = scopeFactory;
         _logger = logger;
-        _encryptionService = encryptionService;
+        _fileEncryption = fileEncryption;
+        _fileSigning = fileSigning;
+        _storageConfig = storageConfig;
         _eventService = eventService;
     }
 
@@ -149,11 +158,11 @@ public sealed class CollectTaskService : ICollectTaskService
 
             // 一次 SELECT 拉全表，内存过滤
             var completedList = await _files.GetListAsync(f =>
-                fingerprints.Contains(f.Fingerprint) &&
+                fingerprints.Contains(f.Fingerprint!) &&
                 f.Status == CollectFileStatus.Completed);
 
             completedFingerprints = new HashSet<string>(
-                completedList.Select(f => f.Fingerprint),
+                completedList.Select(f => f.Fingerprint!),
                 StringComparer.Ordinal);
         }
         else
@@ -515,9 +524,59 @@ public sealed class CollectTaskService : ICollectTaskService
                     throw new IOException($"文件大小校验失败：期望 {file.Size}，实际 {copied}");
                 }
 
+                // ==================== 加密前算明文摘要 ====================
+                try
+                {
+                    var (digest, digestAlgo) = await _fileSigning.ComputeDigestAsync(destination, ct);
+                    file.ContentDigest = digest;
+                    file.DigestAlgorithm = digestAlgo;
+
+                    //  构造元数据 + 签名
+                    if (_storageConfig.EnableFileSignature)
+                    {
+                        try
+                        {
+                            var meta = new FileMetadataCanonical(
+                                FileNo: $"-{file.Id}", // {StationCode}
+                                FileName: file.FileName,
+                                Size: file.Size,
+                                ContentDigest: digest,
+                                DigestAlgorithm: digestAlgo,
+                                CollectedAt: DateTime.UtcNow,
+                                StationCode: "");
+
+                            var metaJson = FileMetadataCodec.Canonical(meta);
+                            var (signature, signAlgo) = await _fileSigning.SignMetadataAsync(metaJson, ct);
+                            file.Signature = signature;
+                            file.SignatureAlgorithm = signAlgo;
+                        }
+                        catch (Exception ex)
+                        {
+                            // 签名失败不阻塞采集，记录错误
+                            _logger.LogWarning(ex, "文件 {File} 元数据签名失败", file.FileName);
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "文件 {File} 摘要计算失败", file.FileName);
+                    file.ErrorMessage = $"摘要失败：{ex.Message}";
+                }
+                // ==================== 就地加密 ====================
                 if (_options.EncryptCache)
                 {
-                    _encryptionService.EncryptInPlace(destination);
+                    try
+                    {
+                        var encryptedSize = await _fileEncryption.EncryptInPlaceAsync(destination, ct);
+                        file.EncryptedSize = encryptedSize;
+                        file.LocalEncrypted = true;
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "文件 {File} 加密失败", file.FileName);
+                        file.ErrorMessage = $"加密失败：{ex.Message}";
+                        throw;   // 加密失败是严重错误，中断当前文件
+                    }
                 }
 
                 file.Status = CollectFileStatus.Completed;

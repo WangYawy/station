@@ -22,7 +22,8 @@ public enum FileKind
     Video = 0,
     Audio = 1,
     Image = 2,
-    Other = 3,
+    Log = 3,
+    Other = 999,
 }
 
 /// <summary>采集任务状态。</summary>

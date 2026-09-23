@@ -16,12 +16,12 @@ public class RepositoryBase<T> : IRepository<T> where T : class, new()
 
     public ISugarQueryable<T> AsQueryable() => Db.Queryable<T>();
 
-    public async Task<T?> GetByIdAsync(long id) => await Db.Queryable<T>().In(id).FirstAsync();
+    public async Task<T?> GetByIdAsync(long id, CancellationToken ct = default) => await Db.Queryable<T>().In(id).FirstAsync(ct);
 
-    public async Task<T?> FirstAsync(Expression<Func<T, bool>> predicate) =>
-        await Db.Queryable<T>().Where(predicate).FirstAsync();
+    public async Task<T?> FirstAsync(Expression<Func<T, bool>> predicate, CancellationToken ct = default) =>
+        await Db.Queryable<T>().Where(predicate).FirstAsync(ct);
 
-    public async Task<List<T>> GetListAsync(Expression<Func<T, bool>>? predicate = null)
+    public async Task<List<T>> GetListAsync(Expression<Func<T, bool>>? predicate = null, CancellationToken ct = default)
     {
         var query = Db.Queryable<T>();
         if (predicate is not null)
@@ -29,10 +29,10 @@ public class RepositoryBase<T> : IRepository<T> where T : class, new()
             query = query.Where(predicate);
         }
 
-        return await query.ToListAsync();
+        return await query.ToListAsync(ct);
     }
 
-    public async Task<int> CountAsync(Expression<Func<T, bool>>? predicate = null)
+    public async Task<int> CountAsync(Expression<Func<T, bool>>? predicate = null, CancellationToken ct = default)
     {
         var query = Db.Queryable<T>();
         if (predicate is not null)
@@ -40,31 +40,31 @@ public class RepositoryBase<T> : IRepository<T> where T : class, new()
             query = query.Where(predicate);
         }
 
-        return await query.CountAsync();
+        return await query.CountAsync(ct);
     }
 
-    public Task<bool> IsAnyAsync(Expression<Func<T, bool>> predicate) =>
-        Db.Queryable<T>().Where(predicate).AnyAsync();
+    public Task<bool> IsAnyAsync(Expression<Func<T, bool>> predicate, CancellationToken ct = default) =>
+        Db.Queryable<T>().Where(predicate).AnyAsync(ct);
 
-    public Task<int> InsertAsync(T entity) => Db.Insertable(entity).ExecuteCommandAsync();
+    public Task<int> InsertAsync(T entity, CancellationToken ct = default) => Db.Insertable(entity).ExecuteCommandAsync(ct);
 
-    public Task<int> InsertRangeAsync(IEnumerable<T> entities) =>
-        Db.Insertable(entities.ToList()).ExecuteCommandAsync();
+    public Task<int> InsertRangeAsync(IEnumerable<T> entities, CancellationToken ct = default) =>
+        Db.Insertable(entities.ToList()).ExecuteCommandAsync(ct);
 
-    public Task<int> UpdateAsync(T entity) => Db.Updateable(entity).ExecuteCommandAsync();
+    public Task<int> UpdateAsync(T entity, CancellationToken ct = default) => Db.Updateable(entity).ExecuteCommandAsync(ct);
 
-    public Task<int> UpdateRangeAsync(IEnumerable<T> entities) =>
-        Db.Updateable(entities.ToList()).ExecuteCommandAsync();
+    public Task<int> UpdateRangeAsync(IEnumerable<T> entities, CancellationToken ct = default) =>
+        Db.Updateable(entities.ToList()).ExecuteCommandAsync(ct);
 
-    public Task<int> DeleteByIdAsync(long id) => Db.Deleteable<T>().In(id).ExecuteCommandAsync();
+    public Task<int> DeleteByIdAsync(long id, CancellationToken ct = default) => Db.Deleteable<T>().In(id).ExecuteCommandAsync(ct);
 
-    public Task<int> DeleteAsync(Expression<Func<T, bool>> predicate) =>
-        Db.Deleteable<T>().Where(predicate).ExecuteCommandAsync();
+    public Task<int> DeleteAsync(Expression<Func<T, bool>> predicate, CancellationToken ct = default) =>
+        Db.Deleteable<T>().Where(predicate).ExecuteCommandAsync(ct);
 
-    public Task<int> SoftDeleteByIdAsync(long id) => Db.Deleteable<T>().In(id).ExecuteCommandAsync();
+    public Task<int> SoftDeleteByIdAsync(long id, CancellationToken ct = default) => Db.Deleteable<T>().In(id).ExecuteCommandAsync(ct);
 
-    public Task<int> SoftDeleteAsync(Expression<Func<T, bool>> predicate) =>
-        Db.Updateable<T>().Where(predicate).ExecuteCommandAsync();
+    public Task<int> SoftDeleteAsync(Expression<Func<T, bool>> predicate, CancellationToken ct = default) =>
+        Db.Updateable<T>().Where(predicate).ExecuteCommandAsync(ct);
 
     public Task<PageResult<T>> ToPageAsync<TKey>(
          PageQuery<T> query,

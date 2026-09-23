@@ -13,11 +13,11 @@ public sealed class DatabaseHealthService : IDatabaseHealthService
         _options = options;
     }
 
-    public bool IsConnected()
+    public async Task<bool> IsConnected()
     {
         // 此处保留了 using var client，但被隔离在 Infrastructure 内部
         using var client = _factory.CreateClient(_options);
-        var str = client.Ado.GetString("select 1");
+        var str = await client.Ado.GetStringAsync("select 1");
         return str == "1";
     }
 }

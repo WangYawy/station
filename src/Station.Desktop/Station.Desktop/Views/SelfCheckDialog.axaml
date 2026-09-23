@@ -1,0 +1,52 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:diag="using:Station.Application.Diagnostics"
+        x:Class="Station.Desktop.Views.SelfCheckDialog"
+        x:DataType="diag:SelfCheckReport"
+        Title="启动自检"
+        Width="640" Height="480"
+        WindowStartupLocation="CenterOwner"
+        CanResize="False">
+  <Grid RowDefinitions="Auto,*,Auto" Margin="16" RowSpacing="12">
+
+    <!-- 标题 -->
+    <StackPanel Grid.Row="0" Spacing="4">
+      <TextBlock Text="⚠ 启动自检未通过" FontSize="18" FontWeight="Bold" Foreground="#b45309" />
+      <TextBlock Text="{Binding FailureSummary}" Foreground="#64748b" TextWrapping="Wrap" />
+    </StackPanel>
+
+    <!-- 明细 -->
+    <Border Grid.Row="1" BorderBrush="#e2e8f0" BorderThickness="1" CornerRadius="6">
+      <ScrollViewer>
+        <ItemsControl ItemsSource="{Binding Items}" Margin="8">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="diag:SelfCheckItem">
+              <Border Padding="8" Margin="0,2"
+                      Background="{Binding Ok, Converter={StaticResource OkToBackgroundConverter}}">
+                <StackPanel Spacing="4">
+                  <StackPanel Orientation="Horizontal" Spacing="8">
+                    <TextBlock Text="{Binding StatusText}" FontWeight="Bold"
+                               Foreground="{Binding Ok, Converter={StaticResource OkToColorConverter}}" />
+                    <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
+                  </StackPanel>
+                  <TextBlock Text="{Binding Message}" Foreground="#334155"
+                             TextWrapping="Wrap" Margin="20,0,0,0" />
+                  <TextBlock Text="{Binding Remediation}" Foreground="#94a3b8"
+                             FontSize="12" TextWrapping="Wrap" Margin="20,0,0,0"
+                             IsVisible="{Binding Remediation, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                </StackPanel>
+              </Border>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </ScrollViewer>
+    </Border>
+
+    <!-- 按钮 -->
+    <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="12">
+      <Button Content="退出" Click="OnExitClick" />
+      <Button Content="继续启动（不推荐）" Click="OnContinueClick"
+              Background="#fef3c7" Foreground="#92400e" />
+    </StackPanel>
+  </Grid>
+</Window>

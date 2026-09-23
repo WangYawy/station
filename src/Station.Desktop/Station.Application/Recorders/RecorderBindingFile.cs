@@ -1,5 +1,7 @@
+using System.Text;
 using Microsoft.Extensions.Options;
 using Station.Application.Collecting;
+using Station.Application.Security.Abstractions;
 using Station.Contracts;
 using Station.Domain.Collecting;
 using Station.Domain.Security;
@@ -7,34 +9,47 @@ using Station.Domain.Security;
 namespace Station.Application.Recorders;
 
 /// <summary>
-/// 记录仪根目录绑定文件（station_bind.ini）：记录仪编号/用户/部门/绑定时间 + SM3 签名。
-/// 签名串 = serial|model|userNo|userName|deptCode|deptName|boundAt|secret。
+/// 记录仪根目录绑定文件（station_bind.ini）：记录仪编号/用户/部门/绑定时间 + MAC。
+/// 
+/// 【签名串】serial|model|userNo|userName|deptCode|deptName|boundAt
+/// 【MAC 算法】由 CryptoUsage.RecorderBinding 策略决定（默认 HMAC-SM3）
+/// 【密钥来源】IBindingSecretProvider（主密钥 HKDF 派生）
 /// </summary>
 public sealed class RecorderBindingFile
 {
     public const string FileName = "station_bind.ini";
+    private const string MacField = "mac";
+    private const string MacAlgoField = "mac_algo";
 
-    private readonly string _secret;
     private readonly ICollectSourceProvider _sourceProvider;
-    private readonly ISecretProtector _secretProtector;
-    private readonly IHashService _hashService;
+    private readonly ICryptoPolicyService _cryptoPolicy;
+    private readonly ICryptoProviderFactory _cryptoFactory;
+    private readonly IBindingSecretProvider _secretProvider;
     private readonly BindingOptions _options;
 
     public RecorderBindingFile(
         IOptions<BindingOptions> options,
-        ISecretProtector secretProtector,
-        IHashService hashService,
-        ICollectSourceProvider sourceProvider)
+        ICollectSourceProvider sourceProvider,
+        ICryptoPolicyService cryptoPolicy,
+        ICryptoProviderFactory cryptoFactory,
+        IBindingSecretProvider secretProvider)
     {
-        _secretProtector = secretProtector;
-        _secret = _secretProtector.TryUnprotect(options.Value.Secret) ?? options.Value.Secret;
         _options = options.Value;
-        _hashService = hashService;
         _sourceProvider = sourceProvider;
+        _cryptoPolicy = cryptoPolicy;
+        _cryptoFactory = cryptoFactory;
+        _secretProvider = secretProvider;
     }
 
-    public void Write(string recorderRootPath, BindingInfo binding)
+    // =========================================================
+    // 写入
+    // =========================================================
+
+    public async Task WriteAsync(
+        string recorderRootPath, BindingInfo binding, CancellationToken ct = default)
     {
+        var (mac, macAlgo) = await ComputeMacAsync(binding, ct).ConfigureAwait(false);
+
         var content = string.Join(Environment.NewLine,
             "[binding]",
             $"recorder_serial={binding.RecorderSerial}",
@@ -44,42 +59,34 @@ public sealed class RecorderBindingFile
             $"dept_code={binding.DeptCode}",
             $"dept_name={binding.DeptName}",
             $"bound_at={binding.BoundAt:O}",
-            $"sm3={binding.Signature}");
+            $"{MacAlgoField}={macAlgo}",
+            $"{MacField}={mac}");
 
         var store = GetFileStore(recorderRootPath);
         store.WriteFile(recorderRootPath, FileName, content);
     }
 
+    // =========================================================
+    // 读取（不需要算 MAC，同步）
+    // =========================================================
+
     public BindingInfo? Read(string recorderRootPath)
     {
         var store = GetFileStore(recorderRootPath);
         var text = store.ReadFile(recorderRootPath, FileName);
-        if (text is null)
+        if (text is null) return null;
+
+        var values = ParseIni(text);
+
+        if (!values.TryGetValue("recorder_serial", out var serial)
+            || !values.TryGetValue("user_no", out var userNo)
+            || !DateTime.TryParse(values.GetValueOrDefault("bound_at"), out var boundAt))
         {
             return null;
         }
 
-        var values = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var line in text.Replace("\r\n", "\n").Split('\n'))
-        {
-            var trimmed = line.Trim();
-            if (trimmed.StartsWith('[') || trimmed.StartsWith('#') || !trimmed.Contains('='))
-            {
-                continue;
-            }
-
-            var index = trimmed.IndexOf('=');
-            values[trimmed[..index].Trim()] = trimmed[(index + 1)..].Trim();
-        }
-
-        string signature = string.Empty;
-        if (!values.TryGetValue("recorder_serial", out var serial) ||
-            !values.TryGetValue("user_no", out var userNo) ||
-            //!values.TryGetValue("sm3", out var signature) ||
-            !DateTime.TryParse(values.GetValueOrDefault("bound_at"), out var boundAt))
-        {
-            return null;
-        }
+        // 读取时取 mac 字段（旧 sm3 字段不再兼容）
+        var signature = values.GetValueOrDefault(MacField) ?? string.Empty;
 
         return new BindingInfo(
             serial,
@@ -92,19 +99,65 @@ public sealed class RecorderBindingFile
             signature);
     }
 
-    public bool VerifySignature(BindingInfo binding)
+    // =========================================================
+    // 验证
+    // =========================================================
+
+    public async Task<bool> VerifySignatureAsync(
+        BindingInfo binding, CancellationToken ct = default)
     {
-        if (_options.EnableSecret)
-            return ComputeSignature(binding.RecorderSerial, binding.RecorderModel, binding.UserNo, binding.UserName, binding.DeptCode, binding.DeptName, binding.BoundAt)
-                    .Equals(binding.Signature, StringComparison.OrdinalIgnoreCase);
-        else return true;
+        if (!_options.EnableSecret) return true;
+
+        var (expected, _) = await ComputeMacAsync(binding, ct).ConfigureAwait(false);
+        return string.Equals(expected, binding.Signature, StringComparison.Ordinal);
     }
 
+    // =========================================================
+    // 内部
+    // =========================================================
 
-    public string ComputeSignature(string serial, string model, string userNo, string userName, string deptCode, string deptName, DateTime boundAt)
+    private async Task<(string Mac, string Algorithm)> ComputeMacAsync(
+        BindingInfo binding, CancellationToken ct)
     {
-        var canonical = string.Join('|', serial, model, userNo, userName, deptCode, deptName, boundAt.ToString("O"), _secret);
-        return _hashService.ComputeHash(canonical);
+        // 1) 读策略（默认 HMAC-SM3）
+        var policy = await _cryptoPolicy
+            .GetAsync(CryptoUsage.RecorderBinding, ct)
+            .ConfigureAwait(false);
+
+        // 2) 取 MAC 实现
+        var mac = _cryptoFactory.GetMacProvider(policy.Algorithm);
+
+        // 3) 取密钥（IBindingSecretProvider 内部走主密钥 HKDF）
+        var key = _secretProvider.GetSecret();
+
+        // 4) 规范化签名串（不含密钥）
+        var canonical = string.Join('|',
+            binding.RecorderSerial,
+            binding.RecorderModel,
+            binding.UserNo,
+            binding.UserName,
+            binding.DeptCode,
+            binding.DeptName,
+            binding.BoundAt.ToString("O"));
+
+        // 5) 计算 MAC
+        var value = mac.Compute(key, Encoding.UTF8.GetBytes(canonical));
+        return (value, policy.Algorithm);
+    }
+
+    private static Dictionary<string, string> ParseIni(string text)
+    {
+        var values = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var line in text.Replace("\r\n", "\n").Split('\n'))
+        {
+            var trimmed = line.Trim();
+            if (trimmed.StartsWith('[') || trimmed.StartsWith('#') || !trimmed.Contains('='))
+                continue;
+
+            var idx = trimmed.IndexOf('=');
+            values[trimmed[..idx].Trim()] = trimmed[(idx + 1)..].Trim();
+        }
+        return values;
     }
 
     public void Delete(string recorderRootPath)
@@ -113,28 +166,22 @@ public sealed class RecorderBindingFile
         store.DeleteFile(recorderRootPath, FileName);
     }
 
-    // 根据根路径解析协议类型（辅助方法）
+    // ---- 协议路由 ----
+
     private static ProtocolType ResolveProtocol(string recorderRoot)
     {
-        if (MtpRoot.IsMtpRoot(recorderRoot))
-            return ProtocolType.Mtp;
-        // 默认 UMS（模拟源也走 UMS 的文件系统逻辑）
+        if (MtpRoot.IsMtpRoot(recorderRoot)) return ProtocolType.Mtp;
         return ProtocolType.Ums;
     }
 
-    // 获取对应的文件存储适配器
     private IRecorderFileStore GetFileStore(string recorderRoot)
     {
         var protocol = ResolveProtocol(recorderRoot);
-        // 关键：ICollectSource 继承了 IRecorderFileStore，所以可以强转
         var source = _sourceProvider.GetFor(protocol);
 
-        // 防御性检查：理论上所有 CollectSource 都实现了 IRecorderFileStore
         if (source is not IRecorderFileStore store)
-        {
             throw new InvalidOperationException(
                 $"采集源 {source.GetType().Name} 未实现 IRecorderFileStore，无法读写绑定文件");
-        }
         return store;
     }
 }

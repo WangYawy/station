@@ -36,7 +36,7 @@ public sealed class CommandService : ICommandService
         var commands = await _client.PollCommandsAsync(stationId, CancellationToken.None);
         foreach (var command in commands)
         {
-            if (!_verifier.Verify(command))
+            if (!await _verifier.VerifyAsync(command))
             {
                 _logger.LogWarning("指令 {CommandId} 签名校验失败，拒绝执行（类型 {Type}）", command.CommandId, command.Type);
                 await _outbox.EnqueueAsync(

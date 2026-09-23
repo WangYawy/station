@@ -3,12 +3,20 @@
              x:Class="Station.Desktop.App"
              xmlns:vm="using:Station.Desktop.ViewModels"
              xmlns:views="using:Station.Desktop.Views"
+             xmlns:converters="using:Station.Desktop.Converters"
              RequestedThemeVariant="Default">
   <Application.Styles>
     <FluentTheme />
     <StyleInclude Source="avares://Avalonia.Controls.DataGrid/Themes/Fluent.xaml" />
     <StyleInclude Source="avares://Station.Desktop/Themes/Theme.axaml"/>
   </Application.Styles>
+
+  <Application.Resources>
+    <ResourceDictionary>
+      <converters:OkToColorConverter x:Key="OkToColorConverter" />
+      <converters:OkToBackgroundConverter x:Key="OkToBackgroundConverter" />
+    </ResourceDictionary>
+  </Application.Resources>
 
   <!-- ViewModel → View 映射 -->
   <Application.DataTemplates>

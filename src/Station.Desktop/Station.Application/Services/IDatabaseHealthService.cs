@@ -5,5 +5,5 @@ namespace Station.Application.Services;
 public interface IDatabaseHealthService
 {
     /// <summary>检查数据库连接是否正常。</summary>
-    bool IsConnected();
+    Task<bool> IsConnected();
 }

@@ -1,40 +1,66 @@
+using System.Text;
+using Station.Application.Security;
+using Station.Application.Security.Abstractions;
 using Station.Domain.Security;
 
 namespace Station.Application.Licensing;
 
 /// <summary>
-/// 授权生成工具（内部工具/测试用）：输入 站点编号+硬件指纹+到期时间，产出签名授权文件。
-/// 正式交付由内部独立工具持有签名密钥生成。
+/// 授权生成工具（内部使用）。
+/// 流程：构造 canonical JSON → SM4-GCM 加密 → SM2-SM3 对密文签名。
 /// </summary>
 public sealed class LicenseGenerator
 {
+    private readonly ICryptoPolicyService _policy;
+    private readonly ICryptoProviderFactory _factory;
+    private readonly IKeyFileResolver _keyResolver; // 读 PEM 文件
     private readonly LicenseOptions _options;
-    private readonly ILicenseSignatureService _licenseSignatureService;
 
-    public LicenseGenerator(LicenseOptions options, ILicenseSignatureService licenseSignatureService)
+    public LicenseGenerator(
+        ICryptoPolicyService policy,
+        ICryptoProviderFactory factory,
+        IKeyFileResolver keyResolver,
+        LicenseOptions options)
     {
+        _policy = policy;
+        _factory = factory;
+        _keyResolver = keyResolver;
         _options = options;
-        _licenseSignatureService = licenseSignatureService;
     }
 
-    public LicenseFile Generate(string stationCode, string fingerprint, DateTime expiresAt)
+    public async Task<LicenseFile> GenerateAsync(
+        string stationCode, string fingerprint, DateTime expiresAt, CancellationToken ct = default)
     {
-        if (string.IsNullOrWhiteSpace(_options.PrivateKeyPem))
-        {
-            throw new InvalidOperationException("未配置授权签名私钥（内部工具）");
-        }
+        var signPolicy = await _policy.GetAsync(CryptoUsage.License, ct);
+        var encryptAlgo = signPolicy.Algorithm;                 // 默认 SM4-GCM
+        var signAlgo = signPolicy.SecondaryAlgorithm ?? CryptoAlgorithm.Sm2Sm3;
 
-        var file = new LicenseFile(
+        var privateKeyPem = await _keyResolver.ResolveAsync(_options.PrivateKeyFile, ct);
+        if (string.IsNullOrWhiteSpace(privateKeyPem))
+            throw new InvalidOperationException("未配置授权签名私钥文件");
+
+        // 构造明文 payload（不含密文与签名）
+        var draft = new LicenseFile(
             $"LIC-{Guid.NewGuid():N}"[..20].ToUpperInvariant(),
             _options.ProductCode,
             stationCode,
             fingerprint,
             DateTime.Now,
             expiresAt,
-            string.Empty);
-        return file with { Signature = _licenseSignatureService.Sign(_options.PrivateKeyPem, LicenseFileCodec.Canonical(file)) };
+            PayloadCipher: string.Empty,
+            Algo: $"{encryptAlgo}+{signAlgo}",
+            Signature: string.Empty);
+
+        var canonical = LicenseFileCodec.Canonical(draft);
+        var cipher = await _factory.TryUnprotectAsync(_policy, "license", "payload", canonical);
+
+        var signer = _factory.GetSigner(signAlgo);
+        var signature = signer.Sign(Encoding.UTF8.GetBytes(cipher!), privateKeyPem);
+
+        return draft with { PayloadCipher = cipher!, Signature = signature };
     }
 
-    public string GenerateFileText(string stationCode, string fingerprint, DateTime expiresAt) =>
-        LicenseFileCodec.Serialize(Generate(stationCode, fingerprint, expiresAt));
+    public async Task<string> GenerateFileTextAsync(
+        string stationCode, string fingerprint, DateTime expiresAt, CancellationToken ct = default) =>
+        LicenseFileCodec.Serialize(await GenerateAsync(stationCode, fingerprint, expiresAt, ct));
 }

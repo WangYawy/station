@@ -14,7 +14,7 @@ public interface IRecorderService
     Task<RecorderDto> UpdateAsync(RecorderDto dto);
 
     /// <summary>写绑定：更新台账绑定并写入记录仪根目录 ini（含 SM3 签名）。</summary>
-    Task WriteBindingAsync(string serialNumber, long? userId, long? deptId, string recorderRootPath);
+    Task WriteBindingAsync(string serialNumber, long? userId, long? deptId, string recorderRootPath, CancellationToken ct = default);
 
     /// <summary>解除绑定：清台账绑定并删除 ini。</summary>
     Task UnbindAsync(string serialNumber, string recorderRootPath);

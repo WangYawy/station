@@ -28,7 +28,7 @@ public sealed class CollectOptions
     /// <summary>MTP 设备过滤（友好名称或 PnP ID 包含该串；为空时取第一个 MTP 设备）。</summary>
     public string? MtpDeviceFilter { get; set; }
 
-    /// <summary>本地缓存文件 SM4 加密（需求：文件缓存使用 SM4 加密；默认开启）。</summary>
+    /// <summary>本地缓存文件加密（需求：文件缓存使用 SM4 加密；默认开启）。</summary>
     public bool EncryptCache { get; set; } = true;
 
     /// <summary>本地加密缓存保留天数（需求默认 30 天），超期自动清理并留审计。</summary>

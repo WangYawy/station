@@ -142,7 +142,7 @@ public class FilesController : ControllerBase
             taskMap.TryGetValue(f.TaskId, out var task);
             return new FileView(
                 f.Id, f.FileNo, f.FileName, f.Extension, f.Size,
-                f.Status, f.SyncStatus, f.CollectedAt, f.OriginalModifiedAt, f.Sm3,
+                f.Status, f.SyncStatus, f.CollectedAt, f.OriginalModifiedAt, f.Signature,
                 task?.RecorderSerial ?? task?.RecorderName ?? string.Empty,
                 task?.OperatorUserId,
                 task?.DeptId is { } did && deptMap.TryGetValue(did, out var name) ? name : null,

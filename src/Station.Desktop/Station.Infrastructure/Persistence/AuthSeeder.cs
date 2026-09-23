@@ -1,12 +1,8 @@
 using Microsoft.Extensions.Options;
+using Station.Application.Security;
 using Station.Domain.Authorization;
 using Station.Domain.Entities;
-using Station.Domain.Enums;
 using Station.Domain.Repositories;
-using Station.Domain.Security;
-using Station.Infrastructure.Db;
-using Station.Infrastructure.Repositories;
-using Station.Infrastructure.Security;
 
 namespace Station.Infrastructure.Persistence;
 
@@ -26,7 +22,7 @@ public sealed class AuthSeeder : IAuthSeeder
     private readonly IRepository<Dept> _depts;
     private readonly IRepository<User> _users;
     private readonly IRepository<UserRole> _userRoles;
-    private readonly IPasswordHasher _passwordHasher;
+    private readonly IPasswordService _passwordService;
     private readonly AuthSeedOptions _options;
 
     public AuthSeeder(
@@ -38,7 +34,7 @@ public sealed class AuthSeeder : IAuthSeeder
         IRepository<Dept> depts,
         IRepository<User> users,
         IRepository<UserRole> userRoles,
-        IPasswordHasher passwordHasher,
+        IPasswordService passwordService,
         IOptions<AuthSeedOptions> options)
     {
         _initializer = initializer;
@@ -49,7 +45,7 @@ public sealed class AuthSeeder : IAuthSeeder
         _depts = depts;
         _users = users;
         _userRoles = userRoles;
-        _passwordHasher = passwordHasher;
+        _passwordService = passwordService;
         _options = options.Value;
     }
 
@@ -174,7 +170,7 @@ public sealed class AuthSeeder : IAuthSeeder
             {
                 Id = 1,
                 UserName = _options.DefaultAdminUserName,
-                PasswordHash = _passwordHasher.Hash(_options.DefaultAdminPassword),
+                PasswordHash = await _passwordService.HashAsync(_options.DefaultAdminPassword),
                 UserId = adminUserId,
                 IsEnabled = true
             });

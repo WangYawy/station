@@ -1,10 +1,11 @@
-using Station.Domain.Entities;
+using Microsoft.Extensions.Logging;
+using SqlSugar;
+using Station.Application.IdGenerators;
+using Station.Application.PlatformSync;
+using Station.Application.Security;
 using Station.Contracts;
 using Station.Contracts.Alerts;
-using Station.Application.PlatformSync;
-using SqlSugar;
-using Microsoft.Extensions.Logging;
-using Station.Application.IdGenerators;
+using Station.Domain.Entities;
 using Station.Domain.Repositories;
 using Station.Domain.Security;
 
@@ -18,7 +19,7 @@ public sealed class AlertService : IAlertService
     private readonly ReportingOptions _reportingOptions;
     private readonly IStationContext _stationContext;
     private readonly ILogger<AlertService> _logger;
-    private readonly ILicenseSignatureService _licenseSignature;
+    private readonly IReportingSigner _reportSignature;
 
     public AlertService(
         IRepository<Alert> alerts,
@@ -26,7 +27,7 @@ public sealed class AlertService : IAlertService
         ISyncOutboxService outbox,
         ReportingOptions reportingOptions,
         IStationContext stationContext,
-        ILicenseSignatureService licenseSignature,
+        IReportingSigner reportSignature,
         ILogger<AlertService> logger)
     {
         _alerts = alerts;
@@ -35,7 +36,7 @@ public sealed class AlertService : IAlertService
         _reportingOptions = reportingOptions;
         _stationContext = stationContext;
         _logger = logger;
-        _licenseSignature = licenseSignature;
+        _reportSignature = reportSignature;
     }
 
     public async Task WriteAsync(Alert alert)
@@ -59,14 +60,12 @@ public sealed class AlertService : IAlertService
                 OccurredAt = alert.CreatedAt,
                 Signature = null
             };
-            if (!string.IsNullOrWhiteSpace(_reportingOptions.PrivateKeyPem))
+            if (!string.IsNullOrWhiteSpace(_reportingOptions.PrivateKeyFile))
             {
-                report = report with
-                {
-                    Signature = _licenseSignature.Sign(
-                        _reportingOptions.PrivateKeyPem,
-                        AlertReportSignature.Canonical(report))
-                };
+                var canonical = AlertReportSignature.Canonical(report);
+                var (signature, _) = await _reportSignature.SignAsync(canonical);
+                if (signature is not null)
+                    report = report with { Signature = signature };
             }
 
             await _outbox.EnqueueAsync("alert", System.Text.Json.JsonSerializer.Serialize(report));
