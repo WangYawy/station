@@ -45,8 +45,8 @@
     <!-- 按钮 -->
     <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="12">
       <Button Content="退出" Click="OnExitClick" />
-      <Button Content="继续启动（不推荐）" Click="OnContinueClick"
-              Background="#fef3c7" Foreground="#92400e" />
+      <!--<Button Content="继续启动（不推荐）" Click="OnContinueClick"
+              Background="#fef3c7" Foreground="#92400e" />-->
     </StackPanel>
   </Grid>
 </Window>

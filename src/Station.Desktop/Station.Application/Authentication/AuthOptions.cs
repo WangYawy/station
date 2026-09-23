@@ -15,10 +15,4 @@ public sealed class AuthOptions
 
     /// <summary>必须登录模式下无操作自动退出分钟数（需求：1 分钟）。</summary>
     public int AutoLogoutMinutes { get; set; } = 1;
-
-    /// <summary>密码哈希算法（兜底；以 DB 策略为准）。</summary>
-    public string PasswordAlgorithm { get; set; } = "PBKDF2-HMAC-SM3";
-
-    /// <summary>是否允许旧算法回退（迁移期 true）。</summary>
-    public bool AllowLegacyPassword { get; set; } = true;
 }

@@ -1,7 +1,3 @@
-using System;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
@@ -15,7 +11,6 @@ using Station.Application.Session;
 using Station.Application.Settings;
 using Station.Desktop.Services.Kiosk;
 using Station.Desktop.ViewModels;
-using Vanara.Extensions.Reflection;
 
 namespace Station.Desktop.Views;
 
@@ -38,7 +33,7 @@ public partial class ShellWindow : Window
         DataContext = _viewModel;
 
         ApplyWindowMode();                    // Kiosk 窗口模式
-        _viewModel.AttachIdleTracker(this);   // 空闲追踪挂到 Window 上
+        _viewModel.AttachIdleTracker(this);   // 会话空闲追踪挂到 Window 上
     }
 
     #region Kiosk 窗口模式

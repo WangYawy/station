@@ -80,10 +80,7 @@ public sealed class StorageConfigStore : IStorageConfigStore
         _logger = logger;
     }
 
-    // =========================================================
     // 读取
-    // =========================================================
-
     /// <inheritdoc />
     /// <remarks>
     /// 返回的配置中密码字段为密文原值（不自动解密）。
@@ -134,10 +131,7 @@ public sealed class StorageConfigStore : IStorageConfigStore
         finally { _lock.Release(); }
     }
 
-    // =========================================================
     // 保存
-    // =========================================================
-
     /// <inheritdoc />
     /// <remarks>
     /// 【加密规则】
@@ -215,10 +209,7 @@ public sealed class StorageConfigStore : IStorageConfigStore
         _logger.LogInformation("存储目标配置已更新（{Count} 项）", targets.Count);
     }
 
-    // =========================================================
     // 重置为种子
-    // =========================================================
-
     /// <inheritdoc />
     public async Task ResetToSeedAsync(string operatorAccount, CancellationToken ct = default)
     {
@@ -226,10 +217,7 @@ public sealed class StorageConfigStore : IStorageConfigStore
         _logger.LogWarning("存储目标配置已重置为 appsettings 种子");
     }
 
-    // =========================================================
     // 首次启动 seed
-    // =========================================================
-
     /// <inheritdoc />
     /// <remarks>
     /// 幂等：DB 已有配置则跳过。
@@ -244,10 +232,7 @@ public sealed class StorageConfigStore : IStorageConfigStore
         _logger.LogInformation("存储目标配置已从 appsettings 首次 seed 入 DB");
     }
 
-    // =========================================================
     // 克隆（防止污染调用方对象）
-    // =========================================================
-
     private static StorageTargetConfig Clone(StorageTargetConfig src) => new()
     {
         Kind = src.Kind,

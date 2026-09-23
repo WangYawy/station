@@ -1,6 +1,4 @@
-using System;
 using System.Globalization;
-using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
 using Microsoft.Extensions.DependencyInjection;
@@ -10,7 +8,6 @@ using Station.Application.Diagnostics;
 using Station.Application.Settings;
 using Station.Application.Storage;
 using Station.Desktop.Bootstrapper;
-using Station.Desktop.Services;
 using Station.Desktop.Views;
 
 namespace Station.Desktop;

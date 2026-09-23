@@ -32,6 +32,7 @@ public enum BarHealth { Ok, Warning, Down }
 
 public partial class ShellViewModel : ObservableObject, IDisposable
 {
+    #region 构造初始化
     private static readonly (string Key, string Title)[] ModuleCatalog =
     [
         ("workbench", "工作台"),
@@ -48,14 +49,14 @@ public partial class ShellViewModel : ObservableObject, IDisposable
     private readonly IUploadService _uploadService;
     private readonly ICollectTaskService _collectService;
 
-    private readonly SessionIdleTracker _idleTracker;
-    private readonly SystemMonitorService _monitor;
+    private readonly SessionIdleTracker _idleTracker; // 会话空闲追踪
+    private readonly SystemMonitorService _monitor; // 本机状态监控
     private readonly DispatcherTimer _clockTimer;
     private readonly DispatcherTimer _alertTimer;
     private readonly DispatcherTimer _statusBarTimer;
 
     private long? _lastAlertId;
-    private LogsModuleViewModel? _logsViewModel;
+    private LogsModuleViewModel? _logsViewModel; // 日志页缓存，避免每次打开都重新加载
     private IDisposable? _currentModuleDisposable;
 
     private Func<Task<bool>>? _loginRequestHandler;
@@ -102,7 +103,7 @@ public partial class ShellViewModel : ObservableObject, IDisposable
         _ = RefreshAlertBannerAsync();
         _ = NavigateAsync("workbench");
     }
-
+    #endregion
     /// <summary>窗口构造后调用，把空闲追踪挂到 Window 上。</summary>
     public void AttachIdleTracker(Window window) => _idleTracker.Attach(window);
 

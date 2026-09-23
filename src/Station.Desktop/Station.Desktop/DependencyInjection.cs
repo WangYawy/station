@@ -22,8 +22,8 @@ public static class DependencyInjection
         this IServiceCollection services,
         IConfiguration configuration)
     {
-        // 屏蔽
-        services.AddSingleton<IKioskGuard>(_ => KioskGuardFactory.Create());
+        // 屏蔽，只有shellwindow用
+        // services.AddSingleton<IKioskGuard>(_ => KioskGuardFactory.Create());
 
         // 启动自检
         services.AddSingleton<StartupSelfCheckService>();
