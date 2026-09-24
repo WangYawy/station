@@ -1,14 +1,13 @@
 using System.Text.Json;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using SqlSugar;
 using Station.Application.Collecting;
-using Station.Application.IdGenerators;
 using Station.Application.Services;
 using Station.Contracts;
 using Station.Contracts.Commands;
 using Station.Domain.Entities;
-using Station.Domain.Repositories;
+using Station.Data.Repositories;
+using Station.Data.IdGeneration;
 
 namespace Station.Application.PlatformSync;
 
@@ -153,7 +152,7 @@ public sealed class CommandExecutor : ICommandExecutor
             {
                 recorder = new Recorder
                 {
-                    Id = _idGenerator.NextId(),
+                    Id = _idGenerator.NewId(),
                     SerialNumber = payload.RecorderSerial,
                     Model = payload.Model ?? string.Empty,
                     Protocol = payload.Protocol is { } protocol ? (ProtocolType)protocol : ProtocolType.Ums,

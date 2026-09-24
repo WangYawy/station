@@ -3,8 +3,8 @@ using Microsoft.Extensions.Options;
 using Station.Application.Audit;
 using Station.Application.Authorization;
 using Station.Application.Security;
+using Station.Data.Repositories;
 using Station.Domain.Entities;
-using Station.Domain.Repositories;
 
 namespace Station.Application.Authentication;
 
@@ -63,6 +63,7 @@ public sealed class AuthenticationService : IAuthenticationService
                 OperationType = "login",
                 Target = request.UserName,
                 Detail = "登录失败：账号不存在",
+                SourceClient = "desktop",
                 Result = 0,
                 CreatedAt = DateTime.Now
             });
@@ -229,6 +230,7 @@ public sealed class AuthenticationService : IAuthenticationService
             OperatorAccount = account.UserName,
             OperatorUserId = account.UserId,
             SourceIp = sourceIp,
+            SourceClient = "desktop",
             OperationType = "login",
             Target = account.UserName,
             Detail = detail,

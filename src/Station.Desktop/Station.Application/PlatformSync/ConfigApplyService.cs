@@ -4,13 +4,13 @@ using Microsoft.Extensions.Logging;
 using SqlSugar;
 using Station.Application.Audit;
 using Station.Application.Collecting;
-using Station.Application.IdGenerators;
 using Station.Contracts;
 using Station.Contracts.Sync;
 using Station.Domain.Entities;
 using Station.Domain.Enums;
-using Station.Domain.Repositories;
+using Station.Data.Repositories;
 using static System.Formats.Asn1.AsnWriter;
+using Station.Data.IdGeneration;
 
 namespace Station.Application.PlatformSync;
 
@@ -197,7 +197,7 @@ public sealed class ConfigApplyService : IConfigApplyService
             {
                 var dept = new Dept
                 {
-                    Id = _idGenerator.NextId(),
+                    Id = _idGenerator.NewId(),
                     Code = row.Code,
                     Name = row.Name,
                     SortOrder = row.SortOrder,
@@ -271,7 +271,7 @@ public sealed class ConfigApplyService : IConfigApplyService
             {
                 var user = new User
                 {
-                    Id = _idGenerator.NextId(),
+                    Id = _idGenerator.NewId(),
                     UserNo = row.UserNo,
                     Name = row.Name,
                     DeptId = deptId,
@@ -325,7 +325,7 @@ public sealed class ConfigApplyService : IConfigApplyService
             {
                 role = new Role
                 {
-                    Id = _idGenerator.NextId(),
+                    Id = _idGenerator.NewId(),
                     Code = row.Code,
                     Name = row.Name,
                     DataScope = (DataScope)row.DataScope,
@@ -343,7 +343,7 @@ public sealed class ConfigApplyService : IConfigApplyService
                 .Where(code => permissionIdByCode.TryGetValue(code, out var _))
                 .Select(code => new RolePermission
                 {
-                    Id = _idGenerator.NextId(),
+                    Id = _idGenerator.NewId(),
                     RoleId = role.Id,
                     PermissionId = permissionIdByCode[code]
                 })
@@ -388,7 +388,7 @@ public sealed class ConfigApplyService : IConfigApplyService
                         roleCodeToId.TryGetValue(r.RoleCode, out var _))
             .Select(r => new UserRole
             {
-                Id = _idGenerator.NextId(),
+                Id = _idGenerator.NewId(),
                 UserId = userNoToId[r.UserNo],
                 RoleId = roleCodeToId[r.RoleCode]
             })
@@ -431,7 +431,7 @@ public sealed class ConfigApplyService : IConfigApplyService
             {
                 await accountRepo.InsertAsync(new Account
                 {
-                    Id = _idGenerator.NextId(),
+                    Id = _idGenerator.NewId(),
                     UserName = row.UserName,
                     PasswordHash = row.PasswordHash,
                     UserId = userId,
@@ -495,7 +495,7 @@ public sealed class ConfigApplyService : IConfigApplyService
             {
                 await recorderRepo.InsertAsync(new Recorder
                 {
-                    Id = _idGenerator.NextId(),
+                    Id = _idGenerator.NewId(),
                     SerialNumber = row.SerialNumber,
                     Model = row.Model,
                     Protocol = (ProtocolType)row.Protocol,

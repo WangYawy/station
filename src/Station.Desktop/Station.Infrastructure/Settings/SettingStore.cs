@@ -1,8 +1,8 @@
 using Microsoft.Extensions.Logging;
-using SqlSugar;
 using Station.Application.Security;
 using Station.Domain.Entities;
-using Station.Domain.Repositories;
+using Station.Data.Repositories;
+using Station.Data.SqlSugar.Extensions;
 
 namespace Station.Infrastructure.Settings;
 

@@ -1,17 +1,17 @@
 using System.Collections.Concurrent;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using SqlSugar;
-using Station.Application.IdGenerators;
 using Station.Application.Licensing;
 using Station.Application.PlatformSync;
 using Station.Application.Security;
 using Station.Application.Storage;
 using Station.Application.UsbPortCard.Events;
+using Station.Data.IdGeneration;
+using Station.Data.Paging;
+using Station.Data.Repositories;
 using Station.Domain.Collecting;
 using Station.Domain.Entities;
 using Station.Domain.Enums;
-using Station.Domain.Repositories;
 
 namespace Station.Application.Collecting;
 
@@ -79,7 +79,7 @@ public sealed class CollectTaskService : ICollectTaskService
     public async Task<CollectTaskDto> CreateTaskAsync(CollectDeviceInfo device, bool isAuto)
     {
         var now = DateTime.Now;
-        var id = _idGenerator.NextId();
+        var id = _idGenerator.NewId();
         var task = new CollectTask
         {
             Id = id,
@@ -175,7 +175,7 @@ public sealed class CollectTaskService : ICollectTaskService
 
             toInsert.Add(new CollectFile
             {
-                Id = _idGenerator.NextId(),
+                Id = _idGenerator.NewId(),
                 TaskId = taskId,
                 FileName = source.FileName,
                 Extension = Path.GetExtension(source.FileName).ToLowerInvariant(),

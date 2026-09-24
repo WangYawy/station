@@ -1,7 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Station.Domain.Collecting;
 using Station.Domain.Entities;
-using Station.Domain.Repositories;
+using Station.Data.Repositories;
 
 namespace Station.Application.Recorders;
 

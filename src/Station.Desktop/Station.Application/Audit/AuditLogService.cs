@@ -1,14 +1,15 @@
 using System.Linq.Expressions;
 using Microsoft.Extensions.Logging;
 using SqlSugar;
-using Station.Application.IdGenerators;
 using Station.Application.Session;
 using Station.Application.Users;
-using Station.Contracts.Api;
+using Station.Data.Expressions;
+using Station.Data.Paging;
+using Station.Data.Repositories;
 using Station.Domain;
 using Station.Domain.Audit;
 using Station.Domain.Entities;
-using Station.Domain.Repositories;
+using Station.Data.IdGeneration;
 
 namespace Station.Application.Audit;
 
@@ -45,7 +46,7 @@ public sealed class AuditLogService : IAuditLogService
 
         if (entry.Id == 0)
         {
-            entry.Id = _idGenerator.NextId();
+            entry.Id = _idGenerator.NewId();
         }
 
         await _auditLogs.InsertAsync(entry);

@@ -4,7 +4,7 @@ using Station.Application.Authorization;
 using Station.Application.Authentication;
 using Station.Domain.Entities;
 using Station.Domain.Enums;
-using Station.Domain.Repositories;
+using Station.Data.Repositories;
 using AuthService = Station.Application.Authorization.IAuthorizationService;
 using Station.Domain.Authorization;
 

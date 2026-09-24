@@ -7,7 +7,7 @@ using Station.Application.Recorders;
 using Station.Application.Users;
 using Station.Contracts;
 using Station.Domain.Entities;
-using Station.Domain.Repositories;
+using Station.Data.Repositories;
 using AuthService = Station.Application.Authorization.IAuthorizationService;
 using Station.Domain.Collecting;
 

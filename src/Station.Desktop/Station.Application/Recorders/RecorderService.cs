@@ -1,7 +1,7 @@
-using Station.Application.IdGenerators;
 using Station.Contracts;
 using Station.Domain.Entities;
-using Station.Domain.Repositories;
+using Station.Data.Repositories;
+using Station.Data.IdGeneration;
 
 namespace Station.Application.Recorders;
 
@@ -63,7 +63,7 @@ public sealed class RecorderService : IRecorderService
 
         var recorder = new Recorder
         {
-            Id = _idGenerator.NextId(),
+            Id = _idGenerator.NewId(),
             SerialNumber = serialNumber,
             Model = model,
             Protocol = protocol,

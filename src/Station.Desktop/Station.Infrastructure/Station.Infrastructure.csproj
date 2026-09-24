@@ -3,15 +3,6 @@
     <ItemGroup>
         <PackageReference Include="MediaDevices" Version="1.10.0" />
         <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="8.0.1" />
-        <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="8.0.0" />
-        <PackageReference Include="SqlSugarCore" Version="5.1.4.216" />
-        <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.9" />
-        <PackageReference Include="Kdbndp" Version="8.0.0" />
-        <PackageReference Include="MySqlConnector" Version="2.3.7" />
-        <PackageReference Include="Npgsql" Version="8.0.9" />
-        <!-- 国密 SM2/SM3/SM4 实现（BSD 许可，免费） -->
-        <PackageReference Include="BouncyCastle.Cryptography" Version="2.7.0" />
-
         <PackageReference Include="FluentFTP" Version="54.2.0" />
         <PackageReference Include="SSH.NET" Version="2025.1.0" />
         <PackageReference Include="System.Management" Version="8.0.0" />
@@ -32,6 +23,8 @@
 
     <ItemGroup>
         <ProjectReference Include="..\..\Station.Shared\Station.Crypto\Station.Crypto.csproj" />
+        <ProjectReference Include="..\..\Station.Shared\Station.Data.SqlSugar\Station.Data.SqlSugar.csproj" />
+        <ProjectReference Include="..\..\Station.Shared\Station.Data\Station.Data.csproj" />
         <ProjectReference Include="..\Station.Application\Station.Application.csproj" />
         <ProjectReference Include="..\Station.Domain\Station.Domain.csproj" />
     </ItemGroup>

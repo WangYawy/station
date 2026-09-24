@@ -2,16 +2,15 @@ using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using SqlSugar;
-using Station.Application.IdGenerators;
 using Station.Application.PlatformSync;
 using Station.Application.Security;
 using Station.Contracts;
 using Station.Contracts.Reporting;
 using Station.Domain.Entities;
 using Station.Domain.Enums;
-using Station.Domain.Repositories;
-using Station.Domain.Security;
+using Station.Data.Repositories;
 using TaskStatus = Station.Contracts.TaskStatus;
+using Station.Data.IdGeneration;
 
 namespace Station.Application.Collecting;
 
@@ -86,7 +85,7 @@ public sealed class FileLedgerService : IFileLedgerService
             {
                 await _ledger.InsertAsync(new UploadedFile
                 {
-                    Id = _idGenerator.NextId(),
+                    Id = _idGenerator.NewId(),
                     LocalFileId = file.Id,
                     FileNo = file.FileNo,
                     FileName = file.FileName,

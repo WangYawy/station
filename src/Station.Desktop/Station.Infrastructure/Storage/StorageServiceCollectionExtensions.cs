@@ -4,7 +4,6 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Station.Application.Security;
 using Station.Application.Storage;
-using Station.Infrastructure.Backup;
 using Station.Infrastructure.Storage.CircuitBreaker;
 using Station.Infrastructure.Storage.Retry;
 using Station.Infrastructure.Storage.Telemetry;

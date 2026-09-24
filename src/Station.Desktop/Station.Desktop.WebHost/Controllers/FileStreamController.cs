@@ -1,7 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Station.Application.Collecting;
 using Station.Domain.Entities;
-using Station.Domain.Repositories;
+using Station.Data.Repositories;
 using Station.Domain.Security;
 using System.Text.RegularExpressions;
 

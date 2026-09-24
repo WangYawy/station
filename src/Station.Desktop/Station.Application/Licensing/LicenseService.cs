@@ -1,10 +1,10 @@
 using Microsoft.Extensions.Logging;
 using Station.Application.Audit;
-using Station.Application.IdGenerators;
 using Station.Application.Security;
 using Station.Contracts;
 using Station.Domain.Entities;
-using Station.Domain.Repositories;
+using Station.Data.Repositories;
+using Station.Data.IdGeneration;
 
 namespace Station.Application.Licensing;
 
@@ -163,7 +163,7 @@ public sealed class LicenseService : ILicenseService
 
         await _licenses.InsertAsync(new LicenseInfo
         {
-            Id = _idGenerator.NextId(),
+            Id = _idGenerator.NewId(),
             LicenseKey = payload.LicenseKey,
             ProductCode = payload.ProductCode,
             StationCode = payload.StationCode,
@@ -186,7 +186,7 @@ public sealed class LicenseService : ILicenseService
                      $"\"algo\":\"{file.Algo}\"}}",
             Result = 1,
             CreatedAt = DateTime.UtcNow,
-            ClientInfo = "Desktop"
+            SourceClient = "Desktop"
         });
 
         _logger.LogInformation("授权激活成功：{Key}（至 {ExpiresAt:yyyy-MM-dd}）",

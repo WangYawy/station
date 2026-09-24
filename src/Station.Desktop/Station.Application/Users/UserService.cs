@@ -1,8 +1,7 @@
-using Station.Application.IdGenerators;
 using Station.Application.Security;
-using Station.Domain;
 using Station.Domain.Entities;
-using Station.Domain.Repositories;
+using Station.Data.Repositories;
+using Station.Data.IdGeneration;
 
 namespace Station.Application.Users;
 
@@ -74,7 +73,7 @@ public sealed class UserService : IUserService
 
         var entity = new Dept
         {
-            Id = _idGenerator.NextId(),
+            Id = _idGenerator.NewId(),
             Code = dto.Code,
             Name = dto.Name,
             ParentId = dto.ParentId,
@@ -156,7 +155,7 @@ public sealed class UserService : IUserService
 
         var user = new User
         {
-            Id = _idGenerator.NextId(),
+            Id = _idGenerator.NewId(),
             UserNo = dto.UserNo,
             Name = dto.Name,
             DeptId = dto.DeptId,
@@ -175,7 +174,7 @@ public sealed class UserService : IUserService
             {
                 await accounts.InsertAsync(new Account
                 {
-                    Id = _idGenerator.NextId(),
+                    Id = _idGenerator.NewId(),
                     UserName = userName,
                     PasswordHash = passwordHash,
                     UserId = user.Id,
@@ -257,7 +256,7 @@ public sealed class UserService : IUserService
             var links = roleIds.Distinct()
                 .Select(roleId => new UserRole
                 {
-                    Id = _idGenerator.NextId(),
+                    Id = _idGenerator.NewId(),
                     UserId = userId,
                     RoleId = roleId
                 })
@@ -296,7 +295,7 @@ public sealed class UserService : IUserService
 
         var account = new Account
         {
-            Id = _idGenerator.NextId(),
+            Id = _idGenerator.NewId(),
             UserName = userName,
             PasswordHash = passwordHash,
             UserId = userId,
@@ -341,7 +340,7 @@ public sealed class UserService : IUserService
 
         var role = new Role
         {
-            Id = _idGenerator.NextId(),
+            Id = _idGenerator.NewId(),
             Code = dto.Code,
             Name = dto.Name,
             DataScope = dto.DataScope,
@@ -421,7 +420,7 @@ public sealed class UserService : IUserService
             var links = permissionIds.Distinct()
                 .Select(pid => new RolePermission
                 {
-                    Id = _idGenerator.NextId(),
+                    Id = _idGenerator.NewId(),
                     RoleId = roleId,
                     PermissionId = pid
                 })

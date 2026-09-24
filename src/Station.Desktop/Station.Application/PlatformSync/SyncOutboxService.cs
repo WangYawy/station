@@ -4,9 +4,9 @@ using Station.Contracts.Alerts;
 using Station.Contracts.Registration;
 using Station.Contracts.Reporting;
 using Station.Domain.Entities;
-using Station.Application.IdGenerators;
-using Station.Domain.Repositories;
+using Station.Data.Repositories;
 using Microsoft.Extensions.DependencyInjection;
+using Station.Data.IdGeneration;
 
 namespace Station.Application.PlatformSync;
 
@@ -34,7 +34,7 @@ public sealed class SyncOutboxService : ISyncOutboxService
     {
         var entry = new SyncOutbox
         {
-            Id = _idGenerator.NextId(),
+            Id = _idGenerator.NewId(),
             Topic = topic,
             PayloadJson = payloadJson,
             Status = 0,

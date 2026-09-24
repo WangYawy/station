@@ -1,6 +1,6 @@
 using Station.Domain.Entities;
 using Station.Domain.Enums;
-using Station.Domain.Repositories;
+using Station.Data.Repositories;
 
 namespace Station.Application.Authorization;
 

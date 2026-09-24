@@ -1,8 +1,8 @@
 using Microsoft.Extensions.Hosting;
 using Station.Domain.Entities;
-using Station.Infrastructure;
 using Station.Infrastructure.Persistence;
 using Microsoft.Extensions.Logging;
+using Station.Data;
 
 namespace Station.Desktop.Infrastructure;
 

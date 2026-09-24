@@ -1,25 +1,18 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Options;
-using SqlSugar;
 using Station.Application.DeviceDetection;
-using Station.Application.IdGenerators;
 using Station.Application.Licensing;
-using Station.Application.Services;
 using Station.Application.Settings;
+using Station.Data;
+using Station.Data.Abstractions;
+using Station.Data.SqlSugar;
 using Station.Desktop.Infrastructure;
 using Station.Desktop.Infrastructure.Settings;
-using Station.Domain;
 using Station.Domain.Collecting;
-using Station.Domain.Repositories;
-using Station.Infrastructure.Backup;
 using Station.Infrastructure.Collecting;
-using Station.Infrastructure.Db;
 using Station.Infrastructure.DeviceDetection;
-using Station.Infrastructure.IdGenerators;
 using Station.Infrastructure.Licensing;
 using Station.Infrastructure.Persistence;
-using Station.Infrastructure.Repositories;
 using Station.Infrastructure.Security;
 using Station.Infrastructure.Settings;
 using Station.Infrastructure.Storage;
@@ -41,98 +34,26 @@ public static class DependencyInjection
         // ==========================================
         services.AddLogging();
         #region 数据库依赖
-
         // ==========================================
-        // 2. 雪花算法配置（单例静态初始化）
-        // ==========================================
-        var snowflakeSection = configuration.GetSection(SnowFlakeOptions.SectionName);
-        var snowflake = snowflakeSection.Get<SnowFlakeOptions>() ?? new SnowFlakeOptions();
-        SnowFlakeSingle.DatacenterId = snowflake.DatacenterId;
-        SnowFlakeSingle.WorkId = snowflake.WorkId;
-
-        // ==========================================
-        // 3. 数据库连接配置（DbOptions）
+        // 2. 数据库注册块
         // ==========================================
         var section = configuration.GetSection(DbOptions.SectionName);
         var options = section.Get<DbOptions>() ?? new DbOptions();
-        // 默认 SQLite 相对路径重定位到应用数据目录（安装目录只读，避免 Program Files//usr 下不可写）
-        if (options.Provider == DbProvider.Sqlite)
-        {
-            options.ConnectionString = StationPaths.RebaseSqliteConnectionString(options.ConnectionString);
-            Directory.CreateDirectory(StationPaths.DataDirectory);
-        }
-        services.AddOptions<DbOptions>()
-                .Bind(section)
-                //.ValidateDataAnnotations() // 启用数据注解校验（如 [Required]）
-                .ValidateOnStart();        // 启动时立即校验，失败则应用崩溃（快速失败原则）
-        services.AddSingleton(sp =>
-            sp.GetRequiredService<IOptions<DbOptions>>().Value);
 
-        // ==========================================
-        // 4. 注册 SqlSugar 工厂（单例）
-        // ==========================================
-        services.AddSingleton<ISqlSugarFactory, SqlSugarFactory>();
-
-        // ==========================================
-        // 5. 注册“短连接”客户端（供 IRepository 使用）
-        //    使用 CreateScope（SQLite 常驻，其他自动关闭），线程安全共享。
-        //    生命周期：Singleton（单例）
-        // ==========================================
-        services.AddSingleton<ISqlSugarClient>(sp =>
+        services.AddStationDataSqlSugar(configuration, db =>
         {
-            var factory = sp.GetRequiredService<ISqlSugarFactory>();
-            return factory.CreateScope(options); // 内部决定 autoClose
+            // 产品侧专属：SQLite 相对路径重定位到应用数据目录
+            if (db.Provider == DbProvider.Sqlite)
+            {
+                db.ConnectionString = StationPaths.RebaseSqliteConnectionString(db.ConnectionString);
+                Directory.CreateDirectory(StationPaths.DataDirectory);
+            }
         });
-        // ==========================================
-        // 6. 注册“长连接”客户端（供 ILoopRepository 使用
-        //    使用 CreateClient(autoCloseConnection: false)，保证连接不自动释放。
-        //    生命周期：Scoped（作用域），确保同一 Scope 内所有仓储共享此实例。
-        //    绑定到标记接口 ILoopSqlSugarClient，避免与短连接冲突。
-        // ==========================================
-        services.AddScoped<ILoopSqlSugarClient>(sp =>
-        {
-            var factory = sp.GetRequiredService<ISqlSugarFactory>();
-            // var options = sp.GetRequiredService<DbOptions>();
-            // 使用工厂公开的 BuildConfig 方法，强制 autoCloseConnection: false
-            var config = factory.BuildConfig(options, autoCloseConnection: false);
-            // 返回自定义的长连接客户端
-            return new LoopSqlSugarClient(config);
-        });
-        // ==========================================
-        // 7. 注册数据库方言 & 初始化器
-        // ==========================================
-        services.AddSingleton<IDbDialect>(_ => DbDialectFactory.Create(options.Provider));
-        services.AddScoped<IDatabaseInitializer, DatabaseInitializer>();
-        // ==========================================
-        // 8. 注册 ID 生成器 & 权限种子
-        // ==========================================
-        services.AddSingleton<IIdGenerator, SnowflakeIdGenerator>();
-        services.Configure<AuthSeedOptions>(configuration.GetSection("Station:Auth"));
-        services.AddScoped<IAuthSeeder, AuthSeeder>();
-        // ==========================================
-        // 9. 注册 UnitOfWork（独立短连接事务，与共享短连接隔离）
-        // ==========================================
-        services.AddScoped<IUnitOfWork>(sp =>
-            new UnitOfWork(sp.GetRequiredService<ISqlSugarFactory>().CreateClient(options)));
-        // ==========================================
-        // 10. 注册备份服务 & 健康检查
-        // ==========================================
-        var backupSection = configuration.GetSection(BackupOptions.SectionName);
-        services.Configure<BackupOptions>(backupSection);
-        services.AddSingleton(backupSection.Get<BackupOptions>() ?? new BackupOptions());
-        services.AddSingleton<IDatabaseBackupService, DatabaseBackupService>();
-        services.AddSingleton<IDatabaseHealthService, DatabaseHealthService>();
-        // ==========================================
-        // 11. 注册仓储（核心）
-        //     IRepository -> 注入短连接 ISqlSugarClient（Singleton）
-        //     ILoopRepository -> 注入长连接 ILoopSqlSugarClient（Scoped）
-        // ==========================================
-        services.AddScoped(typeof(IRepository<>), typeof(RepositoryBase<>));
-        services.AddScoped(typeof(ILoopRepository<>), typeof(LoopRepositoryBase<>));
-
+        // Auth 种子
+        services.AddSingleton<IAuthSeeder, AuthSeeder>();
         #endregion
         // ==========================================
-        // 12. 机器硬件指纹（跨平台）
+        // 3. 机器硬件指纹（跨平台）
         // ==========================================
         services.AddSingleton<IMachineFingerprintProvider>(sp =>
         {
@@ -141,19 +62,12 @@ public static class DependencyInjection
             return new LinuxMachineFingerprintProvider();
         });
         // ==========================================
-        // 13. 加密 & 秘钥
+        // 4. 加密 & 秘钥
         // ==========================================
-        //services.AddSingleton<IPasswordHasher, Sm3PasswordHasher>();
-        //services.AddSingleton<IFileChecksumService, FileChecksumService>();
-        //services.AddSingleton<IFileEncryptionService, FileEncryptionService>();
-        //services.AddSingleton<ILicenseSignatureService, LicenseSignatureService>();
-        //services.AddSingleton<ISecretProtector, Sm4SecretProtector>(); // 适配器模式
-        //services.AddSingleton<ISm4KeyProvider, Sm4KeyProvider>(); // ISm4KeyProvider 的接口定义已移入 Application，但实现在这里注册
-        //services.AddSingleton<IHashService, Sm3HashService>();
         services.AddStationSecurity(configuration);
 
         // ==========================================
-        // 14. 记录仪设备文件采集器
+        // 5. 记录仪设备文件采集器
         // MTP 需要根据不同平台引入包，在Desktop.Infrastructure中依赖注入
         // ==========================================
         // 1. 注册所有具体采集源实现
@@ -170,7 +84,7 @@ public static class DependencyInjection
         // 2. 注册采集源提供者（动态路由）
         services.AddSingleton<ICollectSourceProvider, CollectSourceProvider>();
         // ==========================================
-        // 15. 记录仪设备检测器
+        // 6. 记录仪设备检测器
         // MTP 需要根据不同平台引入包，在Desktop.Infrastructure中依赖注入
         // ==========================================
         services.AddSingleton<IRecorderDeviceDetector, UmsDeviceDetector>(); // ums 设备检测器
@@ -189,11 +103,11 @@ public static class DependencyInjection
         // 注册后台托管服务（复用同一个实例）
         services.AddHostedService(sp => sp.GetRequiredService<RecorderConnectMonitor>());
         // ==========================================
-        // 16. 文件存储器（包含多目标）
+        // 7. 文件存储器（包含多目标）
         // ==========================================
         services.AddStationStorage(configuration);
         // ==========================================
-        // 17. 后台运行服务
+        // 8. 后台运行服务
         // ==========================================
         services.AddHostedService<StationDbInitializerHostedService>();
         services.AddHostedService<UploadWorkerHostedService>();

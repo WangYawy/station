@@ -197,7 +197,7 @@ public sealed class StorageConfigStore : IStorageConfigStore
             Result = 1,
             CreatedAt = DateTime.UtcNow,
             OperatorAccount = operatorAccount,
-            ClientInfo = "Desktop"
+            SourceClient = "Desktop"
         }, ct).ConfigureAwait(false);
 
         _logger.LogInformation("存储目标配置已更新（{Count} 项）", targets.Count);

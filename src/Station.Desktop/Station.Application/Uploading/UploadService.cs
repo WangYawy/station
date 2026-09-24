@@ -1,12 +1,12 @@
 using Microsoft.Extensions.Logging;
 using Station.Application.Collecting;
-using Station.Application.IdGenerators;
 using Station.Application.Security;
 using Station.Application.Storage;
 using Station.Contracts;
 using Station.Domain.Entities;
 using Station.Domain.Enums;
-using Station.Domain.Repositories;
+using Station.Data.Repositories;
+using Station.Data.IdGeneration;
 
 namespace Station.Application.Uploading;
 
@@ -179,7 +179,7 @@ public sealed class UploadService : IUploadService
 
         var uploaded = new UploadedFile
         {
-            Id = _idGenerator.NextId(),   // 你项目里的 ID 生成器
+            Id = _idGenerator.NewId(),   // 你项目里的 ID 生成器
             LocalFileId = file.Id,
             FileNo = file.FileName,
             FileName = file.FileName,

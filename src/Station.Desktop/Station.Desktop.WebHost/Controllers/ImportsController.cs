@@ -5,7 +5,7 @@ using Station.Application.Recorders;
 using Station.Application.Users;
 using Station.Domain.Authorization;
 using Station.Domain.Entities;
-using Station.Domain.Repositories;
+using Station.Data.Repositories;
 using AuthService = Station.Application.Authorization.IAuthorizationService;
 
 namespace Station.Desktop.WebHost.Controllers;

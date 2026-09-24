@@ -1,13 +1,12 @@
 using Microsoft.Extensions.Logging;
-using SqlSugar;
-using Station.Application.IdGenerators;
 using Station.Application.PlatformSync;
 using Station.Application.Security;
 using Station.Contracts;
 using Station.Contracts.Alerts;
+using Station.Data.IdGeneration;
+using Station.Data.Paging;
+using Station.Data.Repositories;
 using Station.Domain.Entities;
-using Station.Domain.Repositories;
-using Station.Domain.Security;
 
 namespace Station.Application.Alerts;
 
@@ -41,7 +40,7 @@ public sealed class AlertService : IAlertService
 
     public async Task WriteAsync(Alert alert)
     {
-        alert.Id = _idGenerator.NextId();
+        alert.Id = _idGenerator.NewId();
         alert.CreatedAt = DateTime.Now;
         await _alerts.InsertAsync(alert);
         _logger.LogInformation("报警写入 {Type}/{Level}：{Title}（来源 {Source}）", alert.Type, alert.Level, alert.Title, alert.Source);

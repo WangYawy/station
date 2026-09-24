@@ -3,9 +3,8 @@ using Microsoft.Extensions.Hosting;
 using Station.Application.Collecting;
 using Station.Domain.Entities;
 using Station.Domain.Enums;
-using Station.Infrastructure.Repositories;
 using Microsoft.Extensions.Logging;
-using Station.Domain.Repositories;
+using Station.Data.Repositories;
 
 namespace Station.Desktop.Infrastructure;
 
