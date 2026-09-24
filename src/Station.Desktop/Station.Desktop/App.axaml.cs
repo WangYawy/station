@@ -3,6 +3,7 @@ using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Station.Application.Diagnostics;
 using Station.Application.Settings;
@@ -31,53 +32,28 @@ public partial class App : Avalonia.Application
         AvaloniaXamlLoader.Load(this);
     }
 
-    public override async void OnFrameworkInitializationCompleted()
+    public override void OnFrameworkInitializationCompleted()
     {
         try
         {
             if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
             {
-                // ---- 主机 ----
+                // ---- 1. 主机 ----
                 _host = HostBuilderFactory.Create().Build();
-                _host.StartAsync().GetAwaiter().GetResult();
+                _host.Start();
                 Services = _host.Services;
-
-                // ---- 首次启动 seed ----
-                var storageStore = Services.GetRequiredService<IStorageConfigStore>();
-                await storageStore.SeedIfEmptyAsync();
-
-                // ---- 启动自检 ----
-                var selfCheck = Services.GetRequiredService<IStartupSelfCheckService>();
-                var report = await selfCheck.RunAsync();
-
-
                 // 在创建任何窗口之前注入配置到资源字典
                 ApplyWindowModeOptions();
 
-                desktop.MainWindow = new ShellWindow();
+                // ---- 2. 创建主窗口 ----
+                var shell = new ShellWindow();
+                desktop.MainWindow = shell;
 
-                if (!report.IsHealthy)
-                {
-                    // 弹出自检对话框
-                    var dialog = new SelfCheckDialog(report);
-                    var canContinue = await dialog.ShowDialog<bool>(desktop.MainWindow);
+                // ---- 3. 关停清理（同步，确保 Host 真的停掉）----
+                desktop.Exit += (_, _) => StopHost();
 
-                    if (!canContinue)
-                    {
-                        // 用户选择退出
-                        // Shutdown();
-                        return;
-                    }
-                }
-
-                desktop.ShutdownRequested += async (_, _) =>
-                {
-                    if (_host is not null)
-                    {
-                        await _host.StopAsync();
-                        _host.Dispose();
-                    }
-                };
+                // ---- 4. 异步启动流程：等主窗口真正可见后再跑 ----
+                shell.Opened += OnShellOpened;
             }
 
             base.OnFrameworkInitializationCompleted();
@@ -86,7 +62,53 @@ public partial class App : Avalonia.Application
         {
             // 兜底
             // await ShowFatalErrorAsync(ex);
+            throw;
         }
+    }
+
+    private async void OnShellOpened(object? sender, EventArgs e)
+    {
+        var shell = (ShellWindow)sender!;
+        shell.Opened -= OnShellOpened;          // 只跑一次
+
+        try
+        {
+            await RunStartupFlowAsync(shell);
+        }
+        catch (Exception ex)
+        {
+            // TODO: 记录日志；可选择提示后继续运行，而不是直接崩
+        }
+    }
+
+    private async Task RunStartupFlowAsync(ShellWindow shell)
+    {
+        // seed
+        await Services!.GetRequiredService<IStorageConfigStore>().SeedIfEmptyAsync();
+
+        // 自检
+        var report = await Services.GetRequiredService<IStartupSelfCheckService>().RunAsync();
+        if (report.IsHealthy) return;
+
+        // 关键：走 ShellWindow 的模态通道（_modalDepth 保护 + owner 已可见）
+        var dialog = new SelfCheckDialog(report);
+        var canContinue = await shell.ShowModalAsync(dialog, () => dialog.ShowDialog<bool>(shell));
+
+        if (!canContinue && ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
+            desktop.Shutdown();     // 触发 Exit → StopHost()
+    }
+
+    private void StopHost()
+    {
+        var host = Interlocked.Exchange(ref _host, null);
+        if (host is null) return;
+        try
+        {
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            host.StopAsync(cts.Token).GetAwaiter().GetResult();
+        }
+        catch { /* TODO: 记录日志 */ }
+        finally { host.Dispose(); }
     }
 
     /// <summary>

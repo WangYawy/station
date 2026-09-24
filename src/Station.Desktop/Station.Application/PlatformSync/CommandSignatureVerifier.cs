@@ -9,12 +9,12 @@ namespace Station.Application.PlatformSync;
 public sealed class CommandSignatureVerifier : ICommandSignatureVerifier
 {
     private readonly CommandVerifierOptions _options;
-    private readonly IReportingSigner _reportSinger;
+    private readonly ILicenseCryptoService _licenseCrypto;
 
-    public CommandSignatureVerifier(IOptions<CommandVerifierOptions> options, IReportingSigner reportSinger)
+    public CommandSignatureVerifier(IOptions<CommandVerifierOptions> options, ILicenseCryptoService licenseCrypto)
     {
         _options = options.Value;
-        _reportSinger = reportSinger;
+        _licenseCrypto = licenseCrypto;
     }
 
     public async Task<bool> VerifyAsync(RemoteCommand command)
@@ -25,7 +25,7 @@ public sealed class CommandSignatureVerifier : ICommandSignatureVerifier
         }
 
         var canonical = RemoteCommandSignature.Canonical(command);
-        var (signature, _) = await _reportSinger.SignAsync(canonical);
+        var (signature, _) = await _licenseCrypto.SignReportingAsync(canonical);
 
         return command.Signature.Equals(signature);
     }

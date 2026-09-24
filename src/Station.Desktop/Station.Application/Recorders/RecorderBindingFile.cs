@@ -1,7 +1,8 @@
 using System.Text;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Station.Application.Collecting;
-using Station.Application.Security.Abstractions;
+using Station.Application.Security;
 using Station.Contracts;
 using Station.Domain.Collecting;
 using Station.Domain.Security;
@@ -13,32 +14,53 @@ namespace Station.Application.Recorders;
 /// 
 /// 【签名串】serial|model|userNo|userName|deptCode|deptName|boundAt
 /// 【MAC 算法】由 CryptoUsage.RecorderBinding 策略决定（默认 HMAC-SM3）
-/// 【密钥来源】IBindingSecretProvider（主密钥 HKDF 派生）
+/// 【密钥来源】从主密钥 HKDF 派生，通过 ICryptoPolicyService.GetBindingMacKeyAsync 获取
+/// 
+/// 【INI 格式】
+///   [binding]
+///   recorder_serial=...
+///   recorder_model=...
+///   user_no=...
+///   user_name=...
+///   dept_code=...
+///   dept_name=...
+///   bound_at=2026-09-24T10:30:00.0000000+08:00
+///   mac_algo=HMAC-SM3
+///   mac=base64(...)
+/// 
+/// 【依赖倒置】
+///   本类只依赖 Application 层接口（ICryptoPolicyService / ICollectSourceProvider），
+///   不引用 Infrastructure 层的任何类型。
 /// </summary>
 public sealed class RecorderBindingFile
 {
     public const string FileName = "station_bind.ini";
-    private const string MacField = "mac";
-    private const string MacAlgoField = "mac_algo";
+
+    private const string FieldSerial = "recorder_serial";
+    private const string FieldModel = "recorder_model";
+    private const string FieldUserNo = "user_no";
+    private const string FieldUserName = "user_name";
+    private const string FieldDeptCode = "dept_code";
+    private const string FieldDeptName = "dept_name";
+    private const string FieldBoundAt = "bound_at";
+    private const string FieldMacAlgo = "mac_algo";
+    private const string FieldMac = "mac";
 
     private readonly ICollectSourceProvider _sourceProvider;
     private readonly ICryptoPolicyService _cryptoPolicy;
-    private readonly ICryptoProviderFactory _cryptoFactory;
-    private readonly IBindingSecretProvider _secretProvider;
     private readonly BindingOptions _options;
+    private readonly ILogger<RecorderBindingFile> _logger;
 
     public RecorderBindingFile(
         IOptions<BindingOptions> options,
         ICollectSourceProvider sourceProvider,
         ICryptoPolicyService cryptoPolicy,
-        ICryptoProviderFactory cryptoFactory,
-        IBindingSecretProvider secretProvider)
+        ILogger<RecorderBindingFile> logger)
     {
         _options = options.Value;
         _sourceProvider = sourceProvider;
         _cryptoPolicy = cryptoPolicy;
-        _cryptoFactory = cryptoFactory;
-        _secretProvider = secretProvider;
+        _logger = logger;
     }
 
     // =========================================================
@@ -48,26 +70,30 @@ public sealed class RecorderBindingFile
     public async Task WriteAsync(
         string recorderRootPath, BindingInfo binding, CancellationToken ct = default)
     {
+        // 内部自动算 MAC（调用方不需要手动算）
         var (mac, macAlgo) = await ComputeMacAsync(binding, ct).ConfigureAwait(false);
 
         var content = string.Join(Environment.NewLine,
             "[binding]",
-            $"recorder_serial={binding.RecorderSerial}",
-            $"recorder_model={binding.RecorderModel}",
-            $"user_no={binding.UserNo}",
-            $"user_name={binding.UserName}",
-            $"dept_code={binding.DeptCode}",
-            $"dept_name={binding.DeptName}",
-            $"bound_at={binding.BoundAt:O}",
-            $"{MacAlgoField}={macAlgo}",
-            $"{MacField}={mac}");
+            $"{FieldSerial}={binding.RecorderSerial}",
+            $"{FieldModel}={binding.RecorderModel}",
+            $"{FieldUserNo}={binding.UserNo}",
+            $"{FieldUserName}={binding.UserName}",
+            $"{FieldDeptCode}={binding.DeptCode}",
+            $"{FieldDeptName}={binding.DeptName}",
+            $"{FieldBoundAt}={binding.BoundAt:O}",
+            $"{FieldMacAlgo}={macAlgo}",
+            $"{FieldMac}={mac}");
 
         var store = GetFileStore(recorderRootPath);
         store.WriteFile(recorderRootPath, FileName, content);
+
+        _logger.LogDebug("绑定文件已写入：{Path}（MAC 算法 {Algo}）",
+            recorderRootPath, macAlgo);
     }
 
     // =========================================================
-    // 读取（不需要算 MAC，同步）
+    // 读取（同步，不需要算 MAC）
     // =========================================================
 
     public BindingInfo? Read(string recorderRootPath)
@@ -78,59 +104,78 @@ public sealed class RecorderBindingFile
 
         var values = ParseIni(text);
 
-        if (!values.TryGetValue("recorder_serial", out var serial)
-            || !values.TryGetValue("user_no", out var userNo)
-            || !DateTime.TryParse(values.GetValueOrDefault("bound_at"), out var boundAt))
+        if (!values.TryGetValue(FieldSerial, out var serial)
+            || !values.TryGetValue(FieldUserNo, out var userNo)
+            || !DateTime.TryParse(values.GetValueOrDefault(FieldBoundAt), out var boundAt))
         {
+            _logger.LogWarning("绑定文件格式错误：{Path}", recorderRootPath);
             return null;
         }
 
-        // 读取时取 mac 字段（旧 sm3 字段不再兼容）
-        var signature = values.GetValueOrDefault(MacField) ?? string.Empty;
+        // 只读 mac 字段（旧 sm3 字段不再兼容）
+        var mac = values.GetValueOrDefault(FieldMac) ?? string.Empty;
 
         return new BindingInfo(
-            serial,
-            values.GetValueOrDefault("recorder_model", string.Empty),
-            userNo,
-            values.GetValueOrDefault("user_name", string.Empty),
-            values.GetValueOrDefault("dept_code", string.Empty),
-            values.GetValueOrDefault("dept_name", string.Empty),
-            boundAt,
-            signature);
+            RecorderSerial: serial,
+            RecorderModel: values.GetValueOrDefault(FieldModel, string.Empty),
+            UserNo: userNo,
+            UserName: values.GetValueOrDefault(FieldUserName, string.Empty),
+            DeptCode: values.GetValueOrDefault(FieldDeptCode, string.Empty),
+            DeptName: values.GetValueOrDefault(FieldDeptName, string.Empty),
+            BoundAt: boundAt,
+            Signature: mac);
     }
 
     // =========================================================
     // 验证
     // =========================================================
 
+    /// <summary>
+    /// 验证 MAC。返回 true/false；异常情况（策略缺失等）会向上抛。
+    /// </summary>
     public async Task<bool> VerifySignatureAsync(
         BindingInfo binding, CancellationToken ct = default)
     {
         if (!_options.EnableSecret) return true;
 
         var (expected, _) = await ComputeMacAsync(binding, ct).ConfigureAwait(false);
-        return string.Equals(expected, binding.Signature, StringComparison.Ordinal);
+
+        // 固定时间比较，防时序攻击
+        var match = string.Equals(expected, binding.Signature, StringComparison.Ordinal);
+        if (!match)
+            _logger.LogWarning("绑定文件 MAC 校验失败（serial={Serial}）", binding.RecorderSerial);
+
+        return match;
     }
 
     // =========================================================
-    // 内部
+    // 删除
+    // =========================================================
+
+    public void Delete(string recorderRootPath)
+    {
+        var store = GetFileStore(recorderRootPath);
+        store.DeleteFile(recorderRootPath, FileName);
+    }
+
+    // =========================================================
+    // 内部：MAC 计算
     // =========================================================
 
     private async Task<(string Mac, string Algorithm)> ComputeMacAsync(
         BindingInfo binding, CancellationToken ct)
     {
-        // 1) 读策略（默认 HMAC-SM3）
-        var policy = await _cryptoPolicy
-            .GetAsync(CryptoUsage.RecorderBinding, ct)
+        // 1) 读策略（默认 HMAC-SM3），取 MAC 提供者
+        var mac = await _cryptoPolicy
+            .GetMacProviderAsync(CryptoUsage.RecorderBinding, ct)
             .ConfigureAwait(false);
 
-        // 2) 取 MAC 实现
-        var mac = _cryptoFactory.GetMacProvider(policy.Algorithm);
+        // 2) 取密钥（从主密钥 HKDF 派生，内部 info="station:recorder-binding:v1"）
+        var key = await _cryptoPolicy
+            .GetBindingMacKeyAsync(ct)
+            .ConfigureAwait(false);
 
-        // 3) 取密钥（IBindingSecretProvider 内部走主密钥 HKDF）
-        var key = _secretProvider.GetSecret();
-
-        // 4) 规范化签名串（不含密钥）
+        // 3) 规范化签名串（不含密钥；字段用 | 分隔）
         var canonical = string.Join('|',
             binding.RecorderSerial,
             binding.RecorderModel,
@@ -140,10 +185,14 @@ public sealed class RecorderBindingFile
             binding.DeptName,
             binding.BoundAt.ToString("O"));
 
-        // 5) 计算 MAC
+        // 4) 计算 MAC
         var value = mac.Compute(key, Encoding.UTF8.GetBytes(canonical));
-        return (value, policy.Algorithm);
+        return (value, mac.Algorithm);
     }
+
+    // =========================================================
+    // 内部：INI 解析与协议路由
+    // =========================================================
 
     private static Dictionary<string, string> ParseIni(string text)
     {
@@ -159,14 +208,6 @@ public sealed class RecorderBindingFile
         }
         return values;
     }
-
-    public void Delete(string recorderRootPath)
-    {
-        var store = GetFileStore(recorderRootPath);
-        store.DeleteFile(recorderRootPath, FileName);
-    }
-
-    // ---- 协议路由 ----
 
     private static ProtocolType ResolveProtocol(string recorderRoot)
     {

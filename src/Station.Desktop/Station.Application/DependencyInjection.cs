@@ -84,7 +84,6 @@ public static class DependencyInjection
         services.Configure<LicenseOptions>(licenseSection);
         services.AddSingleton(licenseSection.Get<LicenseOptions>() ?? new LicenseOptions());
         services.AddScoped<ILicenseService, LicenseService>();
-        services.AddScoped<LicenseGenerator>();
         // 注册审计日志服务
         services.AddScoped<IAuditLogService, AuditLogService>();
         // 注册授权服务

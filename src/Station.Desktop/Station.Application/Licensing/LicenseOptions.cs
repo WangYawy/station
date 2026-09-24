@@ -3,8 +3,9 @@ namespace Station.Application.Licensing;
 /// <summary>
 /// 授权配置，对应配置节 <c>Station:License</c>。
 /// 
-/// 说明：算法字段为"兜底默认"，实际运行以 station_crypto_policy 表为准。
-/// 密钥统一用文件路径，不再内嵌 PEM（生产环境严禁把私钥写进 appsettings）。
+/// 说明：
+///   - 算法字段为"兜底默认"，实际运行以 station_crypto_policy 表为准；
+///   - 密钥统一用文件路径，不再内嵌 PEM。
 /// </summary>
 public sealed class LicenseOptions
 {
@@ -16,7 +17,7 @@ public sealed class LicenseOptions
     /// <summary>内容加密算法（兜底默认）。</summary>
     public string EncryptAlgorithm { get; set; } = "SM4-GCM";
 
-    /// <summary>公钥文件路径（相对 DataDirectory 或绝对路径）。</summary>
+    /// <summary>公钥文件路径（相对应用目录或绝对路径）。</summary>
     public string PublicKeyFile { get; set; } = "keys/license-public.pem";
 
     /// <summary>私钥文件路径。仅内部授权工具使用；采集站留空。</summary>
@@ -25,5 +26,6 @@ public sealed class LicenseOptions
     /// <summary>未激活时的试用天数。</summary>
     public int TrialDays { get; set; } = 30;
 
+    /// <summary>产品编号。</summary>
     public string ProductCode { get; set; } = "STATION-DESKTOP-1";
 }

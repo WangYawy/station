@@ -1,7 +1,6 @@
 using Microsoft.Extensions.Logging;
 using SqlSugar;
 using Station.Application.Security;
-using Station.Application.Security.Abstractions;
 using Station.Domain.Entities;
 using Station.Domain.Repositories;
 
@@ -24,18 +23,15 @@ namespace Station.Infrastructure.Settings;
 public sealed class SettingStore : ISettingStore
 {
     private readonly IRepository<SysSetting> _settings;
-    private readonly ICryptoProviderFactory _factory;
     private readonly ICryptoPolicyService _policy;
     private readonly ILogger<SettingStore> _logger;
 
     public SettingStore(
         IRepository<SysSetting> settings,
-        ICryptoProviderFactory factory,
         ICryptoPolicyService policy,
         ILogger<SettingStore> logger)
     {
         _settings = settings;
-        _factory = factory;
         _policy = policy;
         _logger = logger;
     }
@@ -55,8 +51,7 @@ public sealed class SettingStore : ISettingStore
         if (!entity.IsEncrypted) return entity.ValueJson;
 
         // 加密字段：走扩展方法解密（内部处理历史明文兼容 + 失败降级）
-        return await _factory.TryUnprotectAsync(
-            _policy, group, key, entity.ValueJson, _logger, ct).ConfigureAwait(false);
+        return await _policy.TryUnprotectSecretAsync(group, key, entity.ValueJson, _logger, ct).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -75,8 +70,7 @@ public sealed class SettingStore : ISettingStore
         var storedValue = valueJson;
         if (secret && valueJson is not null)
         {
-            storedValue = await _factory.ProtectAsync(
-                _policy, group, key, valueJson, _logger, ct).ConfigureAwait(false);
+            storedValue = await _policy.ProtectSecretAsync(group, key, valueJson, _logger, ct).ConfigureAwait(false);
         }
 
         // ---- 落库（存在则更新，不存在则插入） ----
@@ -152,8 +146,7 @@ public sealed class SettingStore : ISettingStore
             if (e.IsEncrypted)
             {
                 // 加密字段：走扩展方法（失败返回 null，不影响其他字段读取）
-                result[e.SubKey] = await _factory.TryUnprotectAsync(
-                    _policy, group, e.SubKey, e.ValueJson, _logger, ct).ConfigureAwait(false);
+                result[e.SubKey] = await _policy.TryUnprotectSecretAsync(group, e.SubKey, e.ValueJson, _logger, ct).ConfigureAwait(false);
             }
             else
             {

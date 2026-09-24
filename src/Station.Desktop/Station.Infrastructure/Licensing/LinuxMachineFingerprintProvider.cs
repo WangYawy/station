@@ -1,8 +1,7 @@
 using System.Text;
-using Station.Application.Security;
-using Station.Application.Security.Abstractions;
+using Station.Application.Licensing;
 using Station.Contracts.Registration;
-using Station.Domain.Security;
+using Station.Crypto.Providers.Hashers;
 
 namespace Station.Infrastructure.Licensing;
 
@@ -11,20 +10,14 @@ namespace Station.Infrastructure.Licensing;
 /// 读取 /sys/class/dmi/id 与 /sys/block/*/device/serial；无权限/缺失时回退 "unknown"。
 /// 
 /// 【算法固定】机器指纹固定使用 SM3，不读策略表。
-///   原因：指纹是机器身份，算法变更会导致所有授权失效。
 /// </summary>
 public sealed class LinuxMachineFingerprintProvider : IMachineFingerprintProvider
 {
-    private const string FingerprintAlgorithm = CryptoAlgorithm.Sm3;
-
     private readonly string _sysfsRoot;
-    private readonly IHasher _hasher;
+    private readonly Sm3Hasher _hasher = new();
 
-    public LinuxMachineFingerprintProvider(
-        ICryptoProviderFactory factory,
-        string? sysfsRoot = null)
+    public LinuxMachineFingerprintProvider(string? sysfsRoot = null)
     {
-        _hasher = factory.GetHasher(FingerprintAlgorithm);
         _sysfsRoot = sysfsRoot ?? "/sys";
     }
 
@@ -44,10 +37,7 @@ public sealed class LinuxMachineFingerprintProvider : IMachineFingerprintProvide
     private string FindDiskSerial()
     {
         var blocks = Path.Combine(_sysfsRoot, "block");
-        if (!Directory.Exists(blocks))
-        {
-            return "unknown";
-        }
+        if (!Directory.Exists(blocks)) return "unknown";
 
         foreach (var dir in Directory.GetDirectories(blocks).OrderBy(d => d, StringComparer.Ordinal))
         {
@@ -55,17 +45,12 @@ public sealed class LinuxMachineFingerprintProvider : IMachineFingerprintProvide
             if (name.StartsWith("loop", StringComparison.Ordinal) ||
                 name.StartsWith("ram", StringComparison.Ordinal) ||
                 name.StartsWith("sr", StringComparison.Ordinal))
-            {
                 continue;
-            }
 
             var serial = ReadFirst(
                 Path.Combine(dir, "device", "serial"),
                 Path.Combine(dir, "serial"));
-            if (serial != "unknown")
-            {
-                return serial;
-            }
+            if (serial != "unknown") return serial;
         }
 
         return "unknown";
@@ -88,12 +73,8 @@ public sealed class LinuxMachineFingerprintProvider : IMachineFingerprintProvide
         foreach (var path in paths)
         {
             var value = Read(path);
-            if (value != "unknown")
-            {
-                return value;
-            }
+            if (value != "unknown") return value;
         }
-
         return "unknown";
     }
 }

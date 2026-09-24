@@ -1,49 +1,63 @@
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Station.Application.Diagnostics;
-using Station.Application.Security.Abstractions;
+using Station.Application.Licensing;
+using Station.Application.Security;
 using Station.Application.Services;
 using Station.Application.Storage;
 using Station.Domain.Security;
+using Station.Infrastructure.Security.Keys;
 
 namespace Station.Infrastructure.Diagnostics;
 
 /// <summary>
-/// 启动自检实现。检查项：
+/// 启动自检实现（适配优化后架构）。
+/// 
+/// 检查项：
 ///   1) 数据库连接
-///   2) 加密策略表可读
-///   3) 主密钥文件存在
-///   4) 主密钥能加解密（往返测试）
-///   5) SM2 公钥文件存在（授权用）
+///   2) 加密策略表可读 + 7 个用途齐全
+///   3) 主密钥来源（文件 / 环境变量）
+///   4) 主密钥加解密往返
+///   5) 授权公钥文件
 ///   6) 存储目标配置可读
 /// </summary>
 public sealed class StartupSelfCheckService : IStartupSelfCheckService
 {
+    /// <summary>必须存在的加密用途（新架构 7 个）。</summary>
+    private static readonly string[] RequiredUsages =
+    {
+        CryptoUsage.Password,
+        CryptoUsage.License,
+        CryptoUsage.FileSig,
+        CryptoUsage.SecretField,
+        CryptoUsage.FileEncryption,
+        CryptoUsage.RecorderBinding,
+        CryptoUsage.Reporting
+    };
+
     private readonly IDatabaseHealthService _dbHealth;
     private readonly ICryptoPolicyService _policy;
-    private readonly ICryptoProviderFactory _factory;
-    private readonly IMasterKeyProvider _keyProvider;
-    private readonly IKeyFileResolver _keyResolver;
+    private readonly MasterKeyProvider _keyProvider;
+    private readonly PemKeyCache _pemCache;
     private readonly IStorageConfigStore _storageConfig;
-    private readonly LicenseOptionsReader _licenseOptions;   // 见下
+    private readonly LicenseOptions _licenseOptions;
     private readonly ILogger<StartupSelfCheckService> _logger;
 
     public StartupSelfCheckService(
         IDatabaseHealthService dbHealth,
         ICryptoPolicyService policy,
-        ICryptoProviderFactory factory,
-        IMasterKeyProvider keyProvider,
-        IKeyFileResolver keyResolver,
+        MasterKeyProvider keyProvider,
+        PemKeyCache pemCache,
         IStorageConfigStore storageConfig,
-        LicenseOptionsReader licenseOptions,
+        IOptions<LicenseOptions> licenseOptions,
         ILogger<StartupSelfCheckService> logger)
     {
         _dbHealth = dbHealth;
         _policy = policy;
-        _factory = factory;
         _keyProvider = keyProvider;
-        _keyResolver = keyResolver;
+        _pemCache = pemCache;
         _storageConfig = storageConfig;
-        _licenseOptions = licenseOptions;
+        _licenseOptions = licenseOptions.Value;
         _logger = logger;
     }
 
@@ -51,22 +65,11 @@ public sealed class StartupSelfCheckService : IStartupSelfCheckService
     {
         var items = new List<SelfCheckItem>();
 
-        // 1) 数据库连接
         items.Add(await CheckDatabaseAsync(ct));
-
-        // 2) 策略表可读
         items.Add(await CheckPolicyTableAsync(ct));
-
-        // 3) 主密钥文件存在
-        items.Add(CheckMasterKeyFile());
-
-        // 4) 主密钥加解密往返
+        items.Add(CheckMasterKeySource());
         items.Add(await CheckMasterKeyRoundTripAsync(ct));
-
-        // 5) SM2 公钥文件
         items.Add(await CheckLicensePublicKeyAsync(ct));
-
-        // 6) 存储目标配置可读
         items.Add(await CheckStorageConfigAsync(ct));
 
         var healthy = items.All(i => i.Ok);
@@ -79,16 +82,18 @@ public sealed class StartupSelfCheckService : IStartupSelfCheckService
     }
 
     // =========================================================
-    // 各项检查
+    // 1) 数据库连接
     // =========================================================
 
     private async Task<SelfCheckItem> CheckDatabaseAsync(CancellationToken ct)
     {
         try
         {
-            var dbConnected = await _dbHealth.IsConnected();
-            // await _db.Ado.GetIntAsync("SELECT 1", cancellationToken: ct);
-            return new SelfCheckItem("数据库连接", true, "连接正常");
+            var connected = await _dbHealth.IsConnected();
+            return connected
+                ? new SelfCheckItem("数据库连接", true, "连接正常")
+                : new SelfCheckItem("数据库连接", false, "数据库未连接",
+                    "检查数据库服务是否启动、连接串是否正确");
         }
         catch (Exception ex)
         {
@@ -96,6 +101,10 @@ public sealed class StartupSelfCheckService : IStartupSelfCheckService
                 "检查数据库服务是否启动、连接串是否正确");
         }
     }
+
+    // =========================================================
+    // 2) 加密策略表
+    // =========================================================
 
     private async Task<SelfCheckItem> CheckPolicyTableAsync(CancellationToken ct)
     {
@@ -106,22 +115,21 @@ public sealed class StartupSelfCheckService : IStartupSelfCheckService
                 return new SelfCheckItem("加密策略表", false, "策略表为空",
                     "运行数据库初始化脚本或联系管理员");
 
-            // 每个用途都应有策略
-            var required = new[]
-            {
-                CryptoUsage.Password, CryptoUsage.License,
-                CryptoUsage.FileSig, CryptoUsage.SecretField
-            };
-            var missing = required
-                .Where(r => all.All(x => !string.Equals(x.UsageCode, r, StringComparison.OrdinalIgnoreCase)))
+            var existing = all
+                .Select(x => x.UsageCode)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            var missing = RequiredUsages
+                .Where(u => !existing.Contains(u))
                 .ToList();
 
             if (missing.Count > 0)
                 return new SelfCheckItem("加密策略表", false,
-                    $"缺少策略：{string.Join(",", missing)}",
+                    $"缺少策略：{string.Join(", ", missing)}",
                     "在设置页补充加密策略或重置为出厂默认");
 
-            return new SelfCheckItem("加密策略表", true, $"已加载 {all.Count} 条策略");
+            return new SelfCheckItem("加密策略表", true,
+                $"已加载 {all.Count} 条策略（{RequiredUsages.Length} 个必需用途齐全）");
         }
         catch (Exception ex)
         {
@@ -130,38 +138,54 @@ public sealed class StartupSelfCheckService : IStartupSelfCheckService
         }
     }
 
-    private SelfCheckItem CheckMasterKeyFile()
+    // =========================================================
+    // 3) 主密钥来源
+    // =========================================================
+
+    private SelfCheckItem CheckMasterKeySource()
     {
         try
         {
-            var path = GetMasterKeyFilePath();
+            if (_keyProvider.IsUsingEnvironmentVariable)
+                return new SelfCheckItem("主密钥来源", true,
+                    $"环境变量（v{_keyProvider.CurrentVersion}）");
+
+            var path = _keyProvider.KeyFilePath;
             if (!File.Exists(path))
-                return new SelfCheckItem("主密钥文件", false, $"文件不存在：{path}",
+                return new SelfCheckItem("主密钥来源", false,
+                    $"文件不存在：{path}",
                     "首次启动会自动生成；若已启动过，请检查文件是否被删除");
 
             var content = File.ReadAllText(path);
             if (string.IsNullOrWhiteSpace(content))
-                return new SelfCheckItem("主密钥文件", false, "文件内容为空",
+                return new SelfCheckItem("主密钥来源", false,
+                    $"文件内容为空：{path}",
                     "删除后重启应用以重新生成");
 
-            return new SelfCheckItem("主密钥文件", true, $"存在：{path}");
+            return new SelfCheckItem("主密钥来源", true,
+                $"密钥文件 v{_keyProvider.CurrentVersion}：{path}");
         }
         catch (Exception ex)
         {
-            return new SelfCheckItem("主密钥文件", false, ex.Message,
+            return new SelfCheckItem("主密钥来源", false, ex.Message,
                 "检查文件权限与磁盘空间");
         }
     }
+
+    // =========================================================
+    // 4) 主密钥加解密往返
+    // =========================================================
 
     private async Task<SelfCheckItem> CheckMasterKeyRoundTripAsync(CancellationToken ct)
     {
         try
         {
-            // 拿当前策略
-            var policy = await _policy.GetAsync(CryptoUsage.SecretField, ct);
-            var encryptor = _factory.GetEncryptor(policy.Algorithm);
+            // 走策略服务取 Encryptor（内部自动路由算法）
+            var encryptor = await _policy.GetEncryptorAsync(CryptoUsage.SecretField, ct)
+                .ConfigureAwait(false);
+            var snapshot = await _policy.GetAsync(CryptoUsage.SecretField, ct)
+                .ConfigureAwait(false);
 
-            // 加密 → 解密往返
             const string probe = "__self_check_probe__";
             var cipher = encryptor.Encrypt(probe, aad: "selfcheck.probe");
             var plain = encryptor.Decrypt(cipher, aad: "selfcheck.probe");
@@ -172,7 +196,7 @@ public sealed class StartupSelfCheckService : IStartupSelfCheckService
                     "主密钥文件可能损坏，请从备份恢复");
 
             return new SelfCheckItem("主密钥加解密", true,
-                $"算法 {policy.Algorithm}，往返正常（v{_keyProvider.CurrentVersion}）");
+                $"算法 {snapshot.Algorithm}，往返正常（v{_keyProvider.CurrentVersion}）");
         }
         catch (Exception ex)
         {
@@ -180,6 +204,10 @@ public sealed class StartupSelfCheckService : IStartupSelfCheckService
                 "主密钥文件可能损坏；如无法恢复，需删除密钥文件并重建（会丢失已加密数据）");
         }
     }
+
+    // =========================================================
+    // 5) 授权公钥文件
+    // =========================================================
 
     private async Task<SelfCheckItem> CheckLicensePublicKeyAsync(CancellationToken ct)
     {
@@ -190,10 +218,11 @@ public sealed class StartupSelfCheckService : IStartupSelfCheckService
                 return new SelfCheckItem("授权公钥", false, "未配置公钥文件路径",
                     "在 appsettings.json 的 Station:License:PublicKeyFile 中配置");
 
-            var pem = await _keyResolver.ResolveAsync(path, ct);
+            var pem = await _pemCache.GetAsync(path, ct).ConfigureAwait(false);
             if (string.IsNullOrWhiteSpace(pem))
-                return new SelfCheckItem("授权公钥", false, $"文件不存在或为空：{path}",
-                    "从授权工具方获取公钥文件");
+                return new SelfCheckItem("授权公钥", false,
+                    $"文件不存在或为空：{path}",
+                    "从授权工具方获取公钥文件并放到指定位置");
 
             return new SelfCheckItem("授权公钥", true, $"已加载：{path}");
         }
@@ -203,11 +232,15 @@ public sealed class StartupSelfCheckService : IStartupSelfCheckService
         }
     }
 
+    // =========================================================
+    // 6) 存储目标配置
+    // =========================================================
+
     private async Task<SelfCheckItem> CheckStorageConfigAsync(CancellationToken ct)
     {
         try
         {
-            var targets = await _storageConfig.GetAllAsync(ct);
+            var targets = await _storageConfig.GetAllAsync(ct).ConfigureAwait(false);
             var enabled = targets.Count(t => t.Enabled);
 
             if (enabled == 0)
@@ -222,32 +255,5 @@ public sealed class StartupSelfCheckService : IStartupSelfCheckService
             return new SelfCheckItem("存储目标配置", false, ex.Message,
                 "检查 station_sys_setting 表");
         }
-    }
-
-    // =========================================================
-    // 辅助
-    // =========================================================
-
-    private static string GetMasterKeyFilePath()
-    {
-        if (OperatingSystem.IsWindows())
-        {
-            var common = Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData);
-            return Path.Combine(common, "Station", "keys", "master.key");
-        }
-        return "/etc/station/keys/master.key";
-    }
-}
-
-/// <summary>
-/// 轻量 LicenseOptions 读取器（只读配置，避免直接注入 IOptions 到自检）。
-/// </summary>
-public sealed class LicenseOptionsReader
-{
-    public string PublicKeyFile { get; init; } = string.Empty;
-
-    public LicenseOptionsReader(Microsoft.Extensions.Options.IOptions<Station.Application.Licensing.LicenseOptions> opts)
-    {
-        PublicKeyFile = opts.Value.PublicKeyFile;
     }
 }

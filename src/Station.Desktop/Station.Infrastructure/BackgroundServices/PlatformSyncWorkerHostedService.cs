@@ -25,7 +25,7 @@ public sealed class PlatformSyncWorkerHostedService : BackgroundService
     private readonly PlatformOptions _options;
     private readonly IStationContext _stationContext;
     private readonly IMachineFingerprintProvider _fingerprint;
-    private readonly IReportingSigner _reportingSigner;
+    private readonly ILicenseCryptoService _licenseCrypto;
     private DateTime _lastCommandPoll = DateTime.MinValue;
     private readonly ILogger<PlatformSyncWorkerHostedService> _logger;
 
@@ -33,14 +33,14 @@ public sealed class PlatformSyncWorkerHostedService : BackgroundService
         IServiceScopeFactory scopeFactory,
         IStationContext stationContext,
         IMachineFingerprintProvider fingerprint,
-        IReportingSigner reportingSigner,
+        ILicenseCryptoService licenseCrypto,
         IOptions<PlatformOptions> options,
         ILogger<PlatformSyncWorkerHostedService> logger)
     {
         _scopeFactory = scopeFactory;
         _stationContext = stationContext;
         _fingerprint = fingerprint;
-        _reportingSigner = reportingSigner;
+        _licenseCrypto = licenseCrypto;
         _options = options.Value;
         _logger = logger;
     }
@@ -120,7 +120,7 @@ public sealed class PlatformSyncWorkerHostedService : BackgroundService
             if (!string.IsNullOrWhiteSpace(reporting.PrivateKeyFile))
             {
                 var canonical = LicenseStatusReportSignature.Canonical(statusReport);
-                var (signature, _) = await _reportingSigner.SignAsync(canonical);
+                var (signature, _) = await _licenseCrypto.SignReportingAsync(canonical);
                 if (signature is not null)
                     statusReport = statusReport with { Signature = signature };
             }

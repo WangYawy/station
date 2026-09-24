@@ -19,6 +19,7 @@
     </ItemGroup>
 
     <ItemGroup>
+        <ProjectReference Include="..\..\Station.Shared\Station.Crypto\Station.Crypto.csproj" />
         <ProjectReference Include="..\Station.Domain\Station.Domain.csproj" />
     </ItemGroup>
 

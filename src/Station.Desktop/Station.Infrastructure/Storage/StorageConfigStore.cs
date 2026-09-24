@@ -5,7 +5,6 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Station.Application.Audit;
 using Station.Application.Security;
-using Station.Application.Security.Abstractions;
 using Station.Application.Storage;
 using Station.Domain.Entities;
 using Station.Infrastructure.Settings;
@@ -54,7 +53,6 @@ public sealed class StorageConfigStore : IStorageConfigStore
     };
 
     private readonly ISettingStore _settingStore;
-    private readonly ICryptoProviderFactory _factory;
     private readonly ICryptoPolicyService _policy;
     private readonly IAuditLogService _audit;
     private readonly IMemoryCache _cache;
@@ -64,7 +62,6 @@ public sealed class StorageConfigStore : IStorageConfigStore
 
     public StorageConfigStore(
         ISettingStore settingStore,
-        ICryptoProviderFactory factory,
         ICryptoPolicyService policy,
         IAuditLogService audit,
         IMemoryCache cache,
@@ -72,7 +69,6 @@ public sealed class StorageConfigStore : IStorageConfigStore
         ILogger<StorageConfigStore> logger)
     {
         _settingStore = settingStore;
-        _factory = factory;
         _policy = policy;
         _audit = audit;
         _cache = cache;
@@ -157,10 +153,9 @@ public sealed class StorageConfigStore : IStorageConfigStore
             // ---- FTP 密码加密 ----
             // 仅当"非空且非密文"时才加密；已是密文则保持原样
             if (!string.IsNullOrWhiteSpace(copy.FtpPassword)
-                && !_factory.IsProtected(copy.FtpPassword))
+                && !_policy.IsSecretProtected(copy.FtpPassword))
             {
-                copy.FtpPassword = await _factory.ProtectAsync(
-                    _policy,
+                copy.FtpPassword = await _policy.ProtectSecretAsync(
                     PasswordGroup,
                     FtpPasswordKey,
                     copy.FtpPassword,
@@ -170,10 +165,9 @@ public sealed class StorageConfigStore : IStorageConfigStore
 
             // ---- SFTP 密码加密 ----
             if (!string.IsNullOrWhiteSpace(copy.SftpPassword)
-                && !_factory.IsProtected(copy.SftpPassword))
+                && !_policy.IsSecretProtected(copy.SftpPassword))
             {
-                copy.SftpPassword = await _factory.ProtectAsync(
-                    _policy,
+                copy.SftpPassword = await _policy.ProtectSecretAsync(
                     PasswordGroup,
                     SftpPasswordKey,
                     copy.SftpPassword,

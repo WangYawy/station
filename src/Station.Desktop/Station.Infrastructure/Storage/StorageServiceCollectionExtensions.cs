@@ -2,11 +2,11 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using Station.Application.Security.Abstractions;
+using Station.Application.Security;
 using Station.Application.Storage;
+using Station.Infrastructure.Backup;
 using Station.Infrastructure.Storage.CircuitBreaker;
 using Station.Infrastructure.Storage.Retry;
-using Station.Infrastructure.Storage.Targets;
 using Station.Infrastructure.Storage.Telemetry;
 using Station.Infrastructure.Storage.Verify;
 
@@ -18,7 +18,9 @@ public static class StorageServiceCollectionExtensions
     public static IServiceCollection AddStationStorage(
         this IServiceCollection services, IConfiguration configuration)
     {
-        services.Configure<StorageOptions>(configuration.GetSection(StorageOptions.SectionName));
+        var storageSection = configuration.GetSection(StorageOptions.SectionName);
+        services.Configure<StorageOptions>(storageSection);
+        services.AddSingleton(storageSection.Get<StorageOptions>() ?? new StorageOptions());
 
         //// 配置只读视图
         //services.AddSingleton<IStorageConfiguration>(sp =>
@@ -42,6 +44,9 @@ public static class StorageServiceCollectionExtensions
 
         // 多 target（Singleton）
         services.AddSingleton<IReadOnlyList<IStorageTarget>>(BuildTargets);
+
+        // 数据
+        services.AddSingleton<IStorageConfigStore, StorageConfigStore>();
 
         // 服务
         services.AddScoped<IStorageService, StorageService>();
@@ -71,7 +76,7 @@ public static class StorageServiceCollectionExtensions
             IStorageTarget inner = cfg.Kind switch
             {
                 StorageTargetKind.Local => new LocalDiskStorageTarget(
-                    cfg, sp.GetRequiredService<IOptions<StorageOptions>>(), sp.GetRequiredService<ICryptoPolicyService>(), sp.GetRequiredService<ICryptoProviderFactory>(), logger),
+                    cfg, sp.GetRequiredService<IOptions<StorageOptions>>(), sp.GetRequiredService<ICryptoPolicyService>(), logger),
 
                 StorageTargetKind.Ftp => BuildFtp(cfg, opts, sp, logger),
 
@@ -123,7 +128,6 @@ public static class StorageServiceCollectionExtensions
             cfg,
             sp.GetRequiredService<IOptions<StorageOptions>>(),
             sp.GetRequiredService<ICryptoPolicyService>(),
-            sp.GetRequiredService<ICryptoProviderFactory>(),
             logger);
     }
 
@@ -137,7 +141,6 @@ public static class StorageServiceCollectionExtensions
              cfg,
              sp.GetRequiredService<IOptions<StorageOptions>>(),
              sp.GetRequiredService<ICryptoPolicyService>(),
-             sp.GetRequiredService<ICryptoProviderFactory>(),
              logger);
     }
 }

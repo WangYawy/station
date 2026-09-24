@@ -28,7 +28,6 @@ public static class DependencyInjection
         // 启动自检
         services.AddSingleton<StartupSelfCheckService>();
         services.AddSingleton<IStartupSelfCheckService>(sp => sp.GetRequiredService<StartupSelfCheckService>());
-        services.AddSingleton<LicenseOptionsReader>();
 
         return services;
     }

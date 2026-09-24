@@ -1,9 +1,8 @@
 using System.Diagnostics;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using Station.Application.Security.Abstractions;
+using Station.Application.Security;
 using Station.Application.Storage;
-using Station.Domain.Security;
 using Station.Infrastructure.Storage.Verify;
 
 namespace Station.Infrastructure.Storage;
@@ -15,6 +14,10 @@ namespace Station.Infrastructure.Storage;
 ///   3) 结果按 MultiTargetMode 聚合；
 ///   4) 远端校验按 RemoteVerifyMode / RemoteContentMode；
 ///   5) 取消/失败时按配置清理半成品。
+/// 
+/// 【依赖原则】
+///   文件摘要走 IFileCryptoService 门面；
+///   本服务不感知 file_sig 策略、摘要算法、密钥等任何加密细节。
 /// </summary>
 public sealed class StorageService : IStorageService
 {
@@ -22,23 +25,20 @@ public sealed class StorageService : IStorageService
     private readonly StorageOptions _options;
     private readonly RemoteVerifier _verifier;
     private readonly SemaphoreSlim _gate;
-    private readonly ICryptoPolicyService _cryptoPolicy;
-    private readonly ICryptoProviderFactory _cryptoFactory;
+    private readonly IFileCryptoService _fileCrypto;
     private readonly ILogger<StorageService> _logger;
 
     public StorageService(
         IReadOnlyList<IStorageTarget> targets,
         IOptions<StorageOptions> options,
-        ICryptoPolicyService cryptoPolicy,
-        ICryptoProviderFactory cryptoFactory,
+        IFileCryptoService fileCrypto,
         RemoteVerifier verifier,
         SemaphoreSlim uploadGate,
         ILogger<StorageService> logger)
     {
         _targets = targets;
         _options = options.Value;
-        _cryptoPolicy = cryptoPolicy;
-        _cryptoFactory = cryptoFactory;
+        _fileCrypto = fileCrypto;
         _verifier = verifier;
         _gate = uploadGate;
         _logger = logger;
@@ -53,28 +53,32 @@ public sealed class StorageService : IStorageService
         Func<Stream>? localStreamFactory = null,
         CancellationToken cancellationToken = default)
     {
-        // 1) 读 file_sig 策略决定摘要算法
-        var policy = await _cryptoPolicy.GetAsync(CryptoUsage.FileSig, cancellationToken)
-            .ConfigureAwait(false);
-        var hasher = _cryptoFactory.GetHasher(policy.Algorithm);
-
-        // 2) 计算本地摘要（优先用调用方传入的）
+        // =========================================================
+        // 1) 确定内容摘要与算法
+        //    - 调用方已提供 → 直接用（如采集阶段已算过）
+        //    - 未提供 → 走门面现算
+        // =========================================================
         string contentDigest;
+        string digestAlgo;
+
         if (!string.IsNullOrEmpty(expectedDigest))
         {
             contentDigest = expectedDigest;
+            digestAlgo = await _fileCrypto.GetDigestAlgorithmAsync(cancellationToken)
+                .ConfigureAwait(false);
         }
         else
         {
-            await using var fs = File.OpenRead(localPath);
-            contentDigest = await hasher.ComputeHashAsync(fs, cancellationToken)
+            (contentDigest, digestAlgo) = await _fileCrypto
+                .ComputeDigestAsync(localPath, cancellationToken)
                 .ConfigureAwait(false);
         }
-        var digestAlgo = policy.Algorithm;
 
         var remotePath = $"{remoteDirectory.TrimEnd('/')}/{fileName}";
 
-        // 3) 并发限流
+        // =========================================================
+        // 2) 并发限流
+        // =========================================================
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
@@ -82,7 +86,7 @@ public sealed class StorageService : IStorageService
             if (active.Count == 0)
                 return Fail("未配置任何启用的存储目标");
 
-            // 4) 并行 fan-out
+            // 3) 并行 fan-out
             var tasks = active.Select(t => UploadOneAsync(
                 t, localPath, remotePath, fileSize,
                 contentDigest, digestAlgo, localStreamFactory, cancellationToken))
@@ -97,7 +101,10 @@ public sealed class StorageService : IStorageService
         }
     }
 
-    /// <summary>单 target 上传 + 校验 + 失败清理。</summary>
+    // =========================================================
+    // 单 target 上传 + 校验 + 失败清理
+    // =========================================================
+
     private async Task<TargetUploadResult> UploadOneAsync(
         IStorageTarget target,
         string localPath,
@@ -116,6 +123,7 @@ public sealed class StorageService : IStorageService
 
         try
         {
+            // ---- 上传 ----
             await target.UploadAsync(
                 new UploadTargetFile(
                     localPath, remotePath, fileSize,
@@ -124,17 +132,12 @@ public sealed class StorageService : IStorageService
                     DigestAlgorithm: digestAlgo),
                 OnProgress, ct).ConfigureAwait(false);
 
-            // 远端校验：Ciphertext 模式只校验 size（无法重算明文摘要）
-            if (contentMode == RemoteContentMode.Ciphertext)
-            {
-                await _verifier.VerifyAsync(target, remotePath, fileSize, contentDigest, mode, ct)
-                   .ConfigureAwait(false);
-            }
-            else
-            {
-                await _verifier.VerifyAsync(target, remotePath, fileSize, contentDigest, mode, ct)
-                    .ConfigureAwait(false);
-            }
+            // ---- 远端校验 ----
+            //   Plaintext 模式：size + 摘要（可重算）
+            //   Ciphertext 模式：仅 size（远端密文与明文摘要不等）
+            await _verifier.VerifyAsync(
+                target, remotePath, fileSize, contentDigest,
+                mode, contentMode, ct).ConfigureAwait(false);
 
             sw.Stop();
             return new TargetUploadResult(target.Name, true, remotePath,
@@ -151,19 +154,25 @@ public sealed class StorageService : IStorageService
         catch (OperationCanceledException)
         {
             sw.Stop();
-            if (_options.CleanupOnCancel) await TryCleanupAsync(target, remotePath).ConfigureAwait(false);
+            if (_options.CleanupOnCancel)
+                await TryCleanupAsync(target, remotePath).ConfigureAwait(false);
             throw;
         }
         catch (Exception ex)
         {
             sw.Stop();
-            if (_options.CleanupOnFailure) await TryCleanupAsync(target, remotePath).ConfigureAwait(false);
+            if (_options.CleanupOnFailure)
+                await TryCleanupAsync(target, remotePath).ConfigureAwait(false);
             _logger.LogError(ex, "[{Target}] 上传失败：{RemotePath}", target.Name, remotePath);
             return new TargetUploadResult(target.Name, false, null, sw.ElapsedMilliseconds,
                 Attempts: _options.RetryCount, CircuitOpen: false,
                 ErrorCode: ex.GetType().Name, ErrorMessage: ex.Message);
         }
     }
+
+    // =========================================================
+    // 结果聚合
+    // =========================================================
 
     private FileUploadResult Aggregate(string remotePath, TargetUploadResult[] results)
     {
@@ -185,19 +194,34 @@ public sealed class StorageService : IStorageService
             error = string.Join("; ", msgs);
         }
 
-        return new FileUploadResult(success, success ? remotePath : null, error, maxRetry, circuitOpen, results);
+        return new FileUploadResult(
+            success,
+            success ? remotePath : null,
+            error, maxRetry, circuitOpen, results);
     }
 
-    private RemoteVerifyMode ResolveVerifyMode(string targetName) => _options.RemoteVerifyMode;
+    // =========================================================
+    // 辅助
+    // =========================================================
 
-    private RemoteContentMode ResolveContentMode(string targetName) => _options.RemoteContentMode;
+    private RemoteVerifyMode ResolveVerifyMode(string targetName)
+        => _options.RemoteVerifyMode;
+
+    private RemoteContentMode ResolveContentMode(string targetName)
+        => _options.RemoteContentMode;
 
     private async Task TryCleanupAsync(IStorageTarget target, string remotePath)
     {
-        try { await target.DeleteAsync(remotePath, CancellationToken.None).ConfigureAwait(false); }
-        catch (Exception ex) { _logger.LogDebug(ex, "[{Target}] 清理失败：{RemotePath}", target.Name, remotePath); }
+        try
+        {
+            await target.DeleteAsync(remotePath, CancellationToken.None).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "[{Target}] 清理失败：{RemotePath}", target.Name, remotePath);
+        }
     }
 
-    private FileUploadResult Fail(string message) =>
-        new(false, null, message, 0, false, Array.Empty<TargetUploadResult>());
+    private FileUploadResult Fail(string message)
+        => new(false, null, message, 0, false, Array.Empty<TargetUploadResult>());
 }

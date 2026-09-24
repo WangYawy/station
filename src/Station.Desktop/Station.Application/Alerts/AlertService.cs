@@ -19,7 +19,7 @@ public sealed class AlertService : IAlertService
     private readonly ReportingOptions _reportingOptions;
     private readonly IStationContext _stationContext;
     private readonly ILogger<AlertService> _logger;
-    private readonly IReportingSigner _reportSignature;
+    private readonly ILicenseCryptoService _licenseCrypto;
 
     public AlertService(
         IRepository<Alert> alerts,
@@ -27,7 +27,7 @@ public sealed class AlertService : IAlertService
         ISyncOutboxService outbox,
         ReportingOptions reportingOptions,
         IStationContext stationContext,
-        IReportingSigner reportSignature,
+        ILicenseCryptoService licenseCrypto,
         ILogger<AlertService> logger)
     {
         _alerts = alerts;
@@ -36,7 +36,7 @@ public sealed class AlertService : IAlertService
         _reportingOptions = reportingOptions;
         _stationContext = stationContext;
         _logger = logger;
-        _reportSignature = reportSignature;
+        _licenseCrypto = licenseCrypto;
     }
 
     public async Task WriteAsync(Alert alert)
@@ -63,7 +63,7 @@ public sealed class AlertService : IAlertService
             if (!string.IsNullOrWhiteSpace(_reportingOptions.PrivateKeyFile))
             {
                 var canonical = AlertReportSignature.Canonical(report);
-                var (signature, _) = await _reportSignature.SignAsync(canonical);
+                var (signature, _) = await _licenseCrypto.SignReportingAsync(canonical);
                 if (signature is not null)
                     report = report with { Signature = signature };
             }

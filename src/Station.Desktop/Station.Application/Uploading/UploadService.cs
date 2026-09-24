@@ -1,5 +1,4 @@
 using Microsoft.Extensions.Logging;
-using SqlSugar;
 using Station.Application.Collecting;
 using Station.Application.IdGenerators;
 using Station.Application.Security;
@@ -21,7 +20,7 @@ public sealed class UploadService : IUploadService
     private readonly CollectOptions _collectOptions;
     private readonly StorageOptions _storageConfig;
     private readonly ILogger<UploadService> _logger;
-    private readonly IFileEncryptionService _fileEncryption;
+    private readonly IFileCryptoService _fileCrypto;
     private readonly IDirectoryTemplateRenderer _renderer;
 
     public UploadService(
@@ -31,7 +30,7 @@ public sealed class UploadService : IUploadService
         IIdGenerator idGenerator,
         IStorageService storageService,
         IDirectoryTemplateRenderer renderer,
-        IFileEncryptionService fileEncryption,
+        IFileCryptoService fileCrypto,
         CollectOptions collectOptions,
         StorageOptions storageConfig,
         ILogger<UploadService> logger)
@@ -41,7 +40,7 @@ public sealed class UploadService : IUploadService
         _uploadedFileRepo = uploadedFileRepo;
         _storageService = storageService;
         _renderer = renderer;
-        _fileEncryption = fileEncryption;
+        _fileCrypto = fileCrypto;
         _collectOptions = collectOptions;
         _storageConfig = storageConfig;
         _idGenerator = idGenerator;
@@ -102,7 +101,7 @@ public sealed class UploadService : IUploadService
                 if (_storageConfig.RemoteContentMode == RemoteContentMode.Plaintext)
                 {
                     // 上传明文：解密流
-                    streamFactory = () => _fileEncryption.CreateDecryptStream(localPath);
+                    streamFactory = () => _fileCrypto.CreateDecryptStream(localPath);
                     uploadSize = file.Size;   // 明文大小
                 }
                 else

@@ -3,38 +3,27 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using Station.Application.Security.Abstractions;
-using Station.Infrastructure.Security.Policy;
+using Station.Application.Security;
+using Station.Crypto.Kdf;
 
 namespace Station.Infrastructure.Security.Keys;
 
 /// <summary>
-/// 主密钥提供者：
-/// - 优先使用环境变量 STATION_MASTER_KEY（值为 base64(32 字节)）；
-/// - 否则从密钥文件读取；
-/// - 密钥文件不存在时自动生成（首次启动）。
-/// 
-/// 密钥文件格式（JSON）：
-/// {
-///   "current": 2,
-///   "keys": [
-///     { "version": 1, "key": "base64", "createdAt": "..." },
-///     { "version": 2, "key": "base64", "createdAt": "..." }
-///   ]
-/// }
-/// 
-/// 默认路径：
-/// - Windows: %ProgramData%\Station\keys\master.key
-/// - Linux:   /etc/station/keys/master.key
+/// 主密钥提供者（internal）：
+///   - 优先读环境变量 STATION_MASTER_KEY（base64 编码）；
+///   - 否则读密钥文件；
+///   - 首次启动自动生成。
+///   - 支持版本化轮换。
 /// </summary>
-public sealed class MasterKeyProvider : IMasterKeyProvider
+public sealed class MasterKeyProvider
 {
     private const int KeySizeBytes = 32;
+
     private readonly string _keyFilePath;
     private readonly string _envVarName;
     private readonly ILogger<MasterKeyProvider> _logger;
     private readonly SemaphoreSlim _lock = new(1, 1);
-    private MasterKeyFile _cache = new();
+    private MasterKeyFile _cache;
 
     public MasterKeyProvider(
         IOptions<CryptoOptions> options,
@@ -54,9 +43,16 @@ public sealed class MasterKeyProvider : IMasterKeyProvider
 
     public int CurrentVersion => _cache.Current;
 
+    /// <summary>主密钥文件路径（用于自检和日志展示）。</summary>
+    public string KeyFilePath => _keyFilePath;
+
+    /// <summary>当前是否使用环境变量（用于自检提示）。</summary>
+    public bool IsUsingEnvironmentVariable =>
+        !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable(_envVarName));
+
     public byte[] GetKey(int version)
     {
-        // 环境变量优先（适用于容器/K8s 场景）
+        // 环境变量优先
         var env = Environment.GetEnvironmentVariable(_envVarName);
         if (!string.IsNullOrWhiteSpace(env))
         {
@@ -67,26 +63,23 @@ public sealed class MasterKeyProvider : IMasterKeyProvider
             }
         }
 
-        var entry = _cache.Keys.FirstOrDefault(k => k.Version == version);
-        if (entry is null)
-            throw new InvalidOperationException($"密钥版本 v{version} 不存在");
-        return Convert.FromBase64String(entry.Key);
+        return _cache.GetKey(version);
     }
 
     public IReadOnlyList<int> GetVersions() =>
         _cache.Keys.Select(k => k.Version).OrderBy(v => v).ToList();
 
+    /// <summary>生成新版本密钥并设为 current。</summary>
     public async Task<int> RotateAsync(CancellationToken ct = default)
     {
         await _lock.WaitAsync(ct).ConfigureAwait(false);
         try
         {
             var newVersion = _cache.Current + 1;
-            var newKey = RandomNumberGenerator.GetBytes(KeySizeBytes);
             _cache.Keys.Add(new MasterKeyEntry
             {
                 Version = newVersion,
-                Key = Convert.ToBase64String(newKey),
+                Key = Convert.ToBase64String(RandomNumberGenerator.GetBytes(KeySizeBytes)),
                 CreatedAt = DateTime.UtcNow
             });
             _cache.Current = newVersion;
@@ -97,6 +90,16 @@ public sealed class MasterKeyProvider : IMasterKeyProvider
         finally { _lock.Release(); }
     }
 
+    /// <summary>派生 Binding MAC 密钥（HKDF）。</summary>
+    public byte[] DeriveBindingKey()
+        => HkdfSm3.Derive(GetKey(CurrentVersion), "station:recorder-binding:v1", 32);
+
+    /// <summary>派生文件加密密钥（HKDF，指定主密钥版本）。</summary>
+    public byte[] DeriveFileEncryptionKey(int keyVersion)
+        => HkdfSm3.Derive(GetKey(keyVersion), "station:file-encryption:v1", 32);
+
+    // ============ 内部 ============
+
     private MasterKeyFile LoadOrCreate()
     {
         try
@@ -104,7 +107,7 @@ public sealed class MasterKeyProvider : IMasterKeyProvider
             if (File.Exists(_keyFilePath))
             {
                 var json = File.ReadAllText(_keyFilePath);
-                var file = JsonSerializer.Deserialize<MasterKeyFile>(json);
+                var file = JsonSerializer.Deserialize<MasterKeyFile>(json, JsonOpts);
                 if (file is { Keys.Count: > 0 }) return file;
                 _logger.LogWarning("密钥文件为空或格式不正确，将重新生成：{Path}", _keyFilePath);
             }
@@ -114,13 +117,12 @@ public sealed class MasterKeyProvider : IMasterKeyProvider
             _logger.LogError(ex, "读取密钥文件失败，将重新生成：{Path}", _keyFilePath);
         }
 
-        // 首次生成
         var initial = new MasterKeyFile
         {
             Current = 1,
-            Keys = new List<MasterKeyEntry>
+            Keys =
             {
-                new()
+                new MasterKeyEntry
                 {
                     Version = 1,
                     Key = Convert.ToBase64String(RandomNumberGenerator.GetBytes(KeySizeBytes)),
@@ -150,7 +152,6 @@ public sealed class MasterKeyProvider : IMasterKeyProvider
         TryRestrictPermissions(_keyFilePath);
     }
 
-    /// <summary>限制密钥文件访问权限（Windows 用 ACL，Linux 用 chmod 600）。</summary>
     private static void TryRestrictPermissions(string path)
     {
         try
@@ -160,7 +161,6 @@ public sealed class MasterKeyProvider : IMasterKeyProvider
                 var fi = new FileInfo(path);
                 var acl = fi.GetAccessControl();
                 acl.SetAccessRuleProtection(true, false);
-                // 仅当前用户可读写
                 var currentUser = System.Security.Principal.WindowsIdentity.GetCurrent().User;
                 if (currentUser is not null)
                 {
@@ -176,10 +176,7 @@ public sealed class MasterKeyProvider : IMasterKeyProvider
                 File.SetUnixFileMode(path, UnixFileMode.UserRead | UnixFileMode.UserWrite);
             }
         }
-        catch
-        {
-            // 权限设置失败不应阻塞启动；由部署方负责加固
-        }
+        catch { /* 权限设置失败不阻塞启动 */ }
     }
 
     private static string GetDefaultKeyPath()
@@ -199,10 +196,18 @@ public sealed class MasterKeyProvider : IMasterKeyProvider
     };
 
     // ---- 内部 DTO ----
+
     private sealed class MasterKeyFile
     {
         [JsonPropertyName("current")] public int Current { get; set; } = 1;
         [JsonPropertyName("keys")] public List<MasterKeyEntry> Keys { get; set; } = new();
+
+        public byte[] GetKey(int version)
+        {
+            var entry = Keys.FirstOrDefault(k => k.Version == version)
+                ?? throw new InvalidOperationException($"密钥版本 v{version} 不存在");
+            return Convert.FromBase64String(entry.Key);
+        }
     }
 
     private sealed class MasterKeyEntry

@@ -2,7 +2,6 @@ using FluentFTP;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Station.Application.Security;
-using Station.Application.Security.Abstractions;
 using Station.Application.Storage;
 using Station.Domain.Security;
 using Station.Infrastructure.Storage.Pool;
@@ -23,9 +22,9 @@ namespace Station.Infrastructure.Storage;
 ///   group = "storage.targets", key = "ftpPassword"
 ///   → AAD = "storage.targets.ftpPassword"
 /// 
-/// 【断点续传】
-///   FluentFTP 的 FtpRemoteExists.Resume 会自动比对远端大小与本地流位置；
-///   上传前额外查询远端大小做幂等判定，避免重复传输。
+/// 【依赖原则】
+///   本类只依赖 Application 层的 ICryptoPolicyService 接口；
+///   具体算法实现由 Station.Crypto 提供，通过策略服务路由。
 /// </summary>
 public sealed class FtpStorageTarget : IStorageTarget, IAsyncDisposable
 {
@@ -35,7 +34,6 @@ public sealed class FtpStorageTarget : IStorageTarget, IAsyncDisposable
 
     private readonly StorageTargetConfig _config;
     private readonly StorageOptions _global;
-    private readonly ICryptoProviderFactory _factory;
     private readonly ICryptoPolicyService _policy;
     private readonly FtpConnectionHolder _holder;
     private readonly ILogger _logger;
@@ -49,17 +47,13 @@ public sealed class FtpStorageTarget : IStorageTarget, IAsyncDisposable
         StorageTargetConfig config,
         IOptions<StorageOptions> options,
         ICryptoPolicyService policy,
-        ICryptoProviderFactory factory,
         ILogger logger)
     {
         _config = config;
         _global = options.Value;
-        _factory = factory;
         _policy = policy;
         _logger = logger;
 
-        // 连接持有者由 target 内部构造（含 keep-alive 定时器）。
-        // 生命周期与 target 一致（target 由 DI 作为 Singleton 注册）。
         var keepAlive = config.FtpKeepAliveSeconds ?? options.Value.FtpKeepAliveSeconds;
         _holder = new FtpConnectionHolder(config, keepAlive, logger);
     }
@@ -93,8 +87,7 @@ public sealed class FtpStorageTarget : IStorageTarget, IAsyncDisposable
             }
             catch
             {
-                // 文件不存在或其他远端查询失败 → 视为从头开始。
-                // 注意：这里不 MarkBroken，因为"文件不存在"是正常情况。
+                // 文件不存在或其他远端查询失败 → 视为从头开始
                 remoteSize = 0;
             }
 
@@ -108,7 +101,6 @@ public sealed class FtpStorageTarget : IStorageTarget, IAsyncDisposable
 
             if (remoteSize > file.Size)
             {
-                // 远端比本地大（历史残留/篡改）→ 删除重传
                 _logger.LogWarning(
                     "[{Target}] 远端文件比本地大（{Remote}>{Local}），删除重传：{RemotePath}",
                     Name, remoteSize, file.Size, file.RemotePath);
@@ -127,7 +119,6 @@ public sealed class FtpStorageTarget : IStorageTarget, IAsyncDisposable
                 ? null
                 : new Progress<FtpProgress>(p =>
                 {
-                    // FluentFTP 进度是 0~100，我们转成 0~1
                     _ = onProgress(Math.Clamp(p.Progress / 100d, 0, 1));
                 });
 
@@ -140,7 +131,6 @@ public sealed class FtpStorageTarget : IStorageTarget, IAsyncDisposable
                 progress: progress,
                 token: ct).ConfigureAwait(false);
 
-            // Skipped 表示远端已完整，等于成功；Failed 才是错误
             if (status == FtpStatus.Failed)
             {
                 throw new IOException($"[{Name}] FTP 上传失败：{status}");
@@ -148,7 +138,6 @@ public sealed class FtpStorageTarget : IStorageTarget, IAsyncDisposable
         }
         catch
         {
-            // 任何异常都标记连接失效，下次调用会重连
             _holder.MarkBroken();
             throw;
         }
@@ -177,9 +166,8 @@ public sealed class FtpStorageTarget : IStorageTarget, IAsyncDisposable
     {
         await EnsurePasswordAsync(ct).ConfigureAwait(false);
 
-        // 读 file_sig 策略决定摘要算法（默认 SM3）
-        var policy = await _policy.GetAsync(CryptoUsage.FileSig, ct).ConfigureAwait(false);
-        var hasher = _factory.GetHasher(policy.Algorithm);
+        // 走策略服务取摘要器（IHasher 自带 Algorithm 属性）
+        var hasher = await _policy.GetHasherAsync(CryptoUsage.FileSig, ct).ConfigureAwait(false);
 
         var ftp = await _holder.GetConnectedAsync(_plainPassword ?? string.Empty, ct)
             .ConfigureAwait(false);
@@ -191,7 +179,7 @@ public sealed class FtpStorageTarget : IStorageTarget, IAsyncDisposable
                 .ConfigureAwait(false);
 
             var digest = await hasher.ComputeHashAsync(stream, ct).ConfigureAwait(false);
-            return new RemoteDigestResult(digest, policy.Algorithm);
+            return new RemoteDigestResult(digest, hasher.Algorithm);
         }
         catch
         {
@@ -200,15 +188,20 @@ public sealed class FtpStorageTarget : IStorageTarget, IAsyncDisposable
         }
     }
 
+    /// <summary>
+    /// 对远端文件摘要签名。
+    /// 
+    /// ⚠️ 注意：SM2 签名内部已含 SM3 摘要，本方法对"摘要的字节"再签名属于双重哈希。
+    ///     当前保留原逻辑以兼容既有数据；如未来启用国密合规审计，
+    ///     应改为对"原始文件流"签名（见 SM2Signer 内部实现）。
+    /// </summary>
     public async Task<RemoteSignatureResult> SignRemoteAsync(
         string remotePath, string privateKeyPem, CancellationToken ct)
     {
         await EnsurePasswordAsync(ct).ConfigureAwait(false);
 
-        var policy = await _policy.GetAsync(CryptoUsage.FileSig, ct).ConfigureAwait(false);
-        var hasher = _factory.GetHasher(policy.Algorithm);
-        var signAlgo = policy.SecondaryAlgorithm ?? CryptoAlgorithm.Sm2Sm3;
-        var signer = _factory.GetSigner(signAlgo);
+        var hasher = await _policy.GetHasherAsync(CryptoUsage.FileSig, ct).ConfigureAwait(false);
+        var signer = await _policy.GetSignerAsync(CryptoUsage.FileSig, ct).ConfigureAwait(false);
 
         var ftp = await _holder.GetConnectedAsync(_plainPassword ?? string.Empty, ct)
             .ConfigureAwait(false);
@@ -220,10 +213,9 @@ public sealed class FtpStorageTarget : IStorageTarget, IAsyncDisposable
                 .ConfigureAwait(false);
 
             var digest = await hasher.ComputeHashAsync(stream, ct).ConfigureAwait(false);
-
-            // 对摘要（Base64 解码后的字节）签名
             var signature = signer.Sign(Convert.FromBase64String(digest), privateKeyPem);
-            return new RemoteSignatureResult(digest, policy.Algorithm, signature, signAlgo);
+
+            return new RemoteSignatureResult(digest, hasher.Algorithm, signature, signer.Algorithm);
         }
         catch
         {
@@ -254,16 +246,16 @@ public sealed class FtpStorageTarget : IStorageTarget, IAsyncDisposable
     }
 
     // =========================================================
-    // 密码解析（核心变更点）
+    // 密码解析
     // =========================================================
 
     /// <summary>
     /// 确保明文密码已解析。首次调用走扩展方法解密并缓存，后续直接命中。
     /// 
-    /// 走 CryptoSecretExtensions.TryUnprotectSecretAsync：
+    /// 走 CryptoExtensions.TryUnprotectSecretAsync：
     ///   - 历史明文（非 v{n}: 前缀）→ 原样返回 + WARN 日志；
     ///   - 密文解密失败 → 返回 null + ERROR 日志 → 退化为空串（后续 FTP 认证失败，日志可见）；
-    ///   - 策略/工厂异常 → 向上抛（系统级故障，不吞）。
+    ///   - 策略异常 → 向上抛（系统级故障）。
     /// 
     /// 使用 SemaphoreSlim 保护首次解密：并发首调时只有一个线程真正解密。
     /// </summary>
@@ -274,18 +266,15 @@ public sealed class FtpStorageTarget : IStorageTarget, IAsyncDisposable
         await _passwordLock.WaitAsync(ct).ConfigureAwait(false);
         try
         {
-            // double-check：等待锁期间可能其他线程已完成
             if (_plainPassword is not null) return;
 
-            var plain = await _factory.TryUnprotectAsync(
-                _policy,
+            var plain = await _policy.TryUnprotectSecretAsync(
                 PasswordGroup,
                 PasswordKey,
                 _config.FtpPassword,
                 _logger,
                 ct).ConfigureAwait(false);
 
-            // 解密失败（null）→ 空串（后续 FTP 认证自然报错，日志能看出问题）
             _plainPassword = plain ?? string.Empty;
 
             if (_plainPassword.Length == 0 && !string.IsNullOrEmpty(_config.FtpPassword))

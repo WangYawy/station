@@ -119,7 +119,7 @@ public partial class ShellWindow : Window
     }
 
     /// <summary>以模态方式显示对话框，期间暂停"失焦拉回"逻辑。</summary>
-    private async Task<TResult> ShowModalAsync<TResult>(
+    internal async Task<TResult> ShowModalAsync<TResult>(
         Window dialog,
         Func<Task<TResult>> showAction)
     {

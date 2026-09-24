@@ -4,7 +4,7 @@ using Microsoft.Extensions.Options;
 using SqlSugar;
 using Station.Application.DeviceDetection;
 using Station.Application.IdGenerators;
-using Station.Application.Security.Abstractions;
+using Station.Application.Licensing;
 using Station.Application.Services;
 using Station.Application.Settings;
 using Station.Desktop.Infrastructure;
@@ -136,10 +136,9 @@ public static class DependencyInjection
         // ==========================================
         services.AddSingleton<IMachineFingerprintProvider>(sp =>
         {
-            var factory = sp.GetRequiredService<ICryptoProviderFactory>();
-            return OperatingSystem.IsWindows()
-                ? new WindowsMachineFingerprintProvider(factory)
-                : new LinuxMachineFingerprintProvider(factory);
+            if (OperatingSystem.IsWindows())
+                return new WindowsMachineFingerprintProvider();
+            return new LinuxMachineFingerprintProvider();
         });
         // ==========================================
         // 13. 加密 & 秘钥

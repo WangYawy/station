@@ -16,7 +16,7 @@ using Station.Application.Licensing;
 using Station.Application.Monitoring;
 using Station.Application.OperationAccess;
 using Station.Application.Recorders;
-using Station.Application.Security.Abstractions;
+using Station.Application.Security;
 using Station.Application.Session;
 using Station.Application.Settings;
 using Station.Application.Uploading;
@@ -216,7 +216,6 @@ public partial class ShellViewModel : ObservableObject, IDisposable
                 _sessions,
                 _operationAccess,
                 _services.GetRequiredService<ICryptoPolicyService>(),
-                _services.GetRequiredService<IKeyRotationService>(),
                 _services.GetRequiredService<IAuditLogService>());
             _currentModuleDisposable = vm as IDisposable;
             CurrentModule = vm;

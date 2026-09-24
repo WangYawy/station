@@ -6,14 +6,12 @@ using Station.Application.IdGenerators;
 using Station.Application.Licensing;
 using Station.Application.PlatformSync;
 using Station.Application.Security;
-using Station.Application.Security.Models;
 using Station.Application.Storage;
 using Station.Application.UsbPortCard.Events;
 using Station.Domain.Collecting;
 using Station.Domain.Entities;
 using Station.Domain.Enums;
 using Station.Domain.Repositories;
-using Station.Domain.Security;
 
 namespace Station.Application.Collecting;
 
@@ -43,8 +41,7 @@ public sealed class CollectTaskService : ICollectTaskService
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ConcurrentDictionary<long, TaskControl> _controls = new();
     private readonly ILogger<CollectTaskService> _logger;
-    private readonly IFileEncryptionService _fileEncryption;
-    private readonly IFileSigningService _fileSigning;
+    private readonly IFileCryptoService _fileCrypto;
     private readonly StorageOptions _storageConfig;
     private readonly IUsbPortCardEventService _eventService;
 
@@ -60,8 +57,7 @@ public sealed class CollectTaskService : ICollectTaskService
         ICollectControl collectControl,
         ILicenseService licenseService,
         IServiceScopeFactory scopeFactory,
-        IFileEncryptionService fileEncryption,
-        IFileSigningService fileSigning,
+        IFileCryptoService fileCrypto,
         StorageOptions storageConfig,
         IUsbPortCardEventService eventService,
         ILogger<CollectTaskService> logger)
@@ -75,8 +71,7 @@ public sealed class CollectTaskService : ICollectTaskService
         _licenseService = licenseService;
         _scopeFactory = scopeFactory;
         _logger = logger;
-        _fileEncryption = fileEncryption;
-        _fileSigning = fileSigning;
+        _fileCrypto = fileCrypto;
         _storageConfig = storageConfig;
         _eventService = eventService;
     }
@@ -527,7 +522,7 @@ public sealed class CollectTaskService : ICollectTaskService
                 // ==================== 加密前算明文摘要 ====================
                 try
                 {
-                    var (digest, digestAlgo) = await _fileSigning.ComputeDigestAsync(destination, ct);
+                    var (digest, digestAlgo) = await _fileCrypto.ComputeDigestAsync(destination, ct);
                     file.ContentDigest = digest;
                     file.DigestAlgorithm = digestAlgo;
 
@@ -536,7 +531,7 @@ public sealed class CollectTaskService : ICollectTaskService
                     {
                         try
                         {
-                            var meta = new FileMetadataCanonical(
+                            var meta = new FileMetadata(
                                 FileNo: $"-{file.Id}", // {StationCode}
                                 FileName: file.FileName,
                                 Size: file.Size,
@@ -545,8 +540,7 @@ public sealed class CollectTaskService : ICollectTaskService
                                 CollectedAt: DateTime.UtcNow,
                                 StationCode: "");
 
-                            var metaJson = FileMetadataCodec.Canonical(meta);
-                            var (signature, signAlgo) = await _fileSigning.SignMetadataAsync(metaJson, ct);
+                            var (signature, signAlgo) = await _fileCrypto.SignMetadataAsync(meta, ct);
                             file.Signature = signature;
                             file.SignatureAlgorithm = signAlgo;
                         }
@@ -567,7 +561,7 @@ public sealed class CollectTaskService : ICollectTaskService
                 {
                     try
                     {
-                        var encryptedSize = await _fileEncryption.EncryptInPlaceAsync(destination, ct);
+                        var encryptedSize = await _fileCrypto.EncryptInPlaceAsync(destination, ct);
                         file.EncryptedSize = encryptedSize;
                         file.LocalEncrypted = true;
                     }

@@ -4,7 +4,7 @@ using Microsoft.Extensions.Options;
 using SqlSugar;
 using Station.Application.IdGenerators;
 using Station.Application.PlatformSync;
-using Station.Application.Security.Abstractions;
+using Station.Application.Security;
 using Station.Contracts;
 using Station.Contracts.Reporting;
 using Station.Domain.Entities;
@@ -27,8 +27,7 @@ public sealed class FileLedgerService : IFileLedgerService
     private readonly CollectOptions _collectOptions;
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly JsonSerializerOptions _json = new(JsonSerializerDefaults.Web);
-    private readonly ICryptoPolicyService _cryptoPolicy;
-    private readonly ICryptoProviderFactory _cryptoFactory;
+    private readonly IFileCryptoService _fileCrypto;
 
     public FileLedgerService(
         IRepository<UploadedFile> ledger,
@@ -40,8 +39,7 @@ public sealed class FileLedgerService : IFileLedgerService
         IOptions<PlatformOptions> platformOptions,
         CollectOptions collectOptions,
         IServiceScopeFactory scopeFactory,
-        ICryptoPolicyService cryptoPolicy,
-        ICryptoProviderFactory cryptoFactory)
+        IFileCryptoService fileCrypto)
     {
         _ledger = ledger;
         _users = users;
@@ -52,8 +50,7 @@ public sealed class FileLedgerService : IFileLedgerService
         _platformOptions = platformOptions.Value;
         _collectOptions = collectOptions;
         _scopeFactory = scopeFactory;
-        _cryptoPolicy = cryptoPolicy;
-        _cryptoFactory = cryptoFactory;
+        _fileCrypto = fileCrypto;
     }
 
     public async Task<int> ProcessCompletedTaskAsync(long taskId)
@@ -75,8 +72,6 @@ public sealed class FileLedgerService : IFileLedgerService
 
         var user = task.OperatorUserId is null ? null : await _users.GetByIdAsync(task.OperatorUserId.Value);
         var dept = task.DeptId is null ? null : await _depts.GetByIdAsync(task.DeptId.Value);
-
-        var p = _cryptoPolicy.GetAsync(CryptoUsage.FileSig);
 
         foreach (var file in files)
         {
