@@ -6,6 +6,7 @@ using Station.Application.PlatformSync;
 using Station.Application.Security;
 using Station.Application.Storage;
 using Station.Application.UsbPortCard.Events;
+using Station.Crypto;
 using Station.Data.IdGeneration;
 using Station.Data.Paging;
 using Station.Data.Repositories;

@@ -1,4 +1,4 @@
-namespace Station.Crypto.Abstractions;
+namespace Station.Crypto;
 
 /// <summary>密码哈希算法抽象。所有实现无状态、线程安全。</summary>
 public interface IPasswordHasher

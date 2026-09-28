@@ -1,4 +1,4 @@
-using Station.Crypto.KeyGen;
+using Station.Crypto.Engine.KeyGen;
 using Station.Tools.Core.Models;
 
 namespace Station.Tools.Core.Keys;

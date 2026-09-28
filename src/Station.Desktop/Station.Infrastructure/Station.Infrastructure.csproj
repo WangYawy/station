@@ -22,6 +22,7 @@
     </ItemGroup>
 
     <ItemGroup>
+        <ProjectReference Include="..\..\Station.Shared\Station.Crypto.Engine\Station.Crypto.Engine.csproj" />
         <ProjectReference Include="..\..\Station.Shared\Station.Crypto\Station.Crypto.csproj" />
         <ProjectReference Include="..\..\Station.Shared\Station.Data.SqlSugar\Station.Data.SqlSugar.csproj" />
         <ProjectReference Include="..\..\Station.Shared\Station.Data\Station.Data.csproj" />

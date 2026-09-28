@@ -5,7 +5,7 @@ using Station.Application.Collecting;
 using Station.Application.Security;
 using Station.Contracts;
 using Station.Domain.Collecting;
-using Station.Domain.Security;
+using Station.Crypto;
 
 namespace Station.Application.Recorders;
 

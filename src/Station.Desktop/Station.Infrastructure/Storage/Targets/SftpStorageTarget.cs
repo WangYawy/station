@@ -4,7 +4,7 @@ using Renci.SshNet;
 using Renci.SshNet.Common;
 using Station.Application.Security;
 using Station.Application.Storage;
-using Station.Domain.Security;
+using Station.Crypto;
 using Station.Infrastructure.Storage.Pool;
 
 namespace Station.Infrastructure.Storage;

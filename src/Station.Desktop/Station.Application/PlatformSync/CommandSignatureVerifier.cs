@@ -2,7 +2,7 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.Options;
 using Station.Application.Security;
 using Station.Contracts.Commands;
-using Station.Domain.Security;
+using Station.Crypto;
 
 namespace Station.Application.PlatformSync;
 

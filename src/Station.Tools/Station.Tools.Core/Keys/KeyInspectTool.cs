@@ -1,6 +1,6 @@
 using System.Text;
-using Station.Crypto.Pem;
-using Station.Crypto.Providers.Hashers;
+using Station.Crypto.Engine.Hashers;
+using Station.Crypto.Engine.Pem;
 using Station.Tools.Core.Models;
 
 namespace Station.Tools.Core.Keys;
@@ -8,7 +8,6 @@ namespace Station.Tools.Core.Keys;
 /// <summary>密钥检查工具。</summary>
 public static class KeyInspectTool
 {
-    /// <summary>检查 PEM 密钥信息。</summary>
     public static ToolResult<KeyInfo> Inspect(string pem)
     {
         try
@@ -23,7 +22,6 @@ public static class KeyInspectTool
         }
     }
 
-    /// <summary>计算密钥的 SM3 指纹（Base64）。</summary>
     public static ToolResult<string> Fingerprint(string pem)
     {
         try
@@ -38,9 +36,7 @@ public static class KeyInspectTool
 
     private static string ComputeFingerprint(string pem)
     {
-        // 去掉头尾空格和换行，得到规范内容
         var canonical = pem.Trim();
-        var hasher = new Sm3Hasher();
-        return hasher.ComputeHash(Encoding.UTF8.GetBytes(canonical));
+        return new Sm3Hasher().ComputeHash(Encoding.UTF8.GetBytes(canonical));
     }
 }

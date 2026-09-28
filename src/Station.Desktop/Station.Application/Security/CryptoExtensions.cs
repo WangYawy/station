@@ -1,13 +1,13 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
-using Station.Domain.Security;
+using Station.Crypto;
 
 namespace Station.Application.Security;
 
 /// <summary>
 /// 敏感配置字段加解密扩展方法。
-/// 
-/// 【AAD 约定】固定为 "{group}.{key}"，防止密文跨字段替换。
+///
+/// 【AAD 约定】由 <see cref="CryptoAad.BuildFieldAad"/> 统一派生，防止密文跨字段替换。
 /// 【密文格式】v{版本}:base64(...)，支持历史明文兼容。
 /// </summary>
 public static class CryptoExtensions
@@ -44,9 +44,11 @@ public static class CryptoExtensions
 
         try
         {
-            var encryptor = await policy.GetEncryptorAsync(CryptoUsage.SecretField, ct)
+            var encryptor = await policy
+                .GetEncryptorAsync(CryptoUsage.SecretField, ct)
                 .ConfigureAwait(false);
-            var cipher = encryptor.Encrypt(plaintext, BuildAad(group, key));
+            var aad = CryptoAad.BuildFieldAad(group, key);
+            var cipher = encryptor.Encrypt(plaintext, aad);
             log.LogDebug("已加密敏感字段 {Group}.{Key}", group, key);
             return cipher;
         }
@@ -59,7 +61,7 @@ public static class CryptoExtensions
 
     /// <summary>
     /// 解密敏感字段（尽力而为，不抛异常）。
-    /// 
+    ///
     /// 行为：
     ///   - null/空 → 原样返回；
     ///   - 非密文 → 原样返回 + WARN；
@@ -91,9 +93,11 @@ public static class CryptoExtensions
 
         try
         {
-            var encryptor = await policy.GetEncryptorAsync(CryptoUsage.SecretField, ct)
+            var encryptor = await policy
+                .GetEncryptorAsync(CryptoUsage.SecretField, ct)
                 .ConfigureAwait(false);
-            return encryptor.Decrypt(cipher, BuildAad(group, key));
+            var aad = CryptoAad.BuildFieldAad(group, key);
+            return encryptor.Decrypt(cipher, aad);
         }
         catch (Exception ex)
         {
@@ -101,6 +105,4 @@ public static class CryptoExtensions
             return null;
         }
     }
-
-    private static string BuildAad(string group, string key) => $"{group}.{key}";
 }

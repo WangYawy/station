@@ -3,9 +3,9 @@ using Microsoft.Extensions.Options;
 using Station.Application.Diagnostics;
 using Station.Application.Licensing;
 using Station.Application.Security;
-using Station.Application.Services;
 using Station.Application.Storage;
-using Station.Domain.Security;
+using Station.Data.Abstractions;
+using Station.Crypto;
 using Station.Infrastructure.Security.Keys;
 
 namespace Station.Infrastructure.Diagnostics;
@@ -15,7 +15,7 @@ namespace Station.Infrastructure.Diagnostics;
 /// 
 /// 检查项：
 ///   1) 数据库连接
-///   2) 加密策略表可读 + 7 个用途齐全
+///   2) 加密策略表可读
 ///   3) 主密钥来源（文件 / 环境变量）
 ///   4) 主密钥加解密往返
 ///   5) 授权公钥文件
@@ -23,7 +23,7 @@ namespace Station.Infrastructure.Diagnostics;
 /// </summary>
 public sealed class StartupSelfCheckService : IStartupSelfCheckService
 {
-    /// <summary>必须存在的加密用途（新架构 7 个）。</summary>
+    /// <summary>必须存在的加密用途。</summary>
     private static readonly string[] RequiredUsages =
     {
         CryptoUsage.Password,

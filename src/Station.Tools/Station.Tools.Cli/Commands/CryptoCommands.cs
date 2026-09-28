@@ -1,8 +1,6 @@
-using System.Text.Json;
 using Spectre.Console;
 using Spectre.Console.Cli;
-using Station.Crypto.Formats;
-using Station.Crypto.KeyGen;
+using Station.Crypto.Engine.Keys;
 using Station.Tools.Cli.Commands.Shared;
 using Station.Tools.Core.Crypto;
 
@@ -64,7 +62,7 @@ public sealed class CryptoEncryptCommand : AsyncCommand<CryptoEncryptCommand.Set
             return 1;
         }
 
-        var keyFile = MasterKeyFile.FromJson(await File.ReadAllTextAsync(settings.MasterKeyFile));
+        var keyFile = MasterKeyFileDto.FromJson(await File.ReadAllTextAsync(settings.MasterKeyFile));
         var result = EncryptTool.Encrypt(settings.Text, keyFile, settings.Algorithm, settings.Aad);
 
         if (!result.Success)
@@ -103,7 +101,7 @@ public sealed class CryptoDecryptCommand : AsyncCommand<CryptoDecryptCommand.Set
             return 1;
         }
 
-        var keyFile = MasterKeyFile.FromJson(await File.ReadAllTextAsync(settings.MasterKeyFile));
+        var keyFile = MasterKeyFileDto.FromJson(await File.ReadAllTextAsync(settings.MasterKeyFile));
         var result = EncryptTool.Decrypt(cipher, keyFile, settings.Algorithm, settings.Aad);
 
         if (!result.Success)
@@ -216,16 +214,19 @@ public sealed class StfeEncryptCommand : AsyncCommand<StfeEncryptCommand.Setting
     public override async Task<int> ExecuteAsync(CommandContext context, Settings settings)
     {
         if (string.IsNullOrEmpty(settings.Input) || !File.Exists(settings.Input) ||
-            string.IsNullOrEmpty(settings.MasterKeyFile))
+            string.IsNullOrEmpty(settings.MasterKeyFile) || !File.Exists(settings.MasterKeyFile))
         {
             IoHelpers.ShowError("NO_INPUT", "需要 -i 和 --master");
             return 1;
         }
 
         var output = settings.Output ?? settings.Input + ".stfe";
-        var keyFile = MasterKeyFile.FromJson(await File.ReadAllTextAsync(settings.MasterKeyFile));
+        var dto = Station.Crypto.Engine.Keys.MasterKeyFileDto.FromJson(
+            await File.ReadAllTextAsync(settings.MasterKeyFile));
 
-        var result = await StfeFileTool.EncryptAsync(settings.Input, output, keyFile, settings.Algorithm);
+        var result = await StfeFileTool.EncryptAsync(
+            settings.Input, output, dto, settings.Algorithm);
+
         if (!result.Success)
         {
             IoHelpers.ShowError(result.ErrorCode, result.ErrorMessage);
@@ -245,22 +246,23 @@ public sealed class StfeDecryptCommand : AsyncCommand<StfeDecryptCommand.Setting
     {
         [CommandOption("-i|--in <PATH>")] public string? Input { get; init; }
         [CommandOption("-m|--master <PATH>")] public string? MasterKeyFile { get; init; }
-        [CommandOption("-a|--algo <ALGO>")] public string Algorithm { get; init; } = "SM4-GCM";
     }
 
     public override async Task<int> ExecuteAsync(CommandContext context, Settings settings)
     {
         if (string.IsNullOrEmpty(settings.Input) || !File.Exists(settings.Input) ||
-            string.IsNullOrEmpty(settings.MasterKeyFile))
+            string.IsNullOrEmpty(settings.MasterKeyFile) || !File.Exists(settings.MasterKeyFile))
         {
             IoHelpers.ShowError("NO_INPUT", "需要 -i 和 --master");
             return 1;
         }
 
         var output = settings.Output ?? settings.Input.Replace(".stfe", "");
-        var keyFile = MasterKeyFile.FromJson(await File.ReadAllTextAsync(settings.MasterKeyFile));
+        var dto = Station.Crypto.Engine.Keys.MasterKeyFileDto.FromJson(
+            await File.ReadAllTextAsync(settings.MasterKeyFile));
 
-        var result = await StfeFileTool.DecryptAsync(settings.Input, output, keyFile, settings.Algorithm);
+        var result = await StfeFileTool.DecryptAsync(settings.Input, output, dto);
+
         if (!result.Success)
         {
             IoHelpers.ShowError(result.ErrorCode, result.ErrorMessage);

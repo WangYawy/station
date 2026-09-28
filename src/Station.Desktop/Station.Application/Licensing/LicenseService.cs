@@ -126,23 +126,13 @@ public sealed class LicenseService : ILicenseService
         if (string.IsNullOrWhiteSpace(licenseFileText))
             return (false, "授权文件内容为空");
 
-        // ---- 1) 解析文件结构（快速失败，避免后续无意义处理）----
-        LicenseFile file;
-        try
-        {
-            file = LicenseFileCodec.Parse(licenseFileText);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "授权文件解析失败");
-            return (false, $"授权文件无效：{ex.Message}");
-        }
-
-        // ---- 2) 走 ILicenseCryptoService 完成验签 + 解密 + 站点/指纹/到期校验 ----
+        // 1) 拿本机指纹（用于交叉校验）
         var currentFingerprint = _fingerprint.CollectFingerprint();
+
+        // 2) 走门面完成验签 + 业务校验
         var validation = await _licenseCrypto.ValidateLicenseAsync(
             licenseFileText,
-            expectedStationCode: file.StationCode,       // 用文件里声明的站点号做交叉验证
+            expectedStationCode: null,       // 站点编号由内部 payload 校验；此处不再先 Parse
             expectedFingerprint: currentFingerprint);
 
         if (!validation.Valid)
@@ -153,12 +143,12 @@ public sealed class LicenseService : ILicenseService
 
         var payload = validation.Payload!;
 
-        // ---- 3) 停用旧授权（一机只认最新）----
+        // 3) 停用旧授权
         var actives = await _licenses.GetListAsync(l => l.IsActive);
         foreach (var existing in actives) existing.IsActive = false;
         if (actives.Count > 0) await _licenses.UpdateRangeAsync(actives);
 
-        // ---- 4) 落库（PayloadEnc 用 secret_field 策略加密）----
+        // 4) 落库（PayloadEnc 用 secret_field 策略加密）
         var protectedText = await _licenseCrypto.EncryptLicenseTextAsync(licenseFileText);
 
         await _licenses.InsertAsync(new LicenseInfo
@@ -176,25 +166,23 @@ public sealed class LicenseService : ILicenseService
             IsActive = true
         });
 
-        // ---- 5) 审计 ----
+        // 5) 审计
         await _audit.WriteAsync(new AuditLog
         {
             OperationType = "LicenseActivate",
             Target = "license",
             Detail = $"{{\"key\":\"{payload.LicenseKey}\"," +
-                     $"\"expires\":\"{payload.ExpiresAt:yyyy-MM-dd}\"," +
-                     $"\"algo\":\"{file.Algo}\"}}",
+                     $"\"expires\":\"{payload.ExpiresAt:yyyy-MM-dd}\"}}",
             Result = 1,
             CreatedAt = DateTime.UtcNow,
+            SourceIp = "",
             SourceClient = "Desktop"
         });
 
         _logger.LogInformation("授权激活成功：{Key}（至 {ExpiresAt:yyyy-MM-dd}）",
             payload.LicenseKey, payload.ExpiresAt);
 
-        // 通知订阅者（如 UI 刷新状态）
         LicenseChanged?.Invoke(this, await CheckAsync());
-
         return (true, "激活成功");
     }
 }

@@ -1,5 +1,7 @@
+using Station.Crypto;
+using Station.Crypto.Engine.Formats;
+using Station.Crypto.Engine.Keys;
 using Station.Crypto.Formats;
-using Station.Crypto.KeyGen;
 using Station.Tools.Core.Models;
 
 namespace Station.Tools.Core.Crypto;
@@ -10,9 +12,9 @@ public static class StfeFileTool
     public static async Task<ToolResult<long>> EncryptAsync(
         string inputPath,
         string outputPath,
-        MasterKeyFile keyFile,
+        MasterKeyFileDto keyFile,
         string algorithm,
-        int chunkSize = StfeFileEncryptor.DefaultChunkSize,
+        int chunkSize = StfeFormat.DefaultChunkSize,
         CancellationToken ct = default)
     {
         try
@@ -20,9 +22,12 @@ public static class StfeFileTool
             if (!File.Exists(inputPath))
                 return ToolResult<long>.Fail("FILE_NOT_FOUND", $"输入文件不存在：{inputPath}");
 
-            var key = keyFile.GetKey(keyFile.Current);
+            var version = keyFile.Current;
+            var fileKey = Station.Crypto.Engine.Kdf.HkdfSm3.Derive(
+                keyFile.GetKey(version), HkdfInfo.FileEncryption, 32);
+
             var size = await StfeFileEncryptor.EncryptAsync(
-                inputPath, outputPath, key, keyFile.Current, algorithm, chunkSize, ct);
+                inputPath, outputPath, fileKey, version, algorithm, chunkSize, ct);
 
             return ToolResult<long>.Ok(size);
         }
@@ -35,8 +40,7 @@ public static class StfeFileTool
     public static async Task<ToolResult<long>> DecryptAsync(
         string inputPath,
         string outputPath,
-        MasterKeyFile keyFile,
-        string algorithm,
+        MasterKeyFileDto keyFile,
         CancellationToken ct = default)
     {
         try
@@ -45,7 +49,7 @@ public static class StfeFileTool
                 return ToolResult<long>.Fail("FILE_NOT_FOUND", $"输入文件不存在：{inputPath}");
 
             var size = await StfeFileEncryptor.DecryptAsync(
-                inputPath, outputPath, keyFile.GetKey, algorithm, ct);
+                inputPath, outputPath, keyFile.GetKey, algorithm: string.Empty, ct);
 
             return ToolResult<long>.Ok(size);
         }
@@ -53,6 +57,17 @@ public static class StfeFileTool
         {
             return ToolResult<long>.Fail("DECRYPT_FAIL", ex.Message);
         }
+    }
+
+    /// <summary>获取文件明文的流式解密（上传场景）。</summary>
+    public static IAsyncEnumerable<ReadOnlyMemory<byte>> DecryptChunksAsync(
+        string inputPath,
+        MasterKeyFileDto keyFile,
+        CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(keyFile);
+        var provider = new DtoMasterKeyProvider(keyFile);
+        return StfeAsyncChunks.DecryptChunksAsync(inputPath, provider, ct);
     }
 
     public static ToolResult<StfeHeader> Inspect(string filePath)

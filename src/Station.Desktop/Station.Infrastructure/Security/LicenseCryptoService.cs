@@ -4,17 +4,17 @@ using Microsoft.Extensions.Options;
 using Station.Application.Licensing;
 using Station.Application.PlatformSync;
 using Station.Application.Security;
-using Station.Domain.Security;
-using Station.Infrastructure.Security.Internal;
+using Station.Crypto;
+using Station.Crypto.Engine.Licensing;
 using Station.Infrastructure.Security.Keys;
 
 namespace Station.Infrastructure.Security;
 
-/// <summary>授权加密服务实现。</summary>
+/// <summary>授权加密服务实现（只签名不加密）。</summary>
 public sealed class LicenseCryptoService : ILicenseCryptoService
 {
     private readonly ICryptoPolicyService _policy;
-    private readonly MasterKeyProvider _keys;
+    private readonly ICryptoAlgorithmRegistry _registry;
     private readonly PemKeyCache _keyCache;
     private readonly LicenseOptions _licenseOptions;
     private readonly ReportingOptions _reportingOptions;
@@ -22,14 +22,14 @@ public sealed class LicenseCryptoService : ILicenseCryptoService
 
     public LicenseCryptoService(
         ICryptoPolicyService policy,
-        MasterKeyProvider keys,
+        ICryptoAlgorithmRegistry registry,
         PemKeyCache keyCache,
         IOptions<LicenseOptions> licenseOptions,
         IOptions<ReportingOptions> reportingOptions,
         ILogger<LicenseCryptoService> logger)
     {
         _policy = policy;
-        _keys = keys;
+        _registry = registry;
         _keyCache = keyCache;
         _licenseOptions = licenseOptions.Value;
         _reportingOptions = reportingOptions.Value;
@@ -37,14 +37,12 @@ public sealed class LicenseCryptoService : ILicenseCryptoService
     }
 
     // =========================================================
-    // 授权文件生成
+    // 授权文件生成（薄壳，核心逻辑在 LicenseEngine）
     // =========================================================
 
     public async Task<string> GenerateLicenseAsync(
         LicensePayload payload, CancellationToken ct = default)
     {
-        var policy = await _policy.GetAsync(CryptoUsage.License, ct).ConfigureAwait(false);
-        var encryptor = await _policy.GetEncryptorAsync(CryptoUsage.License, ct).ConfigureAwait(false);
         var signer = await _policy.GetSignerAsync(CryptoUsage.License, ct).ConfigureAwait(false);
 
         var privateKeyPem = await _keyCache.GetAsync(_licenseOptions.PrivateKeyFile, ct)
@@ -53,22 +51,16 @@ public sealed class LicenseCryptoService : ILicenseCryptoService
             throw new InvalidOperationException(
                 $"未配置授权签名私钥：{_licenseOptions.PrivateKeyFile}");
 
-        // 1) canonical → 2) SM4 加密 → 3) SM2 签名
-        var canonical = LicenseFileCodec.CanonicalPayload(payload);
-        var cipher = encryptor.Encrypt(canonical, "license.payload");
-        var signAlgo = policy.SecondaryAlgorithm ?? policy.Algorithm;
-        var signature = signer.Sign(Encoding.UTF8.GetBytes(cipher), privateKeyPem);
+        var json = LicenseEngine.Build(payload, privateKeyPem, signer);
 
-        var file = new LicenseFile(
-            payload.LicenseKey, payload.ProductCode, payload.StationCode,
-            payload.Fingerprint, payload.IssuedAt, payload.ExpiresAt,
-            cipher, $"{policy.Algorithm}+{signAlgo}", signature);
+        _logger.LogInformation("授权文件已生成：{Key}（算法 {Algo}）",
+            payload.LicenseKey, signer.Algorithm);
 
-        return LicenseFileCodec.Serialize(file);
+        return json;
     }
 
     // =========================================================
-    // 授权文件验证
+    // 授权文件验证（薄壳，核心逻辑在 LicenseEngine）
     // =========================================================
 
     public async Task<LicenseValidateResult> ValidateLicenseAsync(
@@ -77,73 +69,39 @@ public sealed class LicenseCryptoService : ILicenseCryptoService
         string? expectedFingerprint = null,
         CancellationToken ct = default)
     {
-        LicenseFile file;
-        try { file = LicenseFileCodec.Parse(licenseJson); }
-        catch (Exception ex) { return new LicenseValidateResult(false, $"授权文件无效：{ex.Message}", null); }
-
-        // 1) 验签
         var publicKeyPem = await _keyCache.GetAsync(_licenseOptions.PublicKeyFile, ct)
             .ConfigureAwait(false);
         if (string.IsNullOrWhiteSpace(publicKeyPem))
             return new LicenseValidateResult(false, "未配置授权公钥", null);
 
-        var (encryptAlgo, signAlgo) = ParseAlgoTag(
-            file.Algo, _licenseOptions.EncryptAlgorithm, _licenseOptions.SignAlgorithm);
+        var result = LicenseEngine.Validate(
+            licenseJson,
+            publicKeyPem,
+            _registry.GetSigner,
+            expectedStationCode,
+            expectedFingerprint);
 
-        var signer = AlgorithmResolver.ResolveSigner(signAlgo);
-        if (!signer.Verify(Encoding.UTF8.GetBytes(file.PayloadCipher), file.Signature, publicKeyPem))
-            return new LicenseValidateResult(false, "授权签名无效", null);
-
-        // 2) 解密
-        LicensePayload payload;
-        try
+        if (result.Valid)
         {
-            var encryptor = await _policy.GetEncryptorAsync(CryptoUsage.License, ct)
-                .ConfigureAwait(false);
-            var plain = encryptor.Decrypt(file.PayloadCipher, "license.payload");
-            payload = LicenseFileCodec.ParsePayload(plain);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "授权解密失败");
-            return new LicenseValidateResult(false, "授权解密失败", null);
+            _logger.LogInformation("授权校验通过：{Key}（到期 {Expires:yyyy-MM-dd}）",
+                result.Payload?.LicenseKey, result.Payload?.ExpiresAt);
         }
 
-        // 3) 业务校验
-        if (!string.IsNullOrEmpty(expectedStationCode)
-            && !string.Equals(payload.StationCode, expectedStationCode, StringComparison.OrdinalIgnoreCase))
-            return new LicenseValidateResult(false, "站点编号不匹配", payload);
-
-        if (!string.IsNullOrEmpty(expectedFingerprint)
-            && !string.Equals(payload.Fingerprint, expectedFingerprint, StringComparison.OrdinalIgnoreCase))
-            return new LicenseValidateResult(false, "硬件指纹不匹配", payload);
-
-        if (payload.ExpiresAt < DateTime.UtcNow)
-            return new LicenseValidateResult(false, "授权已过期", payload);
-
-        return new LicenseValidateResult(true, "授权有效", payload);
-    }
-
-    public async Task<LicensePayload?> InspectLicenseAsync(
-        string licenseJson, CancellationToken ct = default)
-    {
-        try
-        {
-            var file = LicenseFileCodec.Parse(licenseJson);
-            var encryptor = await _policy.GetEncryptorAsync(CryptoUsage.License, ct)
-                .ConfigureAwait(false);
-            var plain = encryptor.Decrypt(file.PayloadCipher, "license.payload");
-            return LicenseFileCodec.ParsePayload(plain);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "授权查看失败");
-            return null;
-        }
+        return result;
     }
 
     // =========================================================
-    // 上报签名
+    // 授权文件查看（薄壳）
+    // =========================================================
+
+    public Task<LicensePayload?> InspectLicenseAsync(
+        string licenseJson, CancellationToken ct = default)
+    {
+        return Task.FromResult(LicenseEngine.Inspect(licenseJson));
+    }
+
+    // =========================================================
+    // 上报签名（不变）
     // =========================================================
 
     public async Task<(string? Signature, string? Algorithm)> SignReportingAsync(
@@ -170,10 +128,16 @@ public sealed class LicenseCryptoService : ILicenseCryptoService
             .ConfigureAwait(false);
         if (string.IsNullOrWhiteSpace(publicKeyPem)) return false;
 
-        var signer = AlgorithmResolver.ResolveSigner(algorithm);
+        var signer = _registry.GetSigner(algorithm);
         return signer.Verify(Encoding.UTF8.GetBytes(canonicalJson), signature, publicKeyPem);
     }
-    public async Task<string> EncryptLicenseTextAsync(string licenseText, CancellationToken ct = default)
+
+    // =========================================================
+    // 落库加密（不变）
+    // =========================================================
+
+    public async Task<string> EncryptLicenseTextAsync(
+        string licenseText, CancellationToken ct = default)
     {
         return await _policy.ProtectSecretAsync(
             group: "license",
@@ -181,18 +145,5 @@ public sealed class LicenseCryptoService : ILicenseCryptoService
             plaintext: licenseText,
             logger: _logger,
             ct).ConfigureAwait(false);
-    }
-    // =========================================================
-    // 内部
-    // =========================================================
-
-    private static (string Encrypt, string Sign) ParseAlgoTag(
-        string? tag, string fallbackEncrypt, string fallbackSign)
-    {
-        if (string.IsNullOrWhiteSpace(tag)) return (fallbackEncrypt, fallbackSign);
-
-        var idx = tag.IndexOf('+');
-        if (idx < 0) return (tag.Trim(), fallbackSign);
-        return (tag[..idx].Trim(), tag[(idx + 1)..].Trim());
     }
 }

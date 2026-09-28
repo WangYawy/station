@@ -43,7 +43,7 @@ public static class DependencyInjection
                 .Configure(opts => configureDb?.Invoke(opts))
                 .ValidateOnStart();
         services.AddSingleton(sp => sp.GetRequiredService<IOptions<DbOptions>>().Value);
-
+        // 数据库备份配置
         services.AddOptions<BackupOptions>()
                 .Bind(configuration.GetSection(BackupOptions.SectionName))
                 .ValidateOnStart();

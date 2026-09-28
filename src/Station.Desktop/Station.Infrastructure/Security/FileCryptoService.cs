@@ -1,10 +1,10 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using Station.Application.Licensing;
 using Station.Application.PlatformSync;
 using Station.Application.Security;
+using Station.Crypto;
+using Station.Crypto.Engine.Formats;
 using Station.Crypto.Formats;
-using Station.Domain.Security;
 using Station.Infrastructure.Security.Keys;
 
 namespace Station.Infrastructure.Security;
@@ -13,20 +13,23 @@ namespace Station.Infrastructure.Security;
 public sealed class FileCryptoService : IFileCryptoService
 {
     private readonly ICryptoPolicyService _policy;
-    private readonly MasterKeyProvider _keys;
+    private readonly IMasterKeyProvider _keys;
+    private readonly ICryptoAlgorithmRegistry _registry;
     private readonly PemKeyCache _keyCache;
     private readonly ReportingOptions _reportingOptions;
     private readonly ILogger<FileCryptoService> _logger;
 
     public FileCryptoService(
         ICryptoPolicyService policy,
-        MasterKeyProvider keys,
+        IMasterKeyProvider keys,
+        ICryptoAlgorithmRegistry registry,
         PemKeyCache keyCache,
         IOptions<ReportingOptions> reportingOptions,
         ILogger<FileCryptoService> logger)
     {
         _policy = policy;
         _keys = keys;
+        _registry = registry;
         _keyCache = keyCache;
         _reportingOptions = reportingOptions.Value;
         _logger = logger;
@@ -74,8 +77,7 @@ public sealed class FileCryptoService : IFileCryptoService
             .ConfigureAwait(false);
         if (string.IsNullOrWhiteSpace(publicKeyPem)) return false;
 
-        var signer = Station.Infrastructure.Security.Internal.AlgorithmResolver
-            .ResolveSigner(algorithm);
+        var signer = _registry.GetSigner(algorithm);
         var canonical = FileMetadataCodec.Canonical(metadata);
         return signer.Verify(
             System.Text.Encoding.UTF8.GetBytes(canonical), signature, publicKeyPem);
@@ -86,10 +88,9 @@ public sealed class FileCryptoService : IFileCryptoService
     {
         var policy = await _policy.GetAsync(CryptoUsage.FileEncryption, ct).ConfigureAwait(false);
         var keyVersion = _keys.CurrentVersion;
-        var fileKey = _keys.DeriveFileEncryptionKey(keyVersion);
 
         return await StfeFileEncryptor.EncryptAsync(
-            sourcePath, targetPath, fileKey, keyVersion, policy.Algorithm,
+            sourcePath, targetPath, _keys, policy.Algorithm,
             StfeFormat.DefaultChunkSize, ct).ConfigureAwait(false);
     }
 
@@ -114,31 +115,17 @@ public sealed class FileCryptoService : IFileCryptoService
         }
     }
 
-    public Stream CreateDecryptStream(string encryptedFilePath)
+    public Stream OpenDecryptStream(string encryptedFilePath)
     {
-        var header = StfeFileEncryptor.TryReadHeader(encryptedFilePath)
-            ?? throw new InvalidDataException($"不是有效的 STFE 文件：{encryptedFilePath}");
+        ArgumentException.ThrowIfNullOrWhiteSpace(encryptedFilePath);
+        return StfeDecryptStream.Open(encryptedFilePath, _keys);
+    }
 
-        var fileKey = _keys.DeriveFileEncryptionKey(header.KeyVersion);
-
-        // 用临时文件解密，随流关闭自动删除
-        var tempPath = Path.Combine(Path.GetTempPath(), $"stfe-{Guid.NewGuid():N}.tmp");
-        try
-        {
-            StfeFileEncryptor.DecryptAsync(
-                encryptedFilePath, tempPath, _ => fileKey, header.AlgorithmName)
-                .GetAwaiter().GetResult();
-
-            return new FileStream(
-                tempPath, FileMode.Open, FileAccess.Read, FileShare.Read,
-                bufferSize: 81920,
-                FileOptions.DeleteOnClose | FileOptions.SequentialScan);
-        }
-        catch
-        {
-            try { File.Delete(tempPath); } catch { }
-            throw;
-        }
+    public IAsyncEnumerable<ReadOnlyMemory<byte>> DecryptChunksAsync(
+        string encryptedFilePath, CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(encryptedFilePath);
+        return StfeAsyncChunks.DecryptChunksAsync(encryptedFilePath, _keys, ct);
     }
 
     public bool IsEncrypted(string filePath) => StfeFileEncryptor.IsStfe(filePath);

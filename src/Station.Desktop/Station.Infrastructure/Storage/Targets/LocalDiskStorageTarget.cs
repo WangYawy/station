@@ -2,7 +2,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Station.Application.Security;
 using Station.Application.Storage;
-using Station.Domain.Security;
+using Station.Crypto;
 
 namespace Station.Infrastructure.Storage;
 

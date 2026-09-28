@@ -4,11 +4,8 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using SqlSugar;
 using Station.Application.Security;
-using Station.Crypto.Abstractions;
+using Station.Crypto;
 using Station.Domain.Entities;
-using Station.Domain.Security;
-using Station.Infrastructure.Security.Internal;
-using Station.Infrastructure.Security.Keys;
 using Station.Infrastructure.Settings;
 
 namespace Station.Infrastructure.Security;
@@ -23,7 +20,8 @@ public sealed class CryptoPolicyService : ICryptoPolicyService
 
     private readonly ISqlSugarClient _db;
     private readonly IMemoryCache _cache;
-    private readonly MasterKeyProvider _keys;
+    private readonly IMasterKeyProvider _keys;
+    private readonly ICryptoAlgorithmRegistry _registry;
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<CryptoPolicyService> _logger;
 
@@ -32,13 +30,15 @@ public sealed class CryptoPolicyService : ICryptoPolicyService
     public CryptoPolicyService(
         ISqlSugarClient db,
         IMemoryCache cache,
-        MasterKeyProvider keys,
+        IMasterKeyProvider keys,
+        ICryptoAlgorithmRegistry registry,
         IServiceProvider serviceProvider,
         ILogger<CryptoPolicyService> logger)
     {
         _db = db;
         _cache = cache;
         _keys = keys;
+        _registry = registry;
         _serviceProvider = serviceProvider;
         _logger = logger;
     }
@@ -78,7 +78,6 @@ public sealed class CryptoPolicyService : ICryptoPolicyService
             result.Add(snap);
         }
 
-        // 补齐默认
         foreach (var (usage, _) in CryptoDefaults.Primary)
         {
             if (result.All(r => !string.Equals(r.UsageCode, usage, StringComparison.OrdinalIgnoreCase)))
@@ -162,7 +161,6 @@ public sealed class CryptoPolicyService : ICryptoPolicyService
         var oldVersion = _keys.CurrentVersion;
         var newVersion = await _keys.RotateAsync(ct).ConfigureAwait(false);
 
-        // 延迟解析 ISettingStore，避免循环依赖
         using var scope = _serviceProvider.CreateScope();
         var settingStore = scope.ServiceProvider.GetRequiredService<ISettingStore>();
 
@@ -175,12 +173,10 @@ public sealed class CryptoPolicyService : ICryptoPolicyService
         {
             try
             {
-                // 用旧密钥解密密文（Encryptor 按密文版本自动路由）
                 var plain = await settingStore.GetRawAsync(row.GroupKey, row.SubKey, ct)
                     .ConfigureAwait(false);
                 if (plain is null) { fail++; continue; }
 
-                // 用新密钥重新加密
                 await settingStore.SetRawAsync(
                     row.GroupKey, row.SubKey, plain, secret: true, operatorAccount, ct)
                     .ConfigureAwait(false);
@@ -207,39 +203,37 @@ public sealed class CryptoPolicyService : ICryptoPolicyService
     public async Task<IPasswordHasher> GetPasswordHasherAsync(CancellationToken ct = default)
     {
         var policy = await GetAsync(CryptoUsage.Password, ct).ConfigureAwait(false);
-        return AlgorithmResolver.ResolvePasswordHasher(policy.Algorithm);
+        return _registry.GetPasswordHasher(policy.Algorithm);
     }
 
     public async Task<ISigner> GetSignerAsync(string usageCode, CancellationToken ct = default)
     {
         var policy = await GetAsync(usageCode, ct).ConfigureAwait(false);
         var algo = policy.SecondaryAlgorithm ?? policy.Algorithm;
-        return AlgorithmResolver.ResolveSigner(algo);
+        return _registry.GetSigner(algo);
     }
 
     public async Task<IEncryptor> GetEncryptorAsync(string usageCode, CancellationToken ct = default)
     {
         var policy = await GetAsync(usageCode, ct).ConfigureAwait(false);
-        return AlgorithmResolver.ResolveEncryptor(policy.Algorithm, _keys);
+        return _registry.GetEncryptor(policy.Algorithm, _keys);
     }
 
     public async Task<IHasher> GetHasherAsync(string usageCode, CancellationToken ct = default)
     {
         var policy = await GetAsync(usageCode, ct).ConfigureAwait(false);
-        return AlgorithmResolver.ResolveHasher(policy.Algorithm);
+        return _registry.GetHasher(policy.Algorithm);
     }
 
     public async Task<IMacProvider> GetMacProviderAsync(string usageCode, CancellationToken ct = default)
     {
         var policy = await GetAsync(usageCode, ct).ConfigureAwait(false);
-        return AlgorithmResolver.ResolveMac(policy.Algorithm);
+        return _registry.GetMacProvider(policy.Algorithm);
     }
-
     #endregion
 
     public Task<byte[]> GetBindingMacKeyAsync(CancellationToken ct = default)
     {
-        // MasterKeyProvider 内部用 HKDF-SM3 派生，info="station:recorder-binding:v1"
         var key = _keys.DeriveBindingKey();
         return Task.FromResult(key);
     }

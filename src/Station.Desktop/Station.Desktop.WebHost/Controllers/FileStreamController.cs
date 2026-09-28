@@ -2,7 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using Station.Application.Collecting;
 using Station.Domain.Entities;
 using Station.Data.Repositories;
-using Station.Domain.Security;
+using Station.Crypto;
 using System.Text.RegularExpressions;
 
 namespace Station.Desktop.WebHost.Controllers;

@@ -27,6 +27,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Station.Data", "..\Station.
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Station.Data.SqlSugar", "..\Station.Shared\Station.Data.SqlSugar\Station.Data.SqlSugar.csproj", "{6D4E5D9B-2BD2-42F2-B62C-577994E1CE9D}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Station.Crypto.Engine", "..\Station.Shared\Station.Crypto.Engine\Station.Crypto.Engine.csproj", "{6A621EB5-4A39-4E40-BFAE-6C2B17B97FC2}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -145,6 +147,18 @@ Global
 		{6D4E5D9B-2BD2-42F2-B62C-577994E1CE9D}.Release|x64.Build.0 = Release|Any CPU
 		{6D4E5D9B-2BD2-42F2-B62C-577994E1CE9D}.Release|x86.ActiveCfg = Release|Any CPU
 		{6D4E5D9B-2BD2-42F2-B62C-577994E1CE9D}.Release|x86.Build.0 = Release|Any CPU
+		{6A621EB5-4A39-4E40-BFAE-6C2B17B97FC2}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6A621EB5-4A39-4E40-BFAE-6C2B17B97FC2}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6A621EB5-4A39-4E40-BFAE-6C2B17B97FC2}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{6A621EB5-4A39-4E40-BFAE-6C2B17B97FC2}.Debug|x64.Build.0 = Debug|Any CPU
+		{6A621EB5-4A39-4E40-BFAE-6C2B17B97FC2}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{6A621EB5-4A39-4E40-BFAE-6C2B17B97FC2}.Debug|x86.Build.0 = Debug|Any CPU
+		{6A621EB5-4A39-4E40-BFAE-6C2B17B97FC2}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6A621EB5-4A39-4E40-BFAE-6C2B17B97FC2}.Release|Any CPU.Build.0 = Release|Any CPU
+		{6A621EB5-4A39-4E40-BFAE-6C2B17B97FC2}.Release|x64.ActiveCfg = Release|Any CPU
+		{6A621EB5-4A39-4E40-BFAE-6C2B17B97FC2}.Release|x64.Build.0 = Release|Any CPU
+		{6A621EB5-4A39-4E40-BFAE-6C2B17B97FC2}.Release|x86.ActiveCfg = Release|Any CPU
+		{6A621EB5-4A39-4E40-BFAE-6C2B17B97FC2}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -161,6 +175,7 @@ Global
 		{19ECC237-56C5-73EA-2FFC-8D08009CD313} = {02EA681E-C7D8-13C7-8484-4AC65E1B71E8}
 		{C752007F-7D8B-428A-B212-036AA792312F} = {1785978C-D7A4-9B83-98F4-66F9C2B5473D}
 		{6D4E5D9B-2BD2-42F2-B62C-577994E1CE9D} = {1785978C-D7A4-9B83-98F4-66F9C2B5473D}
+		{6A621EB5-4A39-4E40-BFAE-6C2B17B97FC2} = {1785978C-D7A4-9B83-98F4-66F9C2B5473D}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {FC3A6582-3A84-4767-AEC7-31BFC29B0960}

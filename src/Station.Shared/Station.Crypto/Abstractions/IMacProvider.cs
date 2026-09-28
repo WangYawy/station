@@ -1,14 +1,14 @@
-namespace Station.Crypto.Abstractions;
+namespace Station.Crypto;
 
 /// <summary>对称消息认证码（MAC）。</summary>
 public interface IMacProvider
 {
-    /// <summary>算法标识。</summary>
+    /// <summary>算法标识（CryptoAlgorithm 常量）。</summary>
     string Algorithm { get; }
 
-    /// <summary>计算 MAC。</summary>
+    /// <summary>计算 MAC，返回 Base64。</summary>
     string Compute(byte[] key, byte[] data);
 
-    /// <summary>验证 MAC（固定时间比较）。</summary>
+    /// <summary>验证 MAC（固定时间比较，防时序攻击）。</summary>
     bool Verify(byte[] key, byte[] data, string macBase64);
 }

@@ -47,7 +47,7 @@ public static class HostBuilderFactory
             {
                 // 应用层服务注册
                 services.AddStationApplication(context.Configuration);
-                // 基础设施在应用服务之后注册：采集源（MTP/UMS/模拟）与根文件存取（绑定文件）以桌面端覆盖为准
+                // 基础设施在应用服务之后注册
                 services.AddStatoinInfrastructure(context.Configuration);
 
                 // 桌面注册

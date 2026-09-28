@@ -1,6 +1,6 @@
 using Spectre.Console;
 using Spectre.Console.Cli;
-using Station.Crypto.KeyGen;
+using Station.Crypto;
 using Station.Tools.Cli.Commands.Shared;
 using Station.Tools.Core.Licensing;
 
@@ -17,21 +17,21 @@ public sealed class LicenseGenerateCommand : AsyncCommand<LicenseGenerateCommand
         [CommandOption("--expires <DATE>")] public string Expires { get; init; } = string.Empty;
         [CommandOption("--product <CODE>")] public string ProductCode { get; init; } = "STATION-DESKTOP-1";
         [CommandOption("-k|--private-key <PATH>")] public string? PrivateKey { get; init; }
-        [CommandOption("-m|--master <PATH>")] public string? MasterKeyFile { get; init; }
+        [CommandOption("-a|--algo <ALGO>")] public string Algorithm { get; init; } = CryptoAlgorithm.Sm2Sm3;
     }
 
     public override async Task<int> ExecuteAsync(CommandContext context, Settings settings)
     {
-        if (string.IsNullOrEmpty(settings.PrivateKey) || !File.Exists(settings.PrivateKey) ||
-            string.IsNullOrEmpty(settings.MasterKeyFile) || !File.Exists(settings.MasterKeyFile))
+        if (string.IsNullOrEmpty(settings.PrivateKey) || !File.Exists(settings.PrivateKey))
         {
-            IoHelpers.ShowError("NO_INPUT", "需要 -k（私钥）和 -m（主密钥文件）");
+            IoHelpers.ShowError("NO_INPUT", "需要 -k（私钥）");
             return 1;
         }
 
         if (string.IsNullOrEmpty(settings.Fingerprint))
         {
-            IoHelpers.ShowError("NO_FINGERPRINT", "请用 --fingerprint 指定硬件指纹（可用 license fingerprint 获取）");
+            IoHelpers.ShowError("NO_FINGERPRINT",
+                "请用 --fingerprint 指定硬件指纹（可用 license fingerprint 获取）");
             return 1;
         }
 
@@ -42,11 +42,9 @@ public sealed class LicenseGenerateCommand : AsyncCommand<LicenseGenerateCommand
         }
 
         var privPem = await File.ReadAllTextAsync(settings.PrivateKey);
-        var masterKey = MasterKeyFile.FromJson(await File.ReadAllTextAsync(settings.MasterKeyFile));
-
         var result = LicenseBuilder.Generate(
             settings.StationCode, settings.Fingerprint, expires,
-            settings.ProductCode, privPem, masterKey);
+            settings.ProductCode, privPem, settings.Algorithm);
 
         if (!result.Success)
         {
@@ -68,7 +66,6 @@ public sealed class LicenseVerifyCommand : AsyncCommand<LicenseVerifyCommand.Set
     {
         [CommandOption("-i|--in <PATH>")] public string? Input { get; init; }
         [CommandOption("-k|--public-key <PATH>")] public string? PublicKey { get; init; }
-        [CommandOption("-m|--master <PATH>")] public string? MasterKeyFile { get; init; }
         [CommandOption("--station <CODE>")] public string? ExpectedStation { get; init; }
         [CommandOption("--fingerprint <FP>")] public string? ExpectedFingerprint { get; init; }
     }
@@ -76,19 +73,17 @@ public sealed class LicenseVerifyCommand : AsyncCommand<LicenseVerifyCommand.Set
     public override async Task<int> ExecuteAsync(CommandContext context, Settings settings)
     {
         if (string.IsNullOrEmpty(settings.Input) || !File.Exists(settings.Input) ||
-            string.IsNullOrEmpty(settings.PublicKey) || !File.Exists(settings.PublicKey) ||
-            string.IsNullOrEmpty(settings.MasterKeyFile) || !File.Exists(settings.MasterKeyFile))
+            string.IsNullOrEmpty(settings.PublicKey) || !File.Exists(settings.PublicKey))
         {
-            IoHelpers.ShowError("NO_INPUT", "需要 -i / -k / -m");
+            IoHelpers.ShowError("NO_INPUT", "需要 -i / -k");
             return 1;
         }
 
         var licenseJson = await File.ReadAllTextAsync(settings.Input);
         var pubPem = await File.ReadAllTextAsync(settings.PublicKey);
-        var masterKey = MasterKeyFile.FromJson(await File.ReadAllTextAsync(settings.MasterKeyFile));
 
         var result = LicenseValidator.Validate(
-            licenseJson, pubPem, masterKey,
+            licenseJson, pubPem,
             settings.ExpectedStation, settings.ExpectedFingerprint);
 
         if (!result.Success)
@@ -121,22 +116,19 @@ public sealed class LicenseInspectCommand : AsyncCommand<LicenseInspectCommand.S
     public sealed class Settings : SettingsBase
     {
         [CommandOption("-i|--in <PATH>")] public string? Input { get; init; }
-        [CommandOption("-m|--master <PATH>")] public string? MasterKeyFile { get; init; }
     }
 
     public override async Task<int> ExecuteAsync(CommandContext context, Settings settings)
     {
-        if (string.IsNullOrEmpty(settings.Input) || !File.Exists(settings.Input) ||
-            string.IsNullOrEmpty(settings.MasterKeyFile) || !File.Exists(settings.MasterKeyFile))
+        if (string.IsNullOrEmpty(settings.Input) || !File.Exists(settings.Input))
         {
-            IoHelpers.ShowError("NO_INPUT", "需要 -i 和 -m");
+            IoHelpers.ShowError("NO_INPUT", "需要 -i");
             return 1;
         }
 
         var licenseJson = await File.ReadAllTextAsync(settings.Input);
-        var masterKey = MasterKeyFile.FromJson(await File.ReadAllTextAsync(settings.MasterKeyFile));
+        var result = LicenseInspector.Inspect(licenseJson);
 
-        var result = LicenseInspector.Inspect(licenseJson, masterKey);
         if (!result.Success)
         {
             IoHelpers.ShowError(result.ErrorCode, result.ErrorMessage);
@@ -181,7 +173,7 @@ public sealed class LicenseFingerprintCommand : Command<LicenseFingerprintComman
             return 0;
         }
 
-        AnsiConsole.MarkupLine($"[green]本机硬件指纹：[/]");
+        AnsiConsole.MarkupLine("[green]本机硬件指纹：[/]");
         AnsiConsole.WriteLine(result.Data!);
         return 0;
     }

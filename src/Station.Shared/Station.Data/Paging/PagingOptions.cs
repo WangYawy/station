@@ -4,7 +4,7 @@ namespace Station.Data.Paging;
 public sealed class PagingOptions
 {
     /// <summary>默认配置节名。</summary>
-    public const string SectionName = "Station:Data:Paging";
+    public const string SectionName = "Data:Paging";
 
     /// <summary>默认每页条数。</summary>
     public int DefaultPageSize { get; set; } = PagingDefaults.DefaultPageSize;

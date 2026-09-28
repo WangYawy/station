@@ -1,6 +1,7 @@
 using Spectre.Console;
 using Spectre.Console.Cli;
-using Station.Crypto.KeyGen;
+using Station.Crypto.Engine.Keys;
+using Station.Crypto.Engine.Models;
 using Station.Tools.Cli.Commands.Shared;
 using Station.Tools.Core.Binding;
 using Station.Tools.Core.Models;
@@ -31,7 +32,7 @@ public sealed class BindingGenerateCommand : AsyncCommand<BindingGenerateCommand
             return 1;
         }
 
-        var keyFile = MasterKeyFile.FromJson(await File.ReadAllTextAsync(settings.MasterKeyFile));
+        var keyFile = MasterKeyFileDto.FromJson(await File.ReadAllTextAsync(settings.MasterKeyFile));
 
         var info = new BindingInfo(
             settings.Serial, settings.Model, settings.UserNo, settings.UserName,
@@ -70,7 +71,7 @@ public sealed class BindingVerifyCommand : AsyncCommand<BindingVerifyCommand.Set
         }
 
         var content = await File.ReadAllTextAsync(settings.Input);
-        var keyFile = MasterKeyFile.FromJson(await File.ReadAllTextAsync(settings.MasterKeyFile));
+        var keyFile = MasterKeyFileDto.FromJson(await File.ReadAllTextAsync(settings.MasterKeyFile));
 
         var result = BindingFileTool.Validate(content, keyFile);
         if (!result.Success)
@@ -117,8 +118,8 @@ public sealed class BindingInspectCommand : AsyncCommand<BindingInspectCommand.S
 
         var b = result.Data!;
         var table = new Table().Border(TableBorder.Rounded).AddColumn("属性").AddColumn("值");
-        table.AddRow("记录仪序列号", b.RecorderSerial);
-        table.AddRow("型号", b.RecorderModel);
+        table.AddRow("记录仪序列号", b.DeviceSerial);
+        table.AddRow("型号", b.DeviceModel);
         table.AddRow("用户工号", b.UserNo);
         table.AddRow("用户名", b.UserName);
         table.AddRow("部门编码", b.DeptCode);

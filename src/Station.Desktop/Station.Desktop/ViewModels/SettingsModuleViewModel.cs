@@ -9,7 +9,7 @@ using Station.Application.Security;
 using Station.Application.Session;
 using Station.Application.Settings;
 using Station.Application.Storage;
-using Station.Domain.Security;
+using Station.Crypto;
 
 namespace Station.Desktop.ViewModels;
 

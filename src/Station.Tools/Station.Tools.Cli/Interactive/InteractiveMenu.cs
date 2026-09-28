@@ -4,9 +4,9 @@ using Station.Tools.Core.Crypto;
 using Station.Tools.Core.Inspection;
 using Station.Tools.Core.Keys;
 using Station.Tools.Core.Licensing;
-using Station.Tools.Core.Models;
-using Station.Crypto.KeyGen;
 using Station.Tools.Cli.Commands.Shared;
+using Station.Crypto.Engine.Keys;
+using Station.Crypto.Engine.Models;
 
 namespace Station.Tools.Cli.Interactive;
 
@@ -24,23 +24,24 @@ public sealed class InteractiveMenu
                     .Title("[yellow]请选择功能：[/]")
                     .PageSize(15)
                     .AddChoices(
-                        "🔑 密钥生成 - SM2",
-                        "🔑 密钥生成 - RSA",
-                        "🔑 密钥生成 - 主密钥",
-                        "🔍 密钥检查",
-                        "🔐 摘要计算",
-                        "🔐 加密",
-                        "🔐 解密",
-                        "✍️  签名",
-                        "✍️  验签",
-                        "📜 生成授权文件",
-                        "📜 验证授权文件",
-                        "📜 查看授权内容",
-                        "🔗 生成绑定文件",
-                        "🔗 验证绑定文件",
-                        "🔍 查询审计日志",
-                        "🔍 查询加密策略",
-                        "🔍 检查表结构",
+                        " 密钥生成 - SM2",
+                        " 密钥生成 - RSA",
+                        " 密钥生成 - 主密钥",
+                        " 密钥检查",
+                        " 摘要计算",
+                        " 加密",
+                        " 解密",
+                        " 签名",
+                        " 验签",
+                        " 查看本机指纹",
+                        " 生成授权文件",
+                        " 验证授权文件",
+                        " 查看授权内容",
+                        " 生成绑定文件",
+                        " 验证绑定文件",
+                        " 查询审计日志",
+                        " 查询加密策略",
+                        " 检查表结构",
                         "── 退出 ──"));
 
             if (choice.StartsWith("──")) return 0;
@@ -64,34 +65,33 @@ public sealed class InteractiveMenu
     {
         switch (choice)
         {
-            case "🔑 密钥生成 - SM2": await GenSm2Async(); break;
-            case "🔑 密钥生成 - RSA": await GenRsaAsync(); break;
-            case "🔑 密钥生成 - 主密钥": await GenMasterAsync(); break;
-            case "🔍 密钥检查": await InspectKeyAsync(); break;
-            case "🔐 摘要计算": await HashAsync(); break;
-            case "🔐 加密": await EncryptAsync(); break;
-            case "🔐 解密": await DecryptAsync(); break;
-            case "✍️  签名": await SignAsync(); break;
-            case "✍️  验签": await VerifyAsync(); break;
-            case "📜 生成授权文件": await GenLicenseAsync(); break;
-            case "📜 验证授权文件": await VerifyLicenseAsync(); break;
-            case "📜 查看授权内容": await InspectLicenseAsync(); break;
-            case "🔗 生成绑定文件": await GenBindingAsync(); break;
-            case "🔗 验证绑定文件": await VerifyBindingAsync(); break;
-            case "🔍 查询审计日志": await QueryAuditAsync(); break;
-            case "🔍 查询加密策略": await QueryPolicyAsync(); break;
-            case "🔍 检查表结构": await CheckSchemaAsync(); break;
+            case " 密钥生成 - SM2": await GenSm2Async(); break;
+            case " 密钥生成 - RSA": await GenRsaAsync(); break;
+            case " 密钥生成 - 主密钥": await GenMasterAsync(); break;
+            case " 密钥检查": await InspectKeyAsync(); break;
+            case " 摘要计算": await HashAsync(); break;
+            case " 加密": await EncryptAsync(); break;
+            case " 解密": await DecryptAsync(); break;
+            case " 签名": await SignAsync(); break;
+            case " 验签": await VerifyAsync(); break;
+            case " 查看本机指纹": await ShowFingerprintAsync(); break;
+            case " 生成授权文件": await GenLicenseAsync(); break;
+            case " 验证授权文件": await VerifyLicenseAsync(); break;
+            case " 查看授权内容": await InspectLicenseAsync(); break;
+            case " 生成绑定文件": await GenBindingAsync(); break;
+            case " 验证绑定文件": await VerifyBindingAsync(); break;
+            case " 查询审计日志": await QueryAuditAsync(); break;
+            case " 查询加密策略": await QueryPolicyAsync(); break;
+            case " 检查表结构": await CheckSchemaAsync(); break;
         }
     }
 
-    // ============================================================
-    // 各功能实现
-    // ============================================================
-
+    #region // 各功能实现
     private async Task GenSm2Async()
     {
         var name = AnsiConsole.Ask("密钥名（用于文件名）:", "license");
         var outDir = AnsiConsole.Ask("输出目录:", ".");
+        if (!Directory.Exists(outDir)) Directory.CreateDirectory(outDir);
 
         var result = Sm2KeyTool.Generate();
         if (!result.Success) { IoHelpers.ShowError(result.ErrorCode, result.ErrorMessage); return; }
@@ -184,7 +184,7 @@ public sealed class InteractiveMenu
         var algo = AnsiConsole.Prompt(new SelectionPrompt<string>()
             .Title("算法：").AddChoices("SM4-GCM", "AES-256-GCM"));
 
-        var keyFile = MasterKeyFile.FromJson(await File.ReadAllTextAsync(masterPath));
+        var keyFile = MasterKeyFileDto.FromJson(await File.ReadAllTextAsync(masterPath));
         var result = EncryptTool.Encrypt(text, keyFile, algo);
         if (!result.Success) { IoHelpers.ShowError(result.ErrorCode, result.ErrorMessage); return; }
 
@@ -200,7 +200,7 @@ public sealed class InteractiveMenu
         var algo = AnsiConsole.Prompt(new SelectionPrompt<string>()
             .Title("算法：").AddChoices("SM4-GCM", "AES-256-GCM"));
 
-        var keyFile = MasterKeyFile.FromJson(await File.ReadAllTextAsync(masterPath));
+        var keyFile = MasterKeyFileDto.FromJson(await File.ReadAllTextAsync(masterPath));
         var result = EncryptTool.Decrypt(cipher, keyFile, algo);
         if (!result.Success) { IoHelpers.ShowError(result.ErrorCode, result.ErrorMessage); return; }
 
@@ -241,6 +241,36 @@ public sealed class InteractiveMenu
         else AnsiConsole.MarkupLine("[red]✗ 签名无效[/]");
     }
 
+    private Task ShowFingerprintAsync()
+    {
+        var result = MachineFingerprintTool.Collect();
+        if (!result.Success)
+        {
+            IoHelpers.ShowError(result.ErrorCode, result.ErrorMessage);
+            return Task.CompletedTask;
+        }
+
+        var fp = result.Data!;
+
+        AnsiConsole.WriteLine();
+        AnsiConsole.MarkupLine("[green]本机硬件指纹[/]");
+        AnsiConsole.WriteLine();
+
+        // 用 Panel 包裹，方便客户直接选中复制
+        var panel = new Panel(fp)
+            .Header("Hardware Fingerprint", Justify.Left)
+            // .Border(TableBorder.Rounded)
+            .BorderColor(Color.Grey)
+            .Padding(1, 0, 1, 0);
+
+        AnsiConsole.Write(panel);
+
+        AnsiConsole.WriteLine();
+        AnsiConsole.MarkupLine("[grey]提示：签发授权文件时需将此指纹提供给授权方（--fingerprint）[/]");
+
+        return Task.CompletedTask;
+    }
+
     private async Task GenLicenseAsync()
     {
         var station = AnsiConsole.Ask("站点编号:", "ST0001");
@@ -253,18 +283,15 @@ public sealed class InteractiveMenu
         }
 
         var privPath = AnsiConsole.Ask<string>("私钥文件:");
-        var masterPath = AnsiConsole.Ask("主密钥文件:", "master.key");
-        if (!File.Exists(privPath) || !File.Exists(masterPath))
+        if (!File.Exists(privPath))
         {
-            IoHelpers.ShowError("FILE_NOT_FOUND", "密钥文件不存在");
+            IoHelpers.ShowError("FILE_NOT_FOUND", "私钥文件不存在");
             return;
         }
 
         var priv = await File.ReadAllTextAsync(privPath);
-        var keyFile = MasterKeyFile.FromJson(await File.ReadAllTextAsync(masterPath));
-
         var result = LicenseBuilder.Generate(
-            station, fingerprint, expires, "STATION-DESKTOP-1", priv, keyFile);
+            station, fingerprint, expires, "STATION-DESKTOP-1", priv);
 
         if (!result.Success) { IoHelpers.ShowError(result.ErrorCode, result.ErrorMessage); return; }
 
@@ -277,9 +304,8 @@ public sealed class InteractiveMenu
     {
         var path = AnsiConsole.Ask<string>("授权文件:");
         var pubPath = AnsiConsole.Ask<string>("公钥文件:");
-        var masterPath = AnsiConsole.Ask("主密钥文件:", "master.key");
 
-        if (!File.Exists(path) || !File.Exists(pubPath) || !File.Exists(masterPath))
+        if (!File.Exists(path) || !File.Exists(pubPath))
         {
             IoHelpers.ShowError("FILE_NOT_FOUND", "文件不存在");
             return;
@@ -287,9 +313,8 @@ public sealed class InteractiveMenu
 
         var license = await File.ReadAllTextAsync(path);
         var pub = await File.ReadAllTextAsync(pubPath);
-        var keyFile = MasterKeyFile.FromJson(await File.ReadAllTextAsync(masterPath));
 
-        var result = LicenseValidator.Validate(license, pub, keyFile);
+        var result = LicenseValidator.Validate(license, pub);
         if (!result.Success) { IoHelpers.ShowError(result.ErrorCode, result.ErrorMessage); return; }
 
         var check = result.Data!;
@@ -300,18 +325,14 @@ public sealed class InteractiveMenu
     private async Task InspectLicenseAsync()
     {
         var path = AnsiConsole.Ask<string>("授权文件:");
-        var masterPath = AnsiConsole.Ask("主密钥文件:", "master.key");
-
-        if (!File.Exists(path) || !File.Exists(masterPath))
+        if (!File.Exists(path))
         {
             IoHelpers.ShowError("FILE_NOT_FOUND", "文件不存在");
             return;
         }
 
         var license = await File.ReadAllTextAsync(path);
-        var keyFile = MasterKeyFile.FromJson(await File.ReadAllTextAsync(masterPath));
-
-        var result = LicenseInspector.Inspect(license, keyFile);
+        var result = LicenseInspector.Inspect(license);
         if (!result.Success) { IoHelpers.ShowError(result.ErrorCode, result.ErrorMessage); return; }
 
         var p = result.Data!;
@@ -339,7 +360,7 @@ public sealed class InteractiveMenu
             return;
         }
 
-        var keyFile = MasterKeyFile.FromJson(await File.ReadAllTextAsync(masterPath));
+        var keyFile = MasterKeyFileDto.FromJson(await File.ReadAllTextAsync(masterPath));
         var info = new BindingInfo(serial, model, userNo, userName, deptCode, deptName, DateTime.Now, string.Empty);
 
         var result = BindingFileTool.Generate(info, keyFile);
@@ -362,7 +383,7 @@ public sealed class InteractiveMenu
         }
 
         var content = await File.ReadAllTextAsync(path);
-        var keyFile = MasterKeyFile.FromJson(await File.ReadAllTextAsync(masterPath));
+        var keyFile = MasterKeyFileDto.FromJson(await File.ReadAllTextAsync(masterPath));
 
         var result = BindingFileTool.Validate(content, keyFile);
         if (!result.Success) { IoHelpers.ShowError(result.ErrorCode, result.ErrorMessage); return; }
@@ -441,4 +462,5 @@ public sealed class InteractiveMenu
         AnsiConsole.Write(table);
         return Task.CompletedTask;
     }
+    #endregion
 }

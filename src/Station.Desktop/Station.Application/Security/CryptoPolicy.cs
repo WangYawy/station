@@ -1,19 +1,14 @@
-using Station.Crypto.Abstractions;
-using Station.Domain.Security;
+using Station.Crypto;
 
 namespace Station.Application.Security;
 
-// =============================================================
-// 策略服务接口
-// =============================================================
-
 /// <summary>
 /// 加密策略服务：读策略、切算法、轮换主密钥、提供算法实现。
-/// 
+///
 /// 【职责合并】
-///   - 策略读取（原 ICryptoPolicyService）
-///   - 算法工厂（原 ICryptoProviderFactory）
-///   - 密钥轮换（原 IKeyRotationService）
+///   - 策略读取
+///   - 算法工厂
+///   - 密钥轮换
 /// </summary>
 public interface ICryptoPolicyService
 {
@@ -48,10 +43,7 @@ public interface ICryptoPolicyService
     Task<IMacProvider> GetMacProviderAsync(string usageCode, CancellationToken ct = default);
 
     /// <summary>
-    /// 获取记录仪绑定 MAC 密钥（从主密钥 HKDF 派生，info="station:recorder-binding:v1"）。
-    /// 
-    /// 【用途】记录仪绑定文件（station_bind.ini）的 HMAC 密钥。
-    /// 【派生】HKDF-SM3(主密钥, "station:recorder-binding:v1", 32 字节)。
+    /// 获取记录仪绑定 MAC 密钥（从主密钥 HKDF 派生，info=HkdfInfo.RecorderBinding）。
     /// </summary>
     Task<byte[]> GetBindingMacKeyAsync(CancellationToken ct = default);
 }

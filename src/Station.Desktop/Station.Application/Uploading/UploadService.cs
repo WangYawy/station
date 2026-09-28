@@ -101,7 +101,7 @@ public sealed class UploadService : IUploadService
                 if (_storageConfig.RemoteContentMode == RemoteContentMode.Plaintext)
                 {
                     // 上传明文：解密流
-                    streamFactory = () => _fileCrypto.CreateDecryptStream(localPath);
+                    streamFactory = () => _fileCrypto.OpenDecryptStream(localPath);
                     uploadSize = file.Size;   // 明文大小
                 }
                 else

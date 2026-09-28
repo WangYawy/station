@@ -1,6 +1,8 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Station.Application.Security;
+using Station.Crypto;
+using Station.Crypto.Engine.Internal;
 using Station.Infrastructure.Security.Keys;
 
 namespace Station.Infrastructure.Security;
@@ -17,14 +19,19 @@ public static class SecurityServiceCollectionExtensions
         // 内存缓存
         services.AddMemoryCache();
 
-        // 密钥（internal，Singleton）
+        // ---- 算法注册表（单例，无状态） ----
+        services.AddSingleton<ICryptoAlgorithmRegistry>(AlgorithmRegistry.Default);
+
+        // ---- 密钥（internal，Singleton） ----
         services.AddSingleton<PemKeyCache>();
         services.AddSingleton<MasterKeyProvider>();
+        services.AddSingleton<IMasterKeyProvider>(sp =>
+            sp.GetRequiredService<MasterKeyProvider>());
 
-        // 策略服务（Singleton：内部有缓存）
+        // ---- 策略服务（Singleton：内部有缓存） ----
         services.AddSingleton<ICryptoPolicyService, CryptoPolicyService>();
 
-        // 门面（Scoped：依赖数据库）
+        // ---- 门面（Scoped：依赖数据库） ----
         services.AddScoped<IPasswordService, PasswordService>();
         services.AddScoped<IFileCryptoService, FileCryptoService>();
         services.AddScoped<ILicenseCryptoService, LicenseCryptoService>();

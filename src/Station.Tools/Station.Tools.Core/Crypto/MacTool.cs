@@ -1,4 +1,5 @@
-using Station.Crypto.Providers.Macs;
+using System.Text;
+using Station.Crypto.Engine.Internal;
 using Station.Tools.Core.Models;
 
 namespace Station.Tools.Core.Crypto;
@@ -10,9 +11,8 @@ public static class MacTool
     {
         try
         {
-            var mac = ResolveMac(algorithm);
-            var value = mac.Compute(key, System.Text.Encoding.UTF8.GetBytes(data));
-            return ToolResult<string>.Ok(value);
+            var mac = AlgorithmRegistry.Default.GetMacProvider(algorithm);
+            return ToolResult<string>.Ok(mac.Compute(key, Encoding.UTF8.GetBytes(data)));
         }
         catch (Exception ex)
         {
@@ -20,24 +20,18 @@ public static class MacTool
         }
     }
 
-    public static ToolResult<bool> Verify(string data, byte[] key, string expectedMac, string algorithm)
+    public static ToolResult<bool> Verify(
+        string data, byte[] key, string expectedMac, string algorithm)
     {
         try
         {
-            var mac = ResolveMac(algorithm);
-            return ToolResult<bool>.Ok(mac.Verify(key, System.Text.Encoding.UTF8.GetBytes(data), expectedMac));
+            var mac = AlgorithmRegistry.Default.GetMacProvider(algorithm);
+            return ToolResult<bool>.Ok(
+                mac.Verify(key, Encoding.UTF8.GetBytes(data), expectedMac));
         }
         catch (Exception ex)
         {
             return ToolResult<bool>.Fail("MAC_FAIL", ex.Message);
         }
     }
-
-    private static Station.Crypto.Abstractions.IMacProvider ResolveMac(string algorithm) =>
-        algorithm.ToUpperInvariant() switch
-        {
-            "HMAC-SM3" => new HmacSm3Provider(),
-            "HMAC-SHA256" => new HmacSha256Provider(),
-            _ => throw new NotSupportedException($"不支持的 MAC 算法：{algorithm}")
-        };
 }

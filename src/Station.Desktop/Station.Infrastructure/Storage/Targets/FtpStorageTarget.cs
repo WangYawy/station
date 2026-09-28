@@ -3,7 +3,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Station.Application.Security;
 using Station.Application.Storage;
-using Station.Domain.Security;
+using Station.Crypto;
 using Station.Infrastructure.Storage.Pool;
 
 namespace Station.Infrastructure.Storage;

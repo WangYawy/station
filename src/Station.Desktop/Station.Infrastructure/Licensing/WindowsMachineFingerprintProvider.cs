@@ -2,7 +2,7 @@ using System.Management;
 using System.Text;
 using Station.Application.Licensing;
 using Station.Contracts.Registration;
-using Station.Crypto.Providers.Hashers;
+using Station.Crypto.Engine.Hashers;
 
 namespace Station.Infrastructure.Licensing;
 

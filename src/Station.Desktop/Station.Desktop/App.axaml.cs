@@ -45,12 +45,22 @@ public partial class App : Avalonia.Application
                 // 在创建任何窗口之前注入配置到资源字典
                 ApplyWindowModeOptions();
 
+                desktop.ShutdownMode = Avalonia.Controls.ShutdownMode.OnMainWindowClose; // 随主窗口关闭而关闭，不被子窗口拖住
+
                 // ---- 2. 创建主窗口 ----
                 var shell = new ShellWindow();
                 desktop.MainWindow = shell;
 
                 // ---- 3. 关停清理（同步，确保 Host 真的停掉）----
-                desktop.Exit += (_, _) => StopHost();
+                desktop.ShutdownRequested += async (_, _) =>
+                {
+                    if (_host is not null)
+                    {
+                        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+                        await _host.StopAsync(cts.Token);
+                        _host.Dispose();
+                    }
+                };
 
                 // ---- 4. 异步启动流程：等主窗口真正可见后再跑 ----
                 shell.Opened += OnShellOpened;
@@ -119,7 +129,7 @@ public partial class App : Avalonia.Application
     public static void ApplyWindowModeOptions()
     {
         if (Current is null) return;
-        
+
         var options = Services?
             .GetService<IOptions<WindowModeOptions>>()?.Value
             ?? new WindowModeOptions();   // 兜底

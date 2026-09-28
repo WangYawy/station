@@ -8,7 +8,7 @@ using Station.Application.Licensing;
 using Station.Application.PlatformSync;
 using Station.Application.Storage;
 using Station.Domain.Entities;
-using Station.Domain.Security;
+using Station.Crypto;
 
 namespace Station.Application.Settings;
 

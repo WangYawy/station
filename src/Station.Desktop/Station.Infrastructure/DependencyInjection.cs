@@ -37,8 +37,8 @@ public static class DependencyInjection
         // ==========================================
         // 2. 数据库注册块
         // ==========================================
-        var section = configuration.GetSection(DbOptions.SectionName);
-        var options = section.Get<DbOptions>() ?? new DbOptions();
+        //var section = configuration.GetSection(DbOptions.SectionName);
+        //var options = section.Get<DbOptions>() ?? new DbOptions();
 
         services.AddStationDataSqlSugar(configuration, db =>
         {

@@ -1,7 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Station.Application.Security;
-using Station.Crypto.Abstractions;
-using Station.Domain.Security;
+using Station.Crypto;
 
 namespace Station.Infrastructure.Security;
 
@@ -9,11 +8,16 @@ namespace Station.Infrastructure.Security;
 public sealed class PasswordService : IPasswordService
 {
     private readonly ICryptoPolicyService _policy;
+    private readonly ICryptoAlgorithmRegistry _registry;
     private readonly ILogger<PasswordService> _logger;
 
-    public PasswordService(ICryptoPolicyService policy, ILogger<PasswordService> logger)
+    public PasswordService(
+        ICryptoPolicyService policy,
+        ICryptoAlgorithmRegistry registry,
+        ILogger<PasswordService> logger)
     {
         _policy = policy;
+        _registry = registry;
         _logger = logger;
     }
 
@@ -22,7 +26,6 @@ public sealed class PasswordService : IPasswordService
         if (string.IsNullOrEmpty(password))
             throw new ArgumentException("密码不能为空", nameof(password));
 
-        var policy = await _policy.GetAsync(CryptoUsage.Password, ct).ConfigureAwait(false);
         var hasher = await _policy.GetPasswordHasherAsync(ct).ConfigureAwait(false);
         return hasher.Hash(password);
     }
@@ -51,8 +54,7 @@ public sealed class PasswordService : IPasswordService
                 IPasswordHasher legacy;
                 try
                 {
-                    legacy = Station.Infrastructure.Security.Internal.AlgorithmResolver
-                        .ResolvePasswordHasher(legacyAlgo);
+                    legacy = _registry.GetPasswordHasher(legacyAlgo);
                 }
                 catch (NotSupportedException)
                 {

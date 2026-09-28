@@ -1,6 +1,7 @@
 using System.Net.NetworkInformation;
 using System.Text;
-using Station.Crypto.Providers.Hashers;
+using Station.Crypto;
+using Station.Crypto.Engine.Internal;
 using Station.Tools.Core.Models;
 
 namespace Station.Tools.Core.Licensing;
@@ -30,7 +31,7 @@ public static class MachineFingerprintTool
             parts.Add(FirstMac());
 
             var raw = string.Join("|", parts);
-            var hasher = new Sm3Hasher();
+            var hasher = AlgorithmRegistry.Default.GetHasher(CryptoAlgorithm.Sm3);
             return ToolResult<string>.Ok(hasher.ComputeHash(Encoding.UTF8.GetBytes(raw)));
         }
         catch (Exception ex)

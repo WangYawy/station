@@ -1,3 +1,5 @@
+using Station.Crypto;
+
 namespace Station.Application.Security;
 
 /// <summary>
@@ -9,14 +11,6 @@ public interface IPasswordService
     Task<string> HashAsync(string password, CancellationToken ct = default);
 
     /// <summary>校验密码（含 legacy 回退，返回是否需重哈希）。</summary>
-    Task<PasswordVerifyResult> VerifyAsync(string password, string storedHash, CancellationToken ct = default);
+    Task<PasswordVerifyResult> VerifyAsync(
+        string password, string storedHash, CancellationToken ct = default);
 }
-
-/// <summary>密码校验结果。</summary>
-/// <param name="Ok">是否通过。</param>
-/// <param name="NeedsRehash">是否需要按新算法重哈希。</param>
-/// <param name="UsedLegacyAlgorithm">命中的旧算法标识（null 表示当前算法）。</param>
-public sealed record PasswordVerifyResult(
-    bool Ok,
-    bool NeedsRehash,
-    string? UsedLegacyAlgorithm);
