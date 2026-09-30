@@ -2,6 +2,7 @@ using Station.Contracts;
 using Station.Domain.Entities;
 using Station.Data.Repositories;
 using Station.Data.IdGeneration;
+using Station.Crypto;
 
 namespace Station.Application.Recorders;
 

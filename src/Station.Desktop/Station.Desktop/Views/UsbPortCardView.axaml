@@ -16,7 +16,7 @@
     <Border.ContextMenu>
       <ContextMenu>
         <MenuItem Header="查看明细" Command="{Binding DetailsCommand}"
-                  IsEnabled="{Binding !IsIdle}"/>
+                  IsEnabled="{Binding HasTask}"/>
         <Separator/>
         <MenuItem Header="暂停"  Command="{Binding PauseCommand}"   IsVisible="{Binding CanPause}"/>
         <MenuItem Header="恢复"  Command="{Binding ResumeCommand}"  IsVisible="{Binding CanResume}"/>
@@ -74,13 +74,16 @@
           TextTrimming="CharacterEllipsis"
           Margin="0,1,0,1"/>-->
         </Grid>
-        <!-- 行2 操作人 {Binding OperatorText}" IsVisible="{Binding HasOperator}" -->
+        <!-- 行2：操作人 -->
         <TextBlock Grid.Row="2" Classes="card-operator"
-                   Text="一中队-操作员-张三"
+                   Text="{Binding OperatorText}"
+                   IsVisible="{Binding HasOperator}"
                    TextTrimming="CharacterEllipsis"
                    Margin="0,0,0,2"/>
-        <!-- 行3 任务进度统计（有任务时显示） -->
-        <Grid Grid.Row="3" ColumnDefinitions="*,Auto" IsVisible="False" Margin="0,0,0,2">
+
+        <!-- 行3：设备空间 + 扫描/已上传（HasTask 控制显示） -->
+        <Grid Grid.Row="3" ColumnDefinitions="*,Auto"
+              IsVisible="{Binding HasTask}" Margin="0,0,0,2">
           <TextBlock Classes="card-meta"
                      Text="{Binding DeviceSpaceText}"
                      IsVisible="{Binding HasDeviceSpace}"
@@ -99,7 +102,7 @@
                    FontSize="{DynamicResource FontSizeSmall}"
                    FontWeight="SemiBold"
                    TextTrimming="CharacterEllipsis"
-                   Margin="0,0,0,2"/>
+                   Margin="0,4,0,4"/>
         <!-- 行5 进度条 + 速度 + 百分比 -->
         <StackPanel Grid.Row="5" Spacing="3" Margin="0,1,0,2"
                     VerticalAlignment="Bottom">

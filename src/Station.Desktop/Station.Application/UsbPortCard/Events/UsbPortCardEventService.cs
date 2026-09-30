@@ -12,6 +12,7 @@ public sealed class UsbPortCardEventService : IUsbPortCardEventService
     public event EventHandler<DeviceDisconnectedEvent>? DeviceDisconnected;
     public event EventHandler<DeviceBoundEvent>? DeviceBound;
     public event EventHandler<DeviceRejectedEvent>? DeviceRejected;
+    public event EventHandler<TaskFileCompletedEvent>? TaskFileCompleted;
 
     public UsbPortCardEventService()
     {
@@ -38,4 +39,6 @@ public sealed class UsbPortCardEventService : IUsbPortCardEventService
     // 绑定验证失败，立即发布
     public void PublishDeviceRejected(DeviceRejectedEvent evt) => DeviceRejected?.Invoke(this, evt);
 
+    public void PublishTaskFileCompleted(long taskId, long fileId, CollectFileStatus status)
+    => TaskFileCompleted?.Invoke(this, new TaskFileCompletedEvent(taskId, fileId, status));
 }

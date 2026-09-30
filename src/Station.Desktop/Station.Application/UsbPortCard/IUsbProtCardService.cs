@@ -22,6 +22,8 @@ public sealed record UsbPortCardDto
 
     /// <summary>物理设备是否在线</summary>
     public bool IsConnected { get; init; }
+
+    public DeviceLinkState LinkState { get; init; } = DeviceLinkState.Offline;
     /// <summary>设备可用空间</summary>
     public long? DeviceAvailableBytes { get; init; }
     /// <summary>设备总空间</summary>

@@ -70,6 +70,7 @@ public sealed class UsbPortCardService : IUsbPortCardService
                 DeviceName = device?.Name ?? "-- 等待设备连接",
                 Protocol = device?.Protocol,
                 IsConnected = device is not null,
+                LinkState = device?.LinkState ?? DeviceLinkState.Offline,
                 TaskId = matchedTask?.TaskId,
                 TaskNo = matchedTask?.TaskNo,
                 Status = matchedTask?.Status,

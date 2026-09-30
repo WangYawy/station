@@ -6,7 +6,7 @@ using Station.Tools.Core.Keys;
 using Station.Tools.Core.Licensing;
 using Station.Tools.Cli.Commands.Shared;
 using Station.Crypto.Engine.Keys;
-using Station.Crypto.Engine.Models;
+using Station.Crypto;
 
 namespace Station.Tools.Cli.Interactive;
 
@@ -346,13 +346,10 @@ public sealed class InteractiveMenu
 
     private async Task GenBindingAsync()
     {
-        var serial = AnsiConsole.Ask<string>("记录仪序列号:");
-        var model = AnsiConsole.Ask("型号:", "");
-        var userNo = AnsiConsole.Ask<string>("用户工号:");
-        var userName = AnsiConsole.Ask("用户名:", "");
-        var deptCode = AnsiConsole.Ask("部门编码:", "");
-        var deptName = AnsiConsole.Ask("部门名:", "");
-        var masterPath = AnsiConsole.Ask("主密钥文件:", "master.key");
+        var keysPath = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "station", "keys", "master.key");
+        var masterPath = AnsiConsole.Ask("主密钥文件:", $"{keysPath}");
 
         if (!File.Exists(masterPath))
         {
@@ -360,13 +357,22 @@ public sealed class InteractiveMenu
             return;
         }
 
+        var serial = AnsiConsole.Ask<string>("记录仪序列号:");
+        var model = AnsiConsole.Ask("型号:", "");
+        var userNo = AnsiConsole.Ask<string>("用户工号:");
+        var userName = AnsiConsole.Ask("用户名:", "");
+        var deptCode = AnsiConsole.Ask("部门编码:", "");
+        var deptName = AnsiConsole.Ask("部门名:", "");
+
         var keyFile = MasterKeyFileDto.FromJson(await File.ReadAllTextAsync(masterPath));
         var info = new BindingInfo(serial, model, userNo, userName, deptCode, deptName, DateTime.Now, string.Empty);
 
         var result = BindingFileTool.Generate(info, keyFile);
         if (!result.Success) { IoHelpers.ShowError(result.ErrorCode, result.ErrorMessage); return; }
 
-        var outPath = AnsiConsole.Ask("输出文件:", "station_bind.ini");
+        var binds = Path.Combine("binds", BindingFileCodec.FileName);
+        var outPath = AnsiConsole.Ask("输出文件:", binds);
+        Directory.CreateDirectory(Path.GetDirectoryName(outPath)!);
         await File.WriteAllTextAsync(outPath, result.Data!);
         IoHelpers.ShowSuccess($"绑定文件已生成：{outPath}");
     }

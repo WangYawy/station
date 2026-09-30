@@ -66,3 +66,11 @@ public sealed record TaskStatusChangedEvent(
     CollectTaskStatus Status,
     bool IsEmergency
 ) : UsbPortCardEvent;
+
+
+/// <summary>单个文件采集终态（明细窗口实时跟随）</summary>
+public sealed record TaskFileCompletedEvent(
+    long TaskId,
+    long FileId,
+    CollectFileStatus Status
+) : UsbPortCardEvent;

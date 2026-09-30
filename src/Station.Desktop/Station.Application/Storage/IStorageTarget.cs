@@ -88,6 +88,9 @@ public enum StorageCircuitState
     HalfOpen = 2
 }
 
+/// <summary>
+/// 存储目标类型
+/// </summary>
 public enum StorageTargetKind
 {
     Local = 0,

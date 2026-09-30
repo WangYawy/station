@@ -81,9 +81,7 @@ public sealed class StartupSelfCheckService : IStartupSelfCheckService
         return new SelfCheckReport(healthy, items, DateTime.UtcNow);
     }
 
-    // =========================================================
     // 1) 数据库连接
-    // =========================================================
 
     private async Task<SelfCheckItem> CheckDatabaseAsync(CancellationToken ct)
     {
@@ -102,9 +100,7 @@ public sealed class StartupSelfCheckService : IStartupSelfCheckService
         }
     }
 
-    // =========================================================
     // 2) 加密策略表
-    // =========================================================
 
     private async Task<SelfCheckItem> CheckPolicyTableAsync(CancellationToken ct)
     {
@@ -138,9 +134,7 @@ public sealed class StartupSelfCheckService : IStartupSelfCheckService
         }
     }
 
-    // =========================================================
     // 3) 主密钥来源
-    // =========================================================
 
     private SelfCheckItem CheckMasterKeySource()
     {
@@ -172,9 +166,7 @@ public sealed class StartupSelfCheckService : IStartupSelfCheckService
         }
     }
 
-    // =========================================================
     // 4) 主密钥加解密往返
-    // =========================================================
 
     private async Task<SelfCheckItem> CheckMasterKeyRoundTripAsync(CancellationToken ct)
     {
@@ -205,15 +197,13 @@ public sealed class StartupSelfCheckService : IStartupSelfCheckService
         }
     }
 
-    // =========================================================
     // 5) 授权公钥文件
-    // =========================================================
 
     private async Task<SelfCheckItem> CheckLicensePublicKeyAsync(CancellationToken ct)
     {
         try
         {
-            var path = _licenseOptions.PublicKeyFile;
+            var path = Path.Combine(StationPaths.DataDirectory, _licenseOptions.PublicKeyFile);
             if (string.IsNullOrWhiteSpace(path))
                 return new SelfCheckItem("授权公钥", false, "未配置公钥文件路径",
                     "在 appsettings.json 的 Station:License:PublicKeyFile 中配置");
@@ -232,9 +222,7 @@ public sealed class StartupSelfCheckService : IStartupSelfCheckService
         }
     }
 
-    // =========================================================
     // 6) 存储目标配置
-    // =========================================================
 
     private async Task<SelfCheckItem> CheckStorageConfigAsync(CancellationToken ct)
     {

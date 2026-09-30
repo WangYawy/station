@@ -35,17 +35,17 @@ public sealed class StorageOptions //: IStorageConfiguration
     public MultiTargetMode MultiTargetMode { get; set; } = MultiTargetMode.AnySuccess;
 
     // ============ 熔断全局默认 ============
-    public int CircuitBreakerThreshold { get; set; } = 5;
-    public int CircuitBreakerCooldownSeconds { get; set; } = 60;
+    public int CircuitBreakerThreshold { get; set; } = 5; // 熔断器阈值
+    public int CircuitBreakerCooldownSeconds { get; set; } = 60; // 熔断器冷却秒数
 
     // ============ 连接池 ============
-    public int FtpKeepAliveSeconds { get; set; } = 30;
+    public int FtpKeepAliveSeconds { get; set; } = 30; // FTP 保活间隔（秒）
     public int SftpPoolSize { get; set; } = 4;
     public int SftpKeepAliveSeconds { get; set; } = 30;
 
     // ============ 取消清理 ============
-    public bool CleanupOnCancel { get; set; } = true;
-    public bool CleanupOnFailure { get; set; } = false;
+    public bool CleanupOnCancel { get; set; } = true; // 取消时清理
+    public bool CleanupOnFailure { get; set; } = false; // 失败时清理
 
     // ============ 多目标列表 ============
     public List<StorageTargetConfig> Targets { get; set; } = new();
@@ -67,6 +67,7 @@ public sealed class StorageTargetConfig
     public int FtpPort { get; set; } = 21;
     public string? FtpUser { get; set; }
     public string? FtpPassword { get; set; }
+    public string? FtpRoot { get; set; }
 
     // ---- SFTP ----
     public string? SftpHost { get; set; }

@@ -163,7 +163,8 @@ public partial class ShellViewModel : ObservableObject, IDisposable
                 _operationAccess,
                 _services.GetRequiredService<IUsbPortCardService>(),
                 _services.GetRequiredService<IUsbPortCardEventService>(),
-                _services.GetRequiredService<WindowModeOptions>());
+                _services.GetRequiredService<WindowModeOptions>(),
+                _services.GetRequiredService<CollectOptions>());
             _currentModuleDisposable = vm as IDisposable;
             CurrentModule = vm;
             return;

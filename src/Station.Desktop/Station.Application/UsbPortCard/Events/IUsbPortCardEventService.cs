@@ -19,6 +19,7 @@ public interface IUsbPortCardEventService
     // 任务事件
     event EventHandler<TaskProgressUpdatedEvent> TaskProgressUpdated;
     event EventHandler<TaskStatusChangedEvent> TaskStatusChanged;
+    event EventHandler<TaskFileCompletedEvent> TaskFileCompleted;
 
 
     /// <summary>
@@ -56,4 +57,6 @@ public interface IUsbPortCardEventService
     /// 发布文件采集进度更新事件
     /// </summary>
     // void PublishFileProgress(long fileId, double progress, double speed);
+
+    void PublishTaskFileCompleted(long taskId, long fileId, CollectFileStatus status);
 }

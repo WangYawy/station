@@ -76,7 +76,7 @@ public sealed class MasterKeyProvider : IMasterKeyProvider
         if (OperatingSystem.IsWindows())
         {
             var programData = Environment.GetFolderPath(
-                Environment.SpecialFolder.CommonApplicationData);
+                Environment.SpecialFolder.LocalApplicationData);
             return Path.Combine(programData, "Station", "keys", "master.key");
         }
         return "/etc/station/keys/master.key";

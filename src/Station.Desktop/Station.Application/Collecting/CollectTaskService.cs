@@ -423,22 +423,22 @@ public sealed class CollectTaskService : ICollectTaskService
             long speedLastBytes = 0;
 
             // 授权检查节流：首次立即检查，之后每 5 秒一次
-            var nextLicenseCheck = DateTime.UtcNow;
+            // var nextLicenseCheck = DateTime.UtcNow;
 
             var cursor = 0;
             while (!ct.IsCancellationRequested && cursor < pendingFiles.Count)
             {
-                // 授权检查（节流）
-                if (DateTime.UtcNow >= nextLicenseCheck)
-                {
-                    if (!await _licenseService.IsValidNowAsync())
-                    {
-                        // 授权到期：正在进行的采集立即中断
-                        control.FinalStatus = CollectTaskStatus.Interrupted;
-                        break;
-                    }
-                    nextLicenseCheck = DateTime.UtcNow.AddSeconds(5);
-                }
+                //// 授权检查（节流）
+                //if (DateTime.UtcNow >= nextLicenseCheck)
+                //{
+                //    if (!await _licenseService.IsValidNowAsync())
+                //    {
+                //        // 授权到期：正在进行的采集立即中断
+                //        control.FinalStatus = CollectTaskStatus.Interrupted;
+                //        break;
+                //    }
+                //    nextLicenseCheck = DateTime.UtcNow.AddSeconds(5);
+                //}
 
                 var file = pendingFiles[cursor++];
 
@@ -456,9 +456,7 @@ public sealed class CollectTaskService : ICollectTaskService
                 // 开始复制，传入进度回调（无 async，返回 Task.CompletedTask 消除状态机分配）
                 await source.CopyAsync(
                     device,
-                    new SourceFileInfo(
-                        file.RelativePath, file.FileName, file.Size,
-                        file.OriginalModifiedAt ?? DateTime.UtcNow),
+                    new SourceFileInfo(file.RelativePath, file.FileName, file.Size, file.OriginalModifiedAt ?? DateTime.UtcNow),
                     destination,
                     progress =>
                     {
@@ -578,6 +576,7 @@ public sealed class CollectTaskService : ICollectTaskService
                 file.Progress = 1;
                 file.CollectedAt = DateTime.Now;
                 fileLoop.Update(file);
+                _eventService.PublishTaskFileCompleted(taskId, file.Id, file.Status);
 
                 task.CollectedFiles++;
                 task.CollectedBytes += file.Size;
@@ -605,6 +604,7 @@ public sealed class CollectTaskService : ICollectTaskService
                     failedFile.Status = CollectFileStatus.Failed;
                     failedFile.ErrorMessage = ex.Message;
                     fileLoop.Update(failedFile);
+                    _eventService.PublishTaskFileCompleted(taskId, failedFile.Id, failedFile.Status);
                 }
 
                 taskLoop.Update(task);
@@ -688,6 +688,7 @@ public sealed class CollectTaskService : ICollectTaskService
             file.Status = interrupted ? CollectFileStatus.Abnormal : CollectFileStatus.Canceled;
             file.ErrorMessage = interrupted ? "设备断开，采集中断" : "任务已取消";
             fileLoop.Update(file);
+            _eventService.PublishTaskFileCompleted(taskId, file.Id, file.Status);
         }
 
         var terminalByRequest = control.FinalStatus is CollectTaskStatus.Interrupted or CollectTaskStatus.Canceled;

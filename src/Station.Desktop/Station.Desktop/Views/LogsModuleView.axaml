@@ -49,7 +49,7 @@
           <TextBlock Classes="field-label" Text="详情关键词" />
           <TextBox Classes="field"
                    Text="{Binding DetailKeyword}"
-                   Watermark="仅搜索详情列，回车查询">
+                   PlaceholderText="仅搜索详情列，回车查询">
             <TextBox.KeyBindings>
               <KeyBinding Gesture="Enter" Command="{Binding SearchCommand}" />
             </TextBox.KeyBindings>

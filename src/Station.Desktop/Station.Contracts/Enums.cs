@@ -118,3 +118,12 @@ public enum SyncOperation
     Upsert = 0,
     Delete = 1,
 }
+
+/// <summary>设备物理/绑定连接态，与任务态正交</summary>
+public enum DeviceLinkState
+{
+    Offline,     // 未插入或已拔出
+    Verifying,   // 已插入，绑定校验中
+    Bound,       // 已识别、待命
+    Rejected     // 拒绝接入
+}

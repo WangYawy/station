@@ -8,7 +8,8 @@ public sealed record DetectedDevice(
     string Name,
     string? Serial,
     ProtocolType Protocol,
-    string Root);
+    string Root,
+    DeviceLinkState LinkState = DeviceLinkState.Offline);
 
 /// <summary>设备接入检测器：按采集源模式返回当前在线设备。</summary>
 public interface IRecorderDeviceDetector

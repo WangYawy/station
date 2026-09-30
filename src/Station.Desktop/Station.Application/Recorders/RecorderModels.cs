@@ -1,4 +1,5 @@
 using Station.Contracts;
+using Station.Crypto;
 using Station.Domain.Collecting;
 using Station.Domain.Entities;
 

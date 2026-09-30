@@ -132,13 +132,10 @@ public sealed class RecorderConnectMonitor : IDevicePresenceService, IHostedServ
 
             if (newCount >= _settlePolls)
             {
-                var device = current.First(d => d.Key == key);
+                var device = current.First(d => d.Key == key) with { LinkState = DeviceLinkState.Verifying };
                 if (_connectedDevices.TryAdd(key, device))
                 {
-                    try
-                    {
-                        HandleConnectAsync(device);
-                    }
+                    try { HandleConnectAsync(device); }
                     catch
                     {
                         _connectedDevices.TryRemove(key, out _);
@@ -205,6 +202,7 @@ public sealed class RecorderConnectMonitor : IDevicePresenceService, IHostedServ
                     // 只有用户和部门都有效时才发布 Bound 事件
                     if (userId.HasValue && deptId.HasValue)
                     {
+                        SetLinkState(device.Key, DeviceLinkState.Bound);
                         _eventService.PublishDeviceBound(new DeviceBoundEvent(
                             device.Key,
                             userId.Value,
@@ -225,9 +223,9 @@ public sealed class RecorderConnectMonitor : IDevicePresenceService, IHostedServ
                 }
                 else
                 {
-                    // ============================================================
+                    SetLinkState(device.Key, DeviceLinkState.Rejected);
+
                     // 识别失败：按新枚举分类给出明确原因
-                    // ============================================================
                     string reason = result.Status switch
                     {
                         RecorderIdentifyStatus.NotFound => "设备未绑定，请联系管理员",
@@ -241,7 +239,7 @@ public sealed class RecorderConnectMonitor : IDevicePresenceService, IHostedServ
                     };
 
                     _eventService.PublishDeviceRejected(new DeviceRejectedEvent(
-                        device.Key, device.Name, reason
+                        device.Key, device.Name, result.Message ?? reason
                     ));
 
                     _logger.LogWarning(
@@ -251,6 +249,7 @@ public sealed class RecorderConnectMonitor : IDevicePresenceService, IHostedServ
             }
             catch (Exception ex)
             {
+                SetLinkState(device.Key, DeviceLinkState.Rejected);
                 _eventService.PublishDeviceRejected(new DeviceRejectedEvent(
                     device.Key, device.Name, $"验证异常：{ex.Message}"
                 ));
@@ -297,6 +296,12 @@ public sealed class RecorderConnectMonitor : IDevicePresenceService, IHostedServ
 
     public IReadOnlyList<DetectedDevice> GetConnectedDevices()
         => _connectedDevices.Values.ToList();
+
+    private void SetLinkState(string key, DeviceLinkState state)
+    {
+        if (_connectedDevices.TryGetValue(key, out var current))
+            _connectedDevices[key] = current with { LinkState = state };
+    }
 
     #endregion
 

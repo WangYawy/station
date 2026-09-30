@@ -13,7 +13,6 @@ namespace Station.Desktop.ViewModels;
 /// </summary>
 public partial class UsbPortCardViewModel : ObservableObject
 {
-
     // 命令状态缓存（仅变化时通知）
     private bool _lastCanPause, _lastCanResume, _lastCanCancel,
                  _lastCanRetry, _lastCanPriority, _lastHasTask;
@@ -21,39 +20,30 @@ public partial class UsbPortCardViewModel : ObservableObject
     private double _lastSpeedMb = -1;
 
     #region 属性
-    /// <summary>
-    /// 端口号
-    /// </summary>
     public string PortText { get; }
 
-    /// <summary>设备唯一标识（用于匹配设备事件）</summary>
     [ObservableProperty]
     private string? _deviceKey;
 
     // =================== 设备连接维度 ===================
 
-    /// <summary>设备连接态（正交维度，与任务态独立渲染）</summary>
     [ObservableProperty]
     private DeviceLinkState _linkState = DeviceLinkState.Offline;
 
-    /// <summary>设备指示灯颜色</summary>
     [ObservableProperty]
     private string _linkBrush = "#cbd5e1";
 
-    /// <summary>设备状态短标签（显示在灯旁）</summary>
     [ObservableProperty]
     private string _linkText = "空闲";
 
-    /// <summary>设备名称</summary>
     [ObservableProperty]
     private string _deviceText = "-- 等待设备连接";
-    /// <summary>设备磁盘空间 可用/总</summary>
+
     [ObservableProperty] private string _deviceSpaceText = string.Empty;
     [ObservableProperty] private bool _hasDeviceSpace;
 
     // =================== 任务维度 ===================
 
-    /// <summary>任务主状态（事实来源，null 表示无任务）</summary>
     [ObservableProperty]
     private CollectTaskStatus? _taskStatus;
 
@@ -63,122 +53,65 @@ public partial class UsbPortCardViewModel : ObservableObject
     [ObservableProperty]
     private string _taskNo = string.Empty;
 
-    /// <summary>任务状态文本（显示用，与 TaskStatus 同步）</summary>
     [ObservableProperty]
     private string _statusText = "--";
 
-    /// <summary>任务徽章背景色</summary>
     [ObservableProperty]
     private string _statusBadgeBrush = "#f1f5f9";
 
-    /// <summary>任务徽章前景色</summary>
     [ObservableProperty]
     private string _statusForeground = "#94a3b8";
-    /// <summary>任务文件状态</summary>
+
     [ObservableProperty]
     private string _storageText = "--";
 
-    // ================== 提示维度（拒绝 / 授权 / 警告） ==================
+    // =================== 操作人维度（p0 占位，未填充） ===================
+    [ObservableProperty] private string _operatorText = string.Empty;
+    [ObservableProperty] private bool _hasOperator;
 
-    /// <summary>提示文本（拒绝原因 / 授权提示 / 警告），为空时 UI 隐藏</summary>
+    // ================== 提示维度 ==================
     [ObservableProperty] private string _hintText = string.Empty;
-    /// <summary>提示颜色</summary>
     [ObservableProperty] private string _hintBrush = "#b91c1c";
-    /// <summary>是否有提示</summary>
     [ObservableProperty] private bool _hasHint;
 
     // =================== 展示信息 ===================
+    [ObservableProperty] private string _metaText = "--";
+    [ObservableProperty] private double _progress;
+    [ObservableProperty] private string _progressText = "0%";
+    [ObservableProperty] private string _speedText = "-- MB/s";
 
-    /// <summary>协议 / 采集模式</summary>
-    [ObservableProperty]
-    private string _metaText = "--";
+    [ObservableProperty] private bool _isIdle = true;
+    [ObservableProperty] private double _opacity = 0.55;
+    [ObservableProperty] private bool _isEmergency;
+    [ObservableProperty] private string _accentBrush = "#2563eb";
+    [ObservableProperty] private string _cardBackground = "White";
+    [ObservableProperty] private bool _canPriority;
+    [ObservableProperty] private string _priorityButtonText = "优先";
+    [ObservableProperty] private string _priorityButtonBrush = "#ea580c";
+    [ObservableProperty] private bool _canPause;
+    [ObservableProperty] private bool _canResume;
+    [ObservableProperty] private bool _canCancel;
+    [ObservableProperty] private bool _canRetry;
 
-    /// <summary>进度条</summary>
-    [ObservableProperty]
-    private double _progress;
-    /// <summary>进度文本</summary>
-    [ObservableProperty]
-    private string _progressText = "0%";
-    /// <summary>速度</summary>
-    [ObservableProperty]
-    private string _speedText = "-- MB/s";
-
-    /// <summary>是否无任务（任务维度空闲）</summary>
-    [ObservableProperty]
-    private bool _isIdle = true;
-
-    [ObservableProperty]
-    private double _opacity = 0.55;
-    /// <summary>任务是否紧急优先</summary>
-    [ObservableProperty]
-    private bool _isEmergency;
-
-    [ObservableProperty]
-    private string _accentBrush = "#2563eb";
-
-    [ObservableProperty]
-    private string _cardBackground = "White";
-
-    [ObservableProperty]
-    private bool _canPriority;
-
-    [ObservableProperty]
-    private string _priorityButtonText = "优先";
-
-    [ObservableProperty]
-    private string _priorityButtonBrush = "#ea580c";
-
-    [ObservableProperty]
-    private bool _canPause;
-
-    [ObservableProperty]
-    private bool _canResume;
-
-    [ObservableProperty]
-    private bool _canCancel;
-
-    [ObservableProperty]
-    private bool _canRetry;
-
-    // =================== 派生状态（唯一来源 = TaskStatus） ===================
-    public bool IsSanning => TaskStatus == CollectTaskStatus.Scanning;
-
+    // =================== 派生状态 ===================
+    public bool IsScanning => TaskStatus == CollectTaskStatus.Scanning;
     public bool IsCollecting => TaskStatus == CollectTaskStatus.Collecting;
-
     public bool IsPaused => TaskStatus == CollectTaskStatus.Paused;
-
     public bool IsFailedState => TaskStatus == CollectTaskStatus.Failed;
-
     public bool IsCompletedState => TaskStatus == CollectTaskStatus.Completed;
-
-    /// <summary>待开始（对应 CollectTaskStatus.Created）</summary>
     public bool IsPendingState => TaskStatus == CollectTaskStatus.Created;
 
-    // =================== 命令 ===================
+    /// <summary>是否有任务（供 XAML / 命令 CanExecute 共用）</summary>
+    public bool HasTask => TaskId is not null;
 
-    /// <summary>
-    /// 暂停命令
-    /// </summary>
+    // =================== 命令 ===================
     public IRelayCommand PauseCommand { get; }
-    /// <summary>
-    /// 回复命令
-    /// </summary>
     public IRelayCommand ResumeCommand { get; }
-    /// <summary>
-    /// 取消命令
-    /// </summary>
     public IRelayCommand CancelCommand { get; }
-    /// <summary>
-    /// 重试命令
-    /// </summary>
     public IRelayCommand RetryCommand { get; }
-    /// <summary>
-    /// 紧急优先命令
-    /// </summary>
     public IRelayCommand PriorityCommand { get; }
-    /// <summary>查看明细命令</summary>
     public IRelayCommand DetailsCommand { get; }
-    #endregion 属性
+    #endregion
 
     public UsbPortCardViewModel(
         int portIndex,
@@ -196,22 +129,22 @@ public partial class UsbPortCardViewModel : ObservableObject
         CancelCommand = new RelayCommand(() => cancel(this), () => CanCancel);
         RetryCommand = new RelayCommand(() => retry(this), () => CanRetry);
         PriorityCommand = new RelayCommand(() => priority(this), () => CanPriority);
-        DetailsCommand = new RelayCommand(() => details(this), () => TaskId is not null);
+        DetailsCommand = new RelayCommand(() => details(this), () => HasTask);
     }
 
     #region 公共更新方法
-    /// <summary>
-    /// 从完整快照 DTO 更新卡片（用于启动加载和兜底刷新）
-    /// </summary>
-    /// <summary>从完整快照 DTO 更新卡片（心跳兜底 / 启动加载）</summary>
+
+    /// <summary>从完整快照 DTO 更新卡片（快照权威，含链路态；仅进度字段取 max 防回退）</summary>
     public void UpdateFromDto(UsbPortCardDto dto)
     {
-        // 设备维度
+        // ============ 设备维度 ============
         if (!dto.IsConnected)
         {
-            DeviceKey = null;
-            ApplyLinkState(DeviceLinkState.Offline);
-            // 只有无任务时才清 DeviceText（有任务时保留任务记录的设备名）
+            if (DeviceKey is not null || LinkState != DeviceLinkState.Offline)
+            {
+                ApplyLinkState(DeviceLinkState.Offline);
+                DeviceKey = null;
+            }
             if (TaskId is null)
             {
                 DeviceText = "-- 等待设备连接";
@@ -223,49 +156,60 @@ public partial class UsbPortCardViewModel : ObservableObject
         else
         {
             DeviceKey = dto.DeviceKey;
-            DeviceText = dto.DeviceName ?? "设备已连接";
-            // 心跳不能覆盖 Verifying / Rejected（精确值由事件驱动提供）
-            if (LinkState is DeviceLinkState.Offline)
+            if (LinkState != dto.LinkState)
+                ApplyLinkState(dto.LinkState);
+
+            // 无任务时才由设备维度决定显示名/协议
+            if (TaskId is null)
             {
-                MetaText = dto.Protocol is { } p ? $"{ProtocolText(p)} · 等待采集" : "--";
-                ApplyLinkState(DeviceLinkState.Bound);
+                DeviceText = dto.DeviceName ?? "设备已连接";
+                MetaText = dto.Protocol is { } p
+                    ? $"{ProtocolText(p)} · 等待采集"
+                    : "--";
             }
             Opacity = 1;
             SetDeviceSpace(dto.DeviceAvailableBytes, dto.DeviceTotalBytes);
         }
 
-        // 任务维度
+        // ============ 任务维度 ============
         if (dto.TaskId is null)
         {
-            ApplyTaskIdle();
+            if (TaskId is not null) ApplyTaskIdle();
+            return;
         }
-        else
-        {
-            ApplyTaskData(
-                dto.TaskId.Value, dto.TaskNo ?? "", dto.DeviceName ?? "未知设备",
-                dto.Protocol ?? ProtocolType.Ums, true, dto.IsEmergency,
-                dto.Status ?? CollectTaskStatus.Created,
-                dto.TotalFiles, dto.CollectedFiles,
-                dto.TotalBytes, dto.CollectedBytes,
-                dto.SpeedBytesPerSecond);
-        }
+
+        // 判断是否需要写进度：任务 ID 变了无条件写；同任务时 dto 进度落后则跳过
+        var sameTask = TaskId == dto.TaskId;
+        var dtoPercent = dto.TotalFiles > 0
+            ? (double)dto.CollectedFiles / dto.TotalFiles
+            : dto.TotalBytes > 0
+                ? (double)dto.CollectedBytes / dto.TotalBytes
+                : 0d;
+        var dtoProgress = Math.Clamp(dtoPercent * 100, 0, 100);
+        var writeProgress = !sameTask || dtoProgress >= Progress;
+
+        ApplyTaskData(
+            dto.TaskId.Value, dto.TaskNo ?? "", dto.DeviceName ?? "未知设备",
+            dto.Protocol ?? ProtocolType.Ums, true, dto.IsEmergency,
+            dto.Status ?? CollectTaskStatus.Created,
+            dto.TotalFiles, dto.CollectedFiles,
+            dto.TotalBytes, dto.CollectedBytes,
+            dto.SpeedBytesPerSecond,
+            writeProgress: writeProgress);
     }
+
     /// <summary>增量更新：进度和速度（高频入口，含去噪）</summary>
     public void UpdateProgress(double progressPercent, double speedBytesPerSecond)
     {
-        // 进度：仅在 ≥0.05 变化时写字段（消除浮点抖动）
         var p = Math.Clamp(progressPercent, 0, 100);
         if (Math.Abs(Progress - p) >= 0.05)
         {
             Progress = Math.Round(p, 1);
-
-            // ProgressText 仅在整数变化时刷新
             var newText = $"{Progress:F0}%";
             if (!string.Equals(ProgressText, newText, StringComparison.Ordinal))
                 ProgressText = newText;
         }
 
-        // 速度：仅在 ≥0.1 MB/s 变化时刷新
         var speedMb = speedBytesPerSecond > 0
             ? Math.Round(speedBytesPerSecond / 1048576d, 1)
             : 0d;
@@ -279,10 +223,10 @@ public partial class UsbPortCardViewModel : ObservableObject
     /// <summary>增量更新：任务状态或紧急标记（由事件触发）</summary>
     public void UpdateStatus(CollectTaskStatus status, bool isEmergency)
     {
+        var emergencyChanged = IsEmergency != isEmergency;
         IsEmergency = isEmergency;
         ApplyStatusStyle(status);
-        // 紧急标记可能伴随按钮文案/颜色变化
-        UpdatePriorityPresentation();
+        if (emergencyChanged) UpdatePriorityPresentation();
         NotifyCommands();
     }
 
@@ -294,11 +238,9 @@ public partial class UsbPortCardViewModel : ObservableObject
         MetaText = $"{protocol} · 等待采集";
         ApplyLinkState(DeviceLinkState.Verifying);
 
-        // 设备插入时任务维度应已为空
-        if (TaskId is not null)
-            ApplyTaskIdle();
+        if (TaskId is not null) ApplyTaskIdle();
 
-        ClearHint();  // 新设备接入，清掉旧提示
+        ClearHint();
         Opacity = 1;
     }
 
@@ -307,7 +249,6 @@ public partial class UsbPortCardViewModel : ObservableObject
     {
         ApplyLinkState(DeviceLinkState.Offline);
         DeviceKey = null;
-        // 只有无任务才清设备名与元数据，有任务时保留
         if (TaskId is null)
         {
             DeviceText = "-- 等待设备连接";
@@ -316,11 +257,10 @@ public partial class UsbPortCardViewModel : ObservableObject
             Opacity = 0.55;
         }
         SetDeviceSpace(null, null);
-        // 有任务时保留进度显示（终态由 TaskStatusChanged 事件刷新）
         NotifyCommands();
     }
 
-    /// <summary>整体归零（设备拔出 + 任务结束）</summary>
+    /// <summary>整体归零</summary>
     public void SetIdle()
     {
         DeviceKey = null;
@@ -332,25 +272,21 @@ public partial class UsbPortCardViewModel : ObservableObject
         SetDeviceSpace(null, null);
         ClearHint();
     }
-    /// <summary>绑定成功：链路态转 Bound</summary>
+
     public void SetBound()
     {
         ApplyLinkState(DeviceLinkState.Bound);
         ClearHint();
     }
 
-    /// <summary>绑定失败：链路态转 Rejected</summary>
     public void SetRejected(string reason)
     {
         ApplyLinkState(DeviceLinkState.Rejected);
-        SetHint(reason, "#b91c1c");   // 红
+        SetHint(reason, "#b91c1c");
     }
 
-    /// <summary>授权/警告类提示（可选，供后续扩展使用）</summary>
-    public void SetWarning(string message)
-        => SetHint(message, "#b45309");   // 橙
+    public void SetWarning(string message) => SetHint(message, "#b45309");
 
-    /// <summary>设备磁盘空间（由心跳或事件更新）</summary>
     public void SetDeviceSpace(long? availableBytes, long? totalBytes)
     {
         if (availableBytes is null or < 0 || totalBytes is null or <= 0)
@@ -359,12 +295,10 @@ public partial class UsbPortCardViewModel : ObservableObject
             HasDeviceSpace = false;
             return;
         }
-
         DeviceSpaceText = $"可用 {FormatSize(availableBytes.Value)} / {FormatSize(totalBytes.Value)}";
         HasDeviceSpace = true;
     }
 
-    /// <summary>从任务 DTO 更新</summary>
     public void UpdateFromTask(CollectTaskDto task)
     {
         ApplyTaskData(
@@ -372,58 +306,61 @@ public partial class UsbPortCardViewModel : ObservableObject
             task.IsAuto, task.IsEmergency, task.Status,
             task.TotalFiles, task.CollectedFiles,
             task.TotalBytes, task.CollectedBytes,
-            task.SpeedBytesPerSecond);
+            task.SpeedBytesPerSecond,
+            writeProgress: true);
     }
 
     #endregion
 
     #region 内部辅助方法
 
-    /// <summary>
-    /// 应用采集任务信息
-    /// </summary>
-    /// <summary>应用任务数据（任务维度核心入口）</summary>
     private void ApplyTaskData(
         long taskId, string taskNo, string recorderName, ProtocolType protocol,
         bool isAuto, bool isEmergency, CollectTaskStatus status,
         int totalFiles, int collectedFiles,
-        long totalBytes, long collectedBytes, double speed)
+        long totalBytes, long collectedBytes, double speed,
+        bool writeProgress)
     {
+        var isNewTask = TaskId is null;
+
         TaskId = taskId;
         TaskNo = taskNo;
         IsIdle = false;
         Opacity = 1;
         IsEmergency = isEmergency;
 
-        DeviceText = recorderName;
+        if (isNewTask)
+            DeviceText = recorderName;   // 只在首建时覆盖设备展示名
+
         MetaText = $"{ProtocolText(protocol)} · {(isAuto ? "自动采集" : "手动采集")}";
-        StorageText = $"文件 {collectedFiles}/{totalFiles} · 已采集 {FormatSize(collectedBytes)}";
+        StorageText = $"扫描 {totalFiles} · 已上传 {collectedFiles}";
 
-        var percent = totalFiles > 0
-            ? (double)collectedFiles / totalFiles
-            : totalBytes > 0
-                ? (double)collectedBytes / totalBytes
-                : 0d;
-        Progress = Math.Clamp(percent * 100, 0, 100);
-        ProgressText = $"{Progress:F0}%";
+        if (writeProgress)
+        {
+            var percent = totalFiles > 0
+                ? (double)collectedFiles / totalFiles
+                : totalBytes > 0
+                    ? (double)collectedBytes / totalBytes
+                    : 0d;
+            Progress = Math.Clamp(percent * 100, 0, 100);
+            ProgressText = $"{Progress:F0}%";
 
-        var speedMb = speed > 0 ? Math.Round(speed / 1048576d, 1) : 0d;
-        _lastSpeedMb = speedMb;
-        SpeedText = speedMb > 0 ? $"{speedMb:F1} MB/s" : "-- MB/s";
+            var speedMb = speed > 0 ? Math.Round(speed / 1048576d, 1) : 0d;
+            _lastSpeedMb = speedMb;
+            SpeedText = speedMb > 0 ? $"{speedMb:F1} MB/s" : "-- MB/s";
+        }
 
         ApplyStatusStyle(status);
         UpdatePriorityPresentation();
         NotifyCommands();
     }
 
-    /// <summary>任务维度归零（无任务）</summary>
     private void ApplyTaskIdle()
     {
         TaskId = null;
         TaskNo = string.Empty;
         IsIdle = true;
 
-        // 只写 TaskStatus，派生属性通过 OnTaskStatusChanged 通知
         TaskStatus = null;
         StatusText = "--";
         StatusBadgeBrush = "#f1f5f9";
@@ -445,16 +382,21 @@ public partial class UsbPortCardViewModel : ObservableObject
         NotifyCommands();
     }
 
-    /// <summary>应用任务状态（只动任务维度，不碰设备维度 / IsIdle）</summary>
     private void ApplyStatusStyle(CollectTaskStatus status)
     {
+        if (TaskStatus == status) return;
+
         CanPause = CanResume = CanCancel = CanRetry = CanPriority = false;
 
         switch (status)
         {
             case CollectTaskStatus.Scanning:
                 StatusText = "扫描中";
+                StatusBadgeBrush = "#e0e7ff";
+                StatusForeground = "#4338ca";
+                CanCancel = true;
                 break;
+
             case CollectTaskStatus.Collecting:
                 StatusText = "采集中";
                 StatusBadgeBrush = "#dbeafe";
@@ -507,12 +449,9 @@ public partial class UsbPortCardViewModel : ObservableObject
                 break;
         }
 
-        // 最后写 TaskStatus —— 触发派生属性的精准通知
-        TaskStatus = status;
+        TaskStatus = status;   // 触发派生属性精准通知
     }
 
-
-    /// <summary>应用设备连接态（只动设备维度）</summary>
     private void ApplyLinkState(DeviceLinkState state)
     {
         LinkState = state;
@@ -525,7 +464,6 @@ public partial class UsbPortCardViewModel : ObservableObject
         };
     }
 
-    /// <summary>根据 IsEmergency 刷新按钮文案/配色/背景</summary>
     private void UpdatePriorityPresentation()
     {
         AccentBrush = IsEmergency ? "#ef4444" : "#2563eb";
@@ -533,21 +471,20 @@ public partial class UsbPortCardViewModel : ObservableObject
         PriorityButtonText = IsEmergency ? "取消优先" : "优先";
         PriorityButtonBrush = IsEmergency ? "#ef4444" : "#ea580c";
     }
-    /// <summary>提示</summary>
+
     private void SetHint(string text, string brush)
     {
         HintText = text;
         HintBrush = brush;
         HasHint = !string.IsNullOrWhiteSpace(text);
     }
-    /// <summary>清空提示</summary>
+
     private void ClearHint()
     {
         HintText = string.Empty;
         HasHint = false;
     }
 
-    /// <summary>命令可用性精准通知（只在变化时触发）</summary>
     private void NotifyCommands()
     {
         if (_lastCanPause != CanPause) { _lastCanPause = CanPause; PauseCommand.NotifyCanExecuteChanged(); }
@@ -556,8 +493,7 @@ public partial class UsbPortCardViewModel : ObservableObject
         if (_lastCanRetry != CanRetry) { _lastCanRetry = CanRetry; RetryCommand.NotifyCanExecuteChanged(); }
         if (_lastCanPriority != CanPriority) { _lastCanPriority = CanPriority; PriorityCommand.NotifyCanExecuteChanged(); }
 
-        var hasTask = TaskId is not null;
-        if (_lastHasTask != hasTask) { _lastHasTask = hasTask; DetailsCommand.NotifyCanExecuteChanged(); }
+        if (_lastHasTask != HasTask) { _lastHasTask = HasTask; DetailsCommand.NotifyCanExecuteChanged(); }
     }
 
     private static string ProtocolText(ProtocolType protocol) => protocol switch
@@ -573,25 +509,18 @@ public partial class UsbPortCardViewModel : ObservableObject
         var units = new[] { "B", "KB", "MB", "GB", "TB" };
         var value = (double)bytes;
         var unit = 0;
-        while (value >= 1024 && unit < units.Length - 1)
-        {
-            value /= 1024;
-            unit++;
-        }
+        while (value >= 1024 && unit < units.Length - 1) { value /= 1024; unit++; }
         return $"{value:F1} {units[unit]}";
     }
+
     #endregion
 
-    #region 派生属性精准通知（唯一入口 = TaskStatus 变化）
+    #region 派生属性精准通知
 
-    /// <summary>
-    /// 任务主状态变化 → 只通知受影响的派生属性。
-    /// 取代旧的 OnStatusTextChanged / OnIsIdleChanged，避免 5×N 次冗余通知。
-    /// </summary>
     partial void OnTaskStatusChanged(CollectTaskStatus? oldValue, CollectTaskStatus? newValue)
     {
         if ((oldValue == CollectTaskStatus.Scanning) != (newValue == CollectTaskStatus.Scanning))
-            OnPropertyChanged(nameof(IsSanning));
+            OnPropertyChanged(nameof(IsScanning));
 
         if ((oldValue == CollectTaskStatus.Collecting) != (newValue == CollectTaskStatus.Collecting))
             OnPropertyChanged(nameof(IsCollecting));
@@ -609,14 +538,7 @@ public partial class UsbPortCardViewModel : ObservableObject
             OnPropertyChanged(nameof(IsPendingState));
     }
 
-    #endregion
-}
+    partial void OnTaskIdChanged(long? value) => OnPropertyChanged(nameof(HasTask));
 
-/// <summary>设备物理/绑定连接态，与任务态正交</summary>
-public enum DeviceLinkState
-{
-    Offline,     // 未插入或已拔出
-    Verifying,   // 已插入，绑定校验中
-    Bound,       // 已识别、待命
-    Rejected     // 拒绝接入
+    #endregion
 }

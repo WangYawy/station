@@ -1,4 +1,5 @@
 using Station.Application.DeviceDetection;
+using Station.Contracts;
 
 namespace Station.Application.DeviceDetection;
 
@@ -12,4 +13,5 @@ public interface IDevicePresenceService
     /// </summary>
     /// <returns></returns>
     IReadOnlyList<DetectedDevice> GetConnectedDevices();
+
 }

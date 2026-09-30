@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Station.Application.Recorders;
 using Station.Application.Security;
 using Station.Crypto;
 using Station.Crypto.Engine.Internal;
@@ -35,6 +36,7 @@ public static class SecurityServiceCollectionExtensions
         services.AddScoped<IPasswordService, PasswordService>();
         services.AddScoped<IFileCryptoService, FileCryptoService>();
         services.AddScoped<ILicenseCryptoService, LicenseCryptoService>();
+        services.AddSingleton<IRecorderBindingFile, RecorderBindingFile>();
 
         return services;
     }

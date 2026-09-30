@@ -1,20 +1,22 @@
 using Avalonia.Controls;
-using Station.Application.Collecting;
+using Station.Desktop.ViewModels;
 
 namespace Station.Desktop.Views;
 
 public partial class TaskFilesWindow : Window
 {
-    public TaskFilesWindow(string title, IReadOnlyList<CollectFileDto> files, Window? owner = null)
+    public TaskFilesWindow()
     {
         InitializeComponent();
-        if (owner is not null)
-        {
-            Owner = owner;
-        }
+        Closed += OnClosed;
+    }
 
-        TitleText.Text = $"📁 {title}";
-        FileList.ItemsSource = files;
-        SummaryText.Text = $"共 {files.Count} 个文件";
+    private void OnClosed(object? sender, EventArgs e)
+    {
+        if (DataContext is TaskFilesViewModel vm)
+        {
+            vm.Dispose();
+            DataContext = null;
+        }
     }
 }

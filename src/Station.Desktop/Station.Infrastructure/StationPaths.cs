@@ -15,7 +15,7 @@ public static class StationPaths
             ? overrideDir
             : Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                "Station");
+                "station");
 
     /// <summary>
     /// SQLite 相对连接串重定位到数据目录：<c>Data Source=xxx.db</c> 改为数据目录下的绝对路径；
