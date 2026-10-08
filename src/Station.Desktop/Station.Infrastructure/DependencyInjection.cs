@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Station.Application.Collecting;
 using Station.Application.DeviceDetection;
 using Station.Application.Licensing;
 using Station.Application.Settings;
@@ -102,6 +103,9 @@ public static class DependencyInjection
         services.AddSingleton<IDevicePresenceService>(sp => sp.GetRequiredService<RecorderConnectMonitor>());
         // 注册后台托管服务（复用同一个实例）
         services.AddHostedService(sp => sp.GetRequiredService<RecorderConnectMonitor>());
+
+        services.AddSingleton<ICollectTaskNoGenerator, CollectTaskNoGenerator>();
+        services.AddSingleton<ICollectFileNoGenerator, CollectFileNoGenerator>();
         // ==========================================
         // 7. 文件存储器（包含多目标）
         // ==========================================

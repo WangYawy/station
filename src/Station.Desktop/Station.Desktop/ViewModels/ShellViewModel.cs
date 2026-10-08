@@ -12,6 +12,7 @@ using Station.Application.Alerts;
 using Station.Application.Audit;
 using Station.Application.Authentication;
 using Station.Application.Collecting;
+using Station.Application.DeviceDetection;
 using Station.Application.Licensing;
 using Station.Application.Monitoring;
 using Station.Application.OperationAccess;
@@ -57,6 +58,7 @@ public partial class ShellViewModel : ObservableObject, IDisposable
 
     private long? _lastAlertId;
     private LogsModuleViewModel? _logsViewModel; // 日志页缓存，避免每次打开都重新加载
+    private WorkbenchViewModel? _workbenchViewModel; // 工作台常驻单例
     private IDisposable? _currentModuleDisposable;
 
     private Func<Task<bool>>? _loginRequestHandler;
@@ -157,7 +159,7 @@ public partial class ShellViewModel : ObservableObject, IDisposable
 
         if (overrideTitle is null && moduleKey == "workbench")
         {
-            var vm = new WorkbenchViewModel(
+            _workbenchViewModel ??= new WorkbenchViewModel(
                 _sessions,
                 _collectService,
                 _operationAccess,
@@ -165,8 +167,7 @@ public partial class ShellViewModel : ObservableObject, IDisposable
                 _services.GetRequiredService<IUsbPortCardEventService>(),
                 _services.GetRequiredService<WindowModeOptions>(),
                 _services.GetRequiredService<CollectOptions>());
-            _currentModuleDisposable = vm as IDisposable;
-            CurrentModule = vm;
+            CurrentModule = _workbenchViewModel;
             return;
         }
 
@@ -514,6 +515,7 @@ public partial class ShellViewModel : ObservableObject, IDisposable
         _idleTracker.WarningChanged -= OnIdleWarningChanged;
 
         _logsViewModel?.Dispose();
+        _workbenchViewModel?.Dispose();
         _currentModuleDisposable?.Dispose();
     }
 }

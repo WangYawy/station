@@ -24,13 +24,14 @@ public sealed class SystemSettingsService : ISystemSettingsService
     private IStorageConfiguration _storage;
     private readonly AuthOptions _auth;
     private readonly PlatformOptions _platform;
-    private readonly StationOptions _station;
+    private readonly StationOptions _stationOpts;
     private readonly IRuntimeSettingsFile _runtimeFile;
     private readonly ILicenseService _license;
     private readonly IAuditLogService _audit;
     private readonly IStorageConfigStore _storageConfigStore;
     private readonly ILogger<SystemSettingsService> _logger;
-    WindowModeOptions _workbench;
+    private readonly WindowModeOptions _workbench;
+    private readonly IStationInfoService _station;
 
     private static readonly string[] VideoExtensions = [".mp4", ".avi", ".flv", ".mov"];
 
@@ -42,24 +43,26 @@ public sealed class SystemSettingsService : ISystemSettingsService
         IStorageConfiguration storage,
         AuthOptions auth,
         PlatformOptions platform,
-        StationOptions station,
+        StationOptions stationOpts,
         WindowModeOptions workbench,
         IRuntimeSettingsFile runtimeFile,
         ILicenseService license,
         IAuditLogService audit,
         IStorageConfigStore storageConfigStore,
+        IStationInfoService station,
         ILogger<SystemSettingsService> logger)
     {
         _collect = collect;
         _storage = storage;
         _auth = auth;
         _platform = platform;
-        _station = station;
+        _stationOpts = stationOpts;
         _workbench = workbench;
         _runtimeFile = runtimeFile;
         _license = license;
         _audit = audit;
         _storageConfigStore = storageConfigStore;
+        _station = station;
         _logger = logger;
     }
 
@@ -69,10 +72,10 @@ public sealed class SystemSettingsService : ISystemSettingsService
         return new SystemSettingsCoreDto(
             new BasicSettingsDto(
                 _storage.StationNo,
-                _station.InstallLocation,
+                _stationOpts.InstallLocation,
                 _platform.Enabled ? "platform" : "standalone",
                 _platform.BaseUrl ?? string.Empty,
-                _platform.StationCode),
+                _station.Current.StationCode),
             new StorageSettingsDto(
                 "", //_storage.Target.ToString(),
                 "", //_storage.LocalRoot,
@@ -147,7 +150,7 @@ public sealed class SystemSettingsService : ISystemSettingsService
 
         if (values.TryGetValue("installLocation", out var location))
         {
-            _station.InstallLocation = location.Trim();
+            _stationOpts.InstallLocation = location.Trim();
         }
 
         if (values.TryGetValue("runMode", out var runMode) &&
@@ -167,11 +170,11 @@ public sealed class SystemSettingsService : ISystemSettingsService
             hints.Add("平台地址修改需重启后生效");
         }
 
-        if (values.TryGetValue("platformStationCode", out var platformCode) && !string.IsNullOrWhiteSpace(platformCode))
-        {
-            _platform.StationCode = platformCode.Trim();
-            hints.Add("平台采集站编号修改需重启后生效");
-        }
+        //if (values.TryGetValue("platformStationCode", out var platformCode) && !string.IsNullOrWhiteSpace(platformCode))
+        //{
+        //    _station.Current.StationCode = platformCode.Trim();
+        //    hints.Add("平台采集站编号修改需重启后生效");
+        //}
 
         return hints;
     }
@@ -309,9 +312,9 @@ public sealed class SystemSettingsService : ISystemSettingsService
         var station = EnsureObject(root, "Station");
         station["Basic"] = JsonSerializer.SerializeToNode(new
         {
-            _station.InstallLocation,
-            _station.VideoRetentionDays,
-            _station.LogRetentionDays
+            _stationOpts.InstallLocation,
+            _stationOpts.VideoRetentionDays,
+            _stationOpts.LogRetentionDays
         });
         //station["Storage"] = JsonSerializer.SerializeToNode(new
         //{
@@ -357,7 +360,7 @@ public sealed class SystemSettingsService : ISystemSettingsService
         {
             _platform.Enabled,
             _platform.BaseUrl,
-            _platform.StationCode
+            _station.Current.StationCode
         });
         _runtimeFile.WriteJson(root.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
     }

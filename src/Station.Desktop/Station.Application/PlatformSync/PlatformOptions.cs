@@ -9,7 +9,7 @@ public sealed class PlatformOptions
     public string? BaseUrl { get; set; }
 
     /// <summary>采集站编号（注册与 FileNo 前缀）。</summary>
-    public string StationCode { get; set; } = "ST0001";
+    //public string StationCode { get; set; } = "ST0001";
 
     /// <summary>上报/补报轮询间隔（秒）。</summary>
     public int SyncIntervalSeconds { get; set; } = 10;

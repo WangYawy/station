@@ -78,7 +78,7 @@ public sealed class FileLedgerService : IFileLedgerService
             //file.Sm3 ??= _collectOptions.EncryptCache ? 
             //    ? _checksumService.Compute(_encryptionService.CreateDecryptStream(cachePath))
             //    : _checksumService.ComputeFile(cachePath);
-            file.FileNo = FileNo.Create(_platformOptions.StationCode, file.Id);
+            //file.FileNo = FileNo.Create(_platformOptions.StationCode, file.Id);
             fileLoop.Update(file);
 
             if (!await _ledger.IsAnyAsync(v => v.FileNo == file.FileNo))

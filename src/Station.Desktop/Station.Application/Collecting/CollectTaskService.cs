@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Threading.Tasks;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Station.Application.Licensing;
@@ -45,6 +46,9 @@ public sealed class CollectTaskService : ICollectTaskService
     private readonly IFileCryptoService _fileCrypto;
     private readonly StorageOptions _storageConfig;
     private readonly IUsbPortCardEventService _eventService;
+    private readonly IStationInfoService _station;
+    private readonly ICollectTaskNoGenerator _taskNoGen;
+    private readonly ICollectFileNoGenerator _fileNoGen;
 
     // 上次已发布状态，避免重复事件
     private readonly ConcurrentDictionary<long, CollectTaskStatus> _lastPublishedStatus = new();
@@ -61,6 +65,9 @@ public sealed class CollectTaskService : ICollectTaskService
         IFileCryptoService fileCrypto,
         StorageOptions storageConfig,
         IUsbPortCardEventService eventService,
+        IStationInfoService station,
+        ICollectTaskNoGenerator taskNoGen,
+        ICollectFileNoGenerator fileNoGen,
         ILogger<CollectTaskService> logger)
     {
         _tasks = tasks;
@@ -75,12 +82,16 @@ public sealed class CollectTaskService : ICollectTaskService
         _fileCrypto = fileCrypto;
         _storageConfig = storageConfig;
         _eventService = eventService;
+        _station = station;
+        _taskNoGen = taskNoGen;
+        _fileNoGen = fileNoGen;
     }
 
-    public async Task<CollectTaskDto> CreateTaskAsync(CollectDeviceInfo device, bool isAuto)
+    public async Task<CollectTaskDto> CreateTaskAsync(CollectDeviceInfo device, bool isAuto, CancellationToken ct = default)
     {
         var now = DateTime.Now;
         var id = _idGenerator.NewId();
+        var taskNo = await _taskNoGen.NextAsync(_station.Current.StationCode, device.Serial!, now);
         var task = new CollectTask
         {
             Id = id,
@@ -88,7 +99,7 @@ public sealed class CollectTaskService : ICollectTaskService
             RecorderName = device.Name,
             RecorderSerial = device.Serial,
             Protocol = device.Protocol,
-            SourceRoot = device.RootPath,
+            SourceRoot = device.RootPath!,
             OperatorUserId = device.UserId,
             DeptId = device.DeptId,
             Status = CollectTaskStatus.Created,
@@ -107,7 +118,7 @@ public sealed class CollectTaskService : ICollectTaskService
         return ToDto(task);
     }
 
-    public async Task<CollectTaskDto> StartAsync(long taskId)
+    public async Task<CollectTaskDto> StartAsync(long taskId, CancellationToken ct = default)
     {
         if (!await _licenseService.IsValidNowAsync())
         {
@@ -167,6 +178,7 @@ public sealed class CollectTaskService : ICollectTaskService
         }
 
         // ==================== 3. 批量构造 CollectFile 列表（合并 N+1 插入） ====================
+        using var fileCtx = await _fileNoGen.CreateContextAsync(task.TaskNo, ct);
         var toInsert = new List<CollectFile>(accepted.Count);
         int skipped = 0;
         foreach (var source in accepted)
@@ -178,6 +190,8 @@ public sealed class CollectTaskService : ICollectTaskService
             {
                 Id = _idGenerator.NewId(),
                 TaskId = taskId,
+                TaskNo = task.TaskNo,
+                FileNo = fileCtx.Next(),
                 FileName = source.FileName,
                 Extension = Path.GetExtension(source.FileName).ToLowerInvariant(),
                 RelativePath = source.RelativePath,
@@ -227,7 +241,7 @@ public sealed class CollectTaskService : ICollectTaskService
         return ToDto(task);
     }
 
-    public Task PauseAsync(long taskId)
+    public Task PauseAsync(long taskId, CancellationToken ct = default)
     {
         if (_controls.TryGetValue(taskId, out var control))
         {
@@ -239,7 +253,7 @@ public sealed class CollectTaskService : ICollectTaskService
         return Task.CompletedTask;
     }
 
-    public async Task ResumeAsync(long taskId)
+    public async Task ResumeAsync(long taskId, CancellationToken ct = default)
     {
         var task = await RequireTaskAsync(taskId);
         if (_controls.ContainsKey(taskId))
@@ -278,13 +292,13 @@ public sealed class CollectTaskService : ICollectTaskService
         _logger.LogInformation("采集任务 {TaskId} 恢复", taskId);
     }
 
-    public Task CancelAsync(long taskId) =>
+    public Task CancelAsync(long taskId, CancellationToken ct = default) =>
         SetFinalAsync(taskId, CollectTaskStatus.Canceled);
 
-    public Task InterruptAsync(long taskId, string reason) =>
+    public Task InterruptAsync(long taskId, string reason, CancellationToken ct = default) =>
         SetFinalAsync(taskId, CollectTaskStatus.Interrupted, reason);
 
-    public async Task<bool> SetEmergencyAsync(long taskId, bool isEmergency)
+    public async Task<bool> SetEmergencyAsync(long taskId, bool isEmergency, CancellationToken ct = default)
     {
         var task = await RequireTaskAsync(taskId);
         if (isEmergency && !task.IsEmergency)
@@ -307,13 +321,13 @@ public sealed class CollectTaskService : ICollectTaskService
         return true;
     }
 
-    public async Task<CollectTaskDto?> GetTaskAsync(long taskId)
+    public async Task<CollectTaskDto?> GetTaskAsync(long taskId, CancellationToken ct = default)
     {
-        var task = await _tasks.GetByIdAsync(taskId);
+        var task = await _tasks.GetByIdAsync(taskId, ct);
         return task is null ? null : ToDto(task);
     }
 
-    public async Task<IReadOnlyList<CollectTaskDto>> GetTasksAsync(int count)
+    public async Task<IReadOnlyList<CollectTaskDto>> GetTasksAsync(int count, CancellationToken ct = default)
     {
         var query = new PageQuery<CollectTask>
         {
@@ -322,22 +336,23 @@ public sealed class CollectTaskService : ICollectTaskService
             Predicate = null,
             CountTotal = false
         };
-        var page = await _tasks.ToPageAsync(query, orderBy: t => t.CreatedAt, descending: true);
+        var page = await _tasks.ToPageAsync(query, orderBy: t => t.CreatedAt, descending: true, ct);
         return page.Items.Select(ToDto).ToList();
     }
 
-    public async Task<IReadOnlyList<CollectTaskDto>> GetActiveTasksAsync()
+    public async Task<IReadOnlyList<CollectTaskDto>> GetActiveTasksAsync(CancellationToken ct = default)
     {
         var list = await _tasks.GetListAsync(t =>
             t.Status == CollectTaskStatus.Scanning ||
             t.Status == CollectTaskStatus.Collecting ||
-            t.Status == CollectTaskStatus.Paused);
+            t.Status == CollectTaskStatus.Paused
+            , ct);
         return list.OrderByDescending(t => t.CreatedAt).Select(ToDto).ToList();
     }
 
-    public async Task<IReadOnlyList<CollectFileDto>> GetTaskFilesAsync(long taskId)
+    public async Task<IReadOnlyList<CollectFileDto>> GetTaskFilesAsync(long taskId, CancellationToken ct = default)
     {
-        var list = await _files.GetListAsync(f => f.TaskId == taskId);
+        var list = await _files.GetListAsync(f => f.TaskId == taskId, ct);
         return list.OrderBy(f => f.Id).Select(ToDto).ToList();
     }
 
@@ -352,35 +367,35 @@ public sealed class CollectTaskService : ICollectTaskService
         _eventService.PublishTaskStatus(taskId, status, isEmergency);
     }
 
-    private async Task SetFinalAsync(long taskId, CollectTaskStatus finalStatus, string? reason = null)
+    private async Task SetFinalAsync(long taskId, CollectTaskStatus finalStatus, string? reason = null, CancellationToken ct = default)
     {
         if (_controls.TryGetValue(taskId, out var control))
         {
             control.FinalStatus = finalStatus;
             if (!string.IsNullOrEmpty(reason))
             {
-                var task = await _tasks.GetByIdAsync(taskId);
+                var task = await _tasks.GetByIdAsync(taskId, ct);
                 if (task is not null)
                 {
                     task.ErrorMessage = reason;
-                    await _tasks.UpdateAsync(task);
+                    await _tasks.UpdateAsync(task, ct);
                 }
             }
 
             control.Cts.Cancel();
         }
-        else if (await _tasks.GetByIdAsync(taskId) is { } idle)
+        else if (await _tasks.GetByIdAsync(taskId, ct) is { } idle)
         {
             idle.Status = finalStatus;
             idle.CompletedAt = DateTime.Now;
             idle.ErrorMessage = reason;
-            await _tasks.UpdateAsync(idle);
-            var pending = (await _files.GetListAsync(f => f.TaskId == taskId && f.Status == CollectFileStatus.Pending))
+            await _tasks.UpdateAsync(idle, ct);
+            var pending = (await _files.GetListAsync(f => f.TaskId == taskId && f.Status == CollectFileStatus.Pending, ct))
                 .Select(f => { f.Status = CollectFileStatus.Canceled; return f; })
                 .ToList();
             if (pending.Count > 0)
             {
-                await _files.UpdateRangeAsync(pending);
+                await _files.UpdateRangeAsync(pending, ct);
             }
         }
     }
@@ -697,8 +712,7 @@ public sealed class CollectTaskService : ICollectTaskService
         task.CompletedAt = DateTime.Now;
         if (task.Status == CollectTaskStatus.Completed && control.FinalStatus != CollectTaskStatus.Canceled)
         {
-            var sourceFiles = files.Where(f => f.Status == CollectFileStatus.Completed)
-                    ;
+            var sourceFiles = files.Where(f => f.Status == CollectFileStatus.Completed);
             TryErase(task, sourceFiles);
         }
 
@@ -707,7 +721,7 @@ public sealed class CollectTaskService : ICollectTaskService
         PublishStatusIfChanged(taskId, task.Status, task.IsEmergency);
         _lastPublishedStatus.TryRemove(taskId, out _);
         _logger.LogInformation("采集任务 {TaskId} 结束：{Status}（文件 {Total}/{Collected}）",
-            taskId, task.Status, task.TotalFiles, task.CollectedFiles);
+            task.TaskNo, task.Status, task.TotalFiles, task.CollectedFiles);
 
     }
 

@@ -20,6 +20,9 @@ public sealed class CollectFile
     /// <summary>所属采集任务 ID。</summary>
     public long TaskId { get; set; }
 
+    [SugarColumn(Length = 128)]
+    public string TaskNo { get; set; } = string.Empty;
+
     /// <summary>文件名（不含路径）。</summary>
     [SugarColumn(Length = 255)]
     public string FileName { get; set; } = string.Empty;
@@ -103,7 +106,7 @@ public sealed class CollectFile
     [SugarColumn(ColumnDataType = "text", IsNullable = true)]
     public string? UploadError { get; set; }
 
-    /// <summary>文件业务编号 = {采集站编号}-{本地文件ID}。</summary>
-    [SugarColumn(IsNullable = true, Length = 64)]
-    public string? FileNo { get; set; }
+    /// <summary>文件业务编号。</summary>
+    [SugarColumn(IsNullable = true, Length = 128)]
+    public string FileNo { get; set; } = string.Empty;
 }

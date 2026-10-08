@@ -16,9 +16,23 @@ public sealed class CollectTask
     [SugarColumn(IsPrimaryKey = true)]
     public long Id { get; set; }
 
-    [SugarColumn(Length = 64)]
+    /// <summary>
+    /// 任务编号
+    /// </summary>
+    [SugarColumn(Length = 128)]
     public string TaskNo { get; set; } = string.Empty;
 
+    /// <summary>
+    /// 采集站唯一标识
+    /// </summary>
+    [SugarColumn(Length = 128)]
+    public string StationUid { get; set; } =string.Empty;
+
+    /// <summary>
+    /// 采集站编号
+    /// </summary>
+    [SugarColumn(Length = 64)]
+    public string StationCode { get; set; } = string.Empty;
     /// <summary>
     /// 记录仪名称
     /// </summary>

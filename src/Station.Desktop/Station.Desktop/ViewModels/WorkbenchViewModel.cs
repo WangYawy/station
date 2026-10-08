@@ -4,7 +4,7 @@ using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Station.Application.Collecting;
-using Station.Application.Licensing;
+using Station.Application.DeviceDetection;
 using Station.Application.OperationAccess;
 using Station.Application.Session;
 using Station.Application.Settings;
@@ -54,7 +54,7 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
         IUsbPortCardService cardService,
         IUsbPortCardEventService eventService,
         WindowModeOptions options,
-        CollectOptions collectOptions)              // 新增参数
+        CollectOptions collectOptions)
     {
         _sessions = sessions;
         _collectService = collectService;

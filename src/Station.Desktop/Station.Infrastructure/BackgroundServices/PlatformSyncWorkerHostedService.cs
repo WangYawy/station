@@ -4,14 +4,13 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Station.Application;
 using Station.Application.Collecting;
 using Station.Application.Licensing;
 using Station.Application.PlatformSync;
 using Station.Application.Security;
-using Station.Contracts.Alerts;
 using Station.Contracts.Registration;
 using Station.Contracts.Reporting;
-using Station.Infrastructure.Licensing;
 
 namespace Station.Desktop.Infrastructure;
 
@@ -26,6 +25,7 @@ public sealed class PlatformSyncWorkerHostedService : BackgroundService
     private readonly IStationContext _stationContext;
     private readonly IMachineFingerprintProvider _fingerprint;
     private readonly ILicenseCryptoService _licenseCrypto;
+    private readonly IStationInfoService _station;
     private DateTime _lastCommandPoll = DateTime.MinValue;
     private readonly ILogger<PlatformSyncWorkerHostedService> _logger;
 
@@ -35,6 +35,7 @@ public sealed class PlatformSyncWorkerHostedService : BackgroundService
         IMachineFingerprintProvider fingerprint,
         ILicenseCryptoService licenseCrypto,
         IOptions<PlatformOptions> options,
+        IStationInfoService station,
         ILogger<PlatformSyncWorkerHostedService> logger)
     {
         _scopeFactory = scopeFactory;
@@ -42,6 +43,7 @@ public sealed class PlatformSyncWorkerHostedService : BackgroundService
         _fingerprint = fingerprint;
         _licenseCrypto = licenseCrypto;
         _options = options.Value;
+        _station = station;
         _logger = logger;
     }
 
@@ -88,7 +90,7 @@ public sealed class PlatformSyncWorkerHostedService : BackgroundService
         {
             var registration = new StationRegistrationRequest
             {
-                StationCode = _options.StationCode,
+                StationCode = _station.Current.StationCode,
                 MachineFingerprint = _fingerprint.CollectParts(),
                 OsVersion = Environment.OSVersion.VersionString,
                 CpuArch = RuntimeInformation.ProcessArchitecture.ToString(),
