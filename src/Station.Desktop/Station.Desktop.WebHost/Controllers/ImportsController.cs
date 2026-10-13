@@ -5,8 +5,12 @@ using Station.Application.Recorders;
 using Station.Application.Users;
 using Station.Domain.Authorization;
 using Station.Domain.Entities;
-using Station.Data.Repositories;
 using AuthService = Station.Application.Authorization.IAuthorizationService;
+using Station.Domain.Users;
+using Station.Domain.Roles;
+using Station.Application.Departments;
+using Station.Application.Departments.Commands;
+using Station.Application.Users.Commands;
 
 namespace Station.Desktop.WebHost.Controllers;
 
@@ -17,25 +21,31 @@ namespace Station.Desktop.WebHost.Controllers;
 public class ImportsController : ControllerBase
 {
     private readonly IUserService _users;
+    private readonly IUserQueryService _userQuery;
     private readonly IRecorderService _recorders;
-    private readonly IRepository<Dept> _depts;
-    private readonly IRepository<User> _userRepo;
-    private readonly IRepository<Role> _roles;
+    private readonly IDeptService _depts;
+    private readonly IDeptQueryService _deptQuery;
+    private readonly IUserRepository _userRepo;
+    private readonly IRoleRepository _roles;
     private readonly IAuditLogService _audit;
     private readonly AuthService _authorization;
 
     public ImportsController(
         IUserService users,
+        IUserQueryService userQuery,
         IRecorderService recorders,
-        IRepository<Dept> depts,
-        IRepository<User> userRepo,
-        IRepository<Role> roles,
+        IDeptService depts,
+        IDeptQueryService deptQuery,
+        IUserRepository userRepo,
+        IRoleRepository roles,
         IAuditLogService audit,
         AuthService authorization)
     {
         _users = users;
+        _userQuery = userQuery;
         _recorders = recorders;
         _depts = depts;
+        _deptQuery = deptQuery;
         _userRepo = userRepo;
         _roles = roles;
         _audit = audit;
@@ -78,7 +88,7 @@ public class ImportsController : ControllerBase
                 continue;
             }
 
-            if (!seen.Add(code) || (await _users.GetDeptTreeAsync()).Any(d => d.Code == code))
+            if (!seen.Add(code) || (await _deptQuery.GetTreeAsync()).Any(d => d.Code == code))
             {
                 errors.Add(new ImportErrorWeb(line, $"部门编码 {code} 已存在"));
                 continue;
@@ -87,7 +97,7 @@ public class ImportsController : ControllerBase
             long? parentId = null;
             if (!string.IsNullOrWhiteSpace(parentCode))
             {
-                var parent = await _depts.FirstAsync(d => d.Code == parentCode && d.IsActive);
+                var parent = await _deptQuery.GetByCodeAsync(parentCode);
                 if (parent is null)
                 {
                     errors.Add(new ImportErrorWeb(line, $"上级部门 {parentCode} 不存在或已停用"));
@@ -96,9 +106,15 @@ public class ImportsController : ControllerBase
 
                 parentId = parent.Id;
             }
-
-            await _users.CreateDeptAsync(new DeptDto(null, code, name, parentId,
-                int.TryParse(Get(row, header, "排序"), out var sort) ? sort : 0));
+            var dept = new CreateDeptCommand
+            {
+                Code = code,
+                Name = name,
+                ParentId = parentId,
+                SortOrder = int.TryParse(Get(row, header, "排序"), out var sort) ? sort : 0,
+                IsActive = true
+            };
+            await _depts.CreateAsync(dept);
             success++;
         }
 
@@ -151,13 +167,13 @@ public class ImportsController : ControllerBase
                 continue;
             }
 
-            if (!seen.Add(userNo) || (await _users.GetUsersAsync()).Any(u => u.UserNo == userNo))
+            if (!seen.Add(userNo) || (await _userQuery.ExistsByUserNoAsync(userNo)))
             {
                 errors.Add(new ImportErrorWeb(line, $"工号 {userNo} 已存在"));
                 continue;
             }
 
-            var dept = await _depts.FirstAsync(d => d.Code == deptCode && d.IsActive);
+            var dept = await _deptQuery.GetByCodeAsync(deptCode);
             if (dept is null)
             {
                 errors.Add(new ImportErrorWeb(line, $"部门 {deptCode} 不存在或已停用"));
@@ -167,7 +183,16 @@ public class ImportsController : ControllerBase
             var password = string.IsNullOrWhiteSpace(Get(row, header, "初始密码"))
                 ? "Station@123"
                 : Get(row, header, "初始密码");
-            var created = await _users.CreateUserAsync(new UserDto(null, userNo, name, dept.Id), userNo, password);
+
+            var user = new CreateUserCommand
+            {
+                UserNo = userNo,
+                UserName = name,
+                Password = password,
+                DeptId = dept.Id,
+                IsActive = true
+            };
+            var created = await _users.CreateAsync(user);
             if (!created.Success)
             {
                 errors.Add(new ImportErrorWeb(line, created.Message ?? "创建用户失败"));
@@ -178,12 +203,12 @@ public class ImportsController : ControllerBase
                 .Split([';', '；', ','], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
             if (roleCodes.Length > 0)
             {
-                var createdUser = await _userRepo.FirstAsync(u => u.UserNo == userNo);
+                var createdUser = await _userQuery.GetByUserNoAsync(userNo);
                 var roleIds = new List<long>();
                 var roleError = false;
                 foreach (var roleCode in roleCodes)
                 {
-                    var role = await _roles.FirstAsync(r => r.Code == roleCode && r.IsActive);
+                    var role = await _roles.GetByCodeAsync(roleCode);
                     if (role is null)
                     {
                         errors.Add(new ImportErrorWeb(line, $"角色 {roleCode} 不存在或已停用"));
@@ -201,7 +226,8 @@ public class ImportsController : ControllerBase
 
                 if (createdUser is not null && roleIds.Count > 0)
                 {
-                    await _users.AssignRolesAsync(createdUser.Id, roleIds);
+                    var command = new AssignUserRolesCommand(createdUser.Id, roleIds);
+                    await _users.AssignRolesAsync(command);
                 }
             }
 
@@ -255,7 +281,7 @@ public class ImportsController : ControllerBase
                 continue;
             }
 
-            var user = string.IsNullOrWhiteSpace(userNo) ? null : await _userRepo.FirstAsync(u => u.UserNo == userNo && u.IsActive);
+            var user = string.IsNullOrWhiteSpace(userNo) ? null : await _userRepo.GetByUserNoAsync(userNo);
             if (string.IsNullOrWhiteSpace(userNo) || user is null)
             {
                 errors.Add(new ImportErrorWeb(i + 1, $"用户 {userNo} 不存在或已停用"));
@@ -265,7 +291,7 @@ public class ImportsController : ControllerBase
             long? deptId = user.DeptId;
             if (!string.IsNullOrWhiteSpace(deptCode))
             {
-                var dept = await _depts.FirstAsync(d => d.Code == deptCode && d.IsActive);
+                var dept = await _deptQuery.GetByCodeAsync(deptCode);
                 if (dept is null)
                 {
                     errors.Add(new ImportErrorWeb(i + 1, $"部门 {deptCode} 不存在或已停用"));

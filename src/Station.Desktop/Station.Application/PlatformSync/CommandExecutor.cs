@@ -1,12 +1,14 @@
 using System.Text.Json;
+using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using Station.Application.Collecting;
 using Station.Contracts;
 using Station.Contracts.Commands;
-using Station.Domain.Entities;
-using Station.Data.Repositories;
-using Station.Data.IdGeneration;
 using Station.Data.Abstractions;
+using Station.Data.IdGeneration;
+using Station.Data.Repositories;
+using Station.Domain.Entities;
+using Station.Domain.Users;
 
 namespace Station.Application.PlatformSync;
 
@@ -21,7 +23,7 @@ public sealed class CommandExecutor : ICommandExecutor
     private readonly IIdGenerator _idGenerator;
     private readonly ILogger<CommandExecutor> _logger;
     private readonly IDatabaseHealthService _dbHealthService;
-    private readonly ILoopRepository<User> _users;
+    private readonly IUserSyncRepository _users;
     private readonly ILoopRepository<Recorder> _recorders;
 
     public CommandExecutor(
@@ -29,7 +31,7 @@ public sealed class CommandExecutor : ICommandExecutor
         CollectOptions collectOptions,
         IIdGenerator idGenerator,
         IDatabaseHealthService dbHealthService,
-        ILoopRepository<User> users,
+        IUserSyncRepository users,
         ILoopRepository<Recorder> recorders,
         ILogger<CommandExecutor> logger)
     {
@@ -42,7 +44,7 @@ public sealed class CommandExecutor : ICommandExecutor
         _recorders = recorders;
     }
 
-    public Task<CommandExecutionResult> ExecuteAsync(RemoteCommand command)
+    public async Task<CommandExecutionResult> ExecuteAsync(RemoteCommand command)
     {
         var startedAt = DateTime.Now;
         var message = command.Type switch
@@ -53,19 +55,19 @@ public sealed class CommandExecutor : ICommandExecutor
             CommandType.RunSelfCheck => RunSelfCheck(),
             CommandType.StopCollecting => StopCollecting(command.CommandId),
             CommandType.StartCollecting => StartCollecting(),
-            CommandType.WriteBinding => WriteBinding(command.PayloadJson),
+            CommandType.WriteBinding => await WriteBinding(command.PayloadJson),
             _ => "未知指令"
         };
 
         _logger.LogInformation("执行远程指令 {CommandId}（{Type}）：{Message}", command.CommandId, command.Type, message);
-        return Task.FromResult(new CommandExecutionResult
+        return new CommandExecutionResult
         {
             CommandId = command.CommandId,
             Status = CommandStatus.Succeeded,
             StartedAt = startedAt,
             FinishedAt = DateTime.Now,
             Message = message
-        });
+        };
     }
 
     private string StopCollecting(long commandId)
@@ -126,7 +128,7 @@ public sealed class CommandExecutor : ICommandExecutor
     }
 
     /// <summary>写入记录仪绑定：更新本机台账，记录仪下次接入时由识别流程自动重写 ini。</summary>
-    private string WriteBinding(string? payloadJson)
+    private async Task<string> WriteBinding(string? payloadJson)
     {
         try
         {
@@ -140,7 +142,7 @@ public sealed class CommandExecutor : ICommandExecutor
 
             var user = payload.UserNo is null
                 ? null
-                : _users.First(u => u.UserNo == payload.UserNo && u.IsActive);
+                : await _users.GetByUserNoAsync(payload.UserNo);
             if (user is null)
             {
                 return $"用户 {payload.UserNo} 未同步到本机，绑定未生效";

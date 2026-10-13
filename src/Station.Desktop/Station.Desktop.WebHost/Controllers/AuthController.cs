@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Mvc;
 using Station.Application.Authentication;
 using AuthService = Station.Application.Authorization.IAuthorizationService;
 using AppAuthService = Station.Application.Authentication.IAuthenticationService;
+using Station.Application.Authentication.Commands;
 
 namespace Station.Desktop.WebHost.Controllers;
 
@@ -24,12 +25,9 @@ public class AuthController : ControllerBase
     }
 
     [HttpPost("login")]
-    public async Task<IActionResult> Login(LoginRequest request)
+    public async Task<IActionResult> Login(LoginCommand request)
     {
-        var result = await _authentication.LoginAsync(request with
-        {
-            SourceIp = HttpContext.Connection.RemoteIpAddress?.ToString()
-        });
+        var result = await _authentication.LoginAsync(request, sourceClient: "web", sourceIp: HttpContext.Connection.RemoteIpAddress?.ToString()!);
         if (!result.Success || result.Session is null)
         {
             var message = result.FailureReason switch

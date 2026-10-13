@@ -612,7 +612,7 @@ public sealed class WPDMtpCollectSource : ICollectSource, IRecorderFileStore
                 {
                     var storageName = GetStorageName(values);
                     var hasName = !string.IsNullOrWhiteSpace(storageName);
-                    if (hasName) pathStack.Push(storageName);
+                    if (hasName) pathStack.Push(storageName!);
 
                     await WalkObjectsAsync(session, objectId, pnpId, files, cancellationToken, pathStack, matchedAncestor);
 

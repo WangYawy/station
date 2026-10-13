@@ -1,24 +1,24 @@
 using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
-using SqlSugar;
 using Station.Application.PlatformSync;
 using Station.Application.Security;
-using Station.Contracts;
 using Station.Contracts.Reporting;
 using Station.Domain.Entities;
 using Station.Domain.Enums;
 using Station.Data.Repositories;
 using TaskStatus = Station.Contracts.TaskStatus;
 using Station.Data.IdGeneration;
+using Station.Domain.Users;
+using Station.Domain.Departments;
 
 namespace Station.Application.Collecting;
 
 public sealed class FileLedgerService : IFileLedgerService
 {
     private readonly IRepository<UploadedFile> _ledger;
-    private readonly IRepository<User> _users;
-    private readonly IRepository<Dept> _depts;
+    private readonly IUserRepository _users;
+    private readonly IDeptRepository _depts;
     private readonly ISyncOutboxService _outbox;
     private readonly IStationContext _stationContext;
     private readonly IIdGenerator _idGenerator;
@@ -30,8 +30,8 @@ public sealed class FileLedgerService : IFileLedgerService
 
     public FileLedgerService(
         IRepository<UploadedFile> ledger,
-        IRepository<User> users,
-        IRepository<Dept> depts,
+        IUserRepository users,
+        IDeptRepository depts,
         ISyncOutboxService outbox,
         IStationContext stationContext,
         IIdGenerator idGenerator,

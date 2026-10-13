@@ -1,19 +1,34 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Station.Application;
+using Station.Application.Accounts;
 using Station.Application.Collecting;
+using Station.Application.Departments;
 using Station.Application.DeviceDetection;
 using Station.Application.Licensing;
+using Station.Application.Permissions.Queries;
+using Station.Application.Roles;
 using Station.Application.Settings;
-using Station.Data;
+using Station.Application.Users;
 using Station.Data.Abstractions;
 using Station.Data.SqlSugar;
 using Station.Desktop.Infrastructure;
 using Station.Desktop.Infrastructure.Settings;
+using Station.Domain.Accounts;
 using Station.Domain.Collecting;
+using Station.Domain.Departments;
+using Station.Domain.Permissions;
+using Station.Domain.Roles;
+using Station.Domain.Users;
 using Station.Infrastructure.Collecting;
 using Station.Infrastructure.DeviceDetection;
 using Station.Infrastructure.Licensing;
 using Station.Infrastructure.Persistence;
+using Station.Infrastructure.Persistence.Accounts;
+using Station.Infrastructure.Persistence.Departments;
+using Station.Infrastructure.Persistence.Permissions;
+using Station.Infrastructure.Persistence.Roles;
+using Station.Infrastructure.Persistence.Users;
 using Station.Infrastructure.Security;
 using Station.Infrastructure.Settings;
 using Station.Infrastructure.Storage;
@@ -50,6 +65,35 @@ public static class DependencyInjection
                 Directory.CreateDirectory(StationPaths.DataDirectory);
             }
         });
+     
+        #region 数据服务
+        // ---- 账号 ----
+        services.AddScoped<IAccountRepository, AccountRepository>(); // 写，需要Domain
+        services.AddScoped<IAccountLoopRepository, AccountLoopRepository>(); // 长连接
+        services.AddScoped<IAccountQueryService, AccountQueryService>(); // 读，仅映射Dto
+
+        // ---- 部门 ----
+        services.AddScoped<IDeptRepository, DeptRepository>();
+        services.AddScoped<IDeptSyncRepository, DeptSyncRepository>();
+        services.AddScoped<IDeptQueryService, DeptQueryService>();
+
+        // ---- 权限 ----
+        services.AddScoped<IPermissionRepository, PermissionRepository>();
+        services.AddScoped<IPermissionQueryService, PermissionQueryService>();
+
+        // ---- 角色 ----
+        services.AddScoped<IRoleRepository, RoleRepository>();
+        services.AddScoped<IRolePermissionRepository, RolePermissionRepository>();
+        services.AddScoped<IRoleSyncRepository, RoleSyncRepository>();
+        services.AddScoped<IRoleQueryService, RoleQueryService>();
+
+        // ---- 用户 ----
+        services.AddScoped<IUserRepository, UserRepository>();
+        services.AddScoped<IUserRoleRepository, UserRoleRepository>();
+        services.AddScoped<IUserSyncRepository, UserSyncRepository>();
+        services.AddScoped<IUserQueryService, UserQueryService>();
+        #endregion
+
         // Auth 种子
         services.AddSingleton<IAuthSeeder, AuthSeeder>();
         #endregion
@@ -129,6 +173,9 @@ public static class DependencyInjection
 
         // 配置持久化
         services.AddScoped<ISettingStore, SettingStore>();
+
+        // 采集站信息
+        services.AddSingleton<IStationInfoService, StationInfoService>();
 
         return services;
     }

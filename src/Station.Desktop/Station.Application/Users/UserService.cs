@@ -1,458 +1,147 @@
+using Station.Application.Accounts;
+using Station.Application.Departments;
 using Station.Application.Security;
-using Station.Domain.Entities;
-using Station.Data.Repositories;
+using Station.Application.Users.Commands;
 using Station.Data.IdGeneration;
+using Station.Data.Repositories;
+using Station.Domain.Accounts;
+using Station.Domain.Users;
 
 namespace Station.Application.Users;
 
-/// <summary>
-/// 用户/部门/角色/账号管理服务。
-/// 
-/// 【密码依赖】
-///   所有密码哈希动作（创建账号、重置密码）统一走 IPasswordService，
-///   保证与登录校验使用同一套算法策略。
-///   禁止直接依赖 IPasswordHasher / ICryptoPolicyService / ICryptoProviderFactory。
-/// 
-/// 【事务优化】
-///   哈希计算是 CPU 密集操作（PBKDF2 可能耗时 50~200ms），
-///   本服务在进入数据库事务之前先算好哈希，避免长时间占用事务。
-/// </summary>
 public sealed class UserService : IUserService
 {
-    private readonly IRepository<Dept> _depts;
-    private readonly IRepository<User> _users;
-    private readonly IRepository<Account> _accounts;
-    private readonly IRepository<Role> _roles;
-    private readonly IRepository<Permission> _permissions;
-    private readonly IRepository<RolePermission> _rolePermissions;
-    private readonly IRepository<UserRole> _userRoles;
+    private readonly IUserRepository _users;
+    private readonly IUserRoleRepository _userRoles;
+    private readonly IAccountRepository _accounts;
+
+    private readonly IUserQueryService _userQuery;
+    private readonly IDeptQueryService _deptQuery;
+    private readonly IAccountQueryService _accountQuery;
+
     private readonly IUnitOfWork _unitOfWork;
     private readonly IPasswordService _passwordService;
     private readonly IIdGenerator _idGenerator;
 
     public UserService(
-        IRepository<Dept> depts,
-        IRepository<User> users,
-        IRepository<Account> accounts,
-        IRepository<Role> roles,
-        IRepository<Permission> permissions,
-        IRepository<RolePermission> rolePermissions,
-        IRepository<UserRole> userRoles,
+        IUserRepository users,
+        IUserRoleRepository userRoles,
+        IAccountRepository accounts,
+        IUserQueryService userQuery,
+        IDeptQueryService deptQuery,
+        IAccountQueryService accountQuery,
         IUnitOfWork unitOfWork,
         IPasswordService passwordService,
         IIdGenerator idGenerator)
     {
-        _depts = depts;
         _users = users;
-        _accounts = accounts;
-        _roles = roles;
-        _permissions = permissions;
-        _rolePermissions = rolePermissions;
         _userRoles = userRoles;
+        _accounts = accounts;
+        _userQuery = userQuery;
+        _deptQuery = deptQuery;
+        _accountQuery = accountQuery;
         _unitOfWork = unitOfWork;
         _passwordService = passwordService;
         _idGenerator = idGenerator;
     }
 
-    // =========================================================
-    // 部门
-    // =========================================================
-
-    public async Task<IReadOnlyList<DeptDto>> GetDeptTreeAsync()
+    public async Task<OpResult> CreateAsync(
+        CreateUserCommand command, CancellationToken ct = default)
     {
-        var list = await _depts.GetListAsync(d => d.IsActive);
-        return list.OrderBy(d => d.SortOrder).Select(ToDto).ToList();
-    }
+        if (await _userQuery.ExistsByUserNoAsync(command.UserNo, ct))
+            return new OpResult(false, $"工号 {command.UserNo} 已存在");
 
-    public async Task<long> CreateDeptAsync(DeptDto dto)
-    {
-        if (await _depts.IsAnyAsync(d => d.Code == dto.Code))
-        {
-            throw new InvalidOperationException($"部门编码 {dto.Code} 已存在");
-        }
-
-        var entity = new Dept
-        {
-            Id = _idGenerator.NewId(),
-            Code = dto.Code,
-            Name = dto.Name,
-            ParentId = dto.ParentId,
-            SortOrder = dto.SortOrder,
-            IsActive = dto.IsActive
-        };
-        await _depts.InsertAsync(entity);
-        return entity.Id;
-    }
-
-    public async Task<OpResult> UpdateDeptAsync(DeptDto dto)
-    {
-        if (dto.Id is not { } id)
-        {
-            return new OpResult(false, "缺少部门 ID");
-        }
-
-        var entity = await _depts.GetByIdAsync(id);
-        if (entity is null)
-        {
+        if (!await _deptQuery.ExistsAsync(command.DeptId, ct))
             return new OpResult(false, "部门不存在");
-        }
 
-        entity.Code = dto.Code;
-        entity.Name = dto.Name;
-        entity.ParentId = dto.ParentId;
-        entity.SortOrder = dto.SortOrder;
-        entity.IsActive = dto.IsActive;
-        await _depts.UpdateAsync(entity);
-        return new OpResult(true);
-    }
+        if (command.UserName is not null
+            && await _accountQuery.ExistsUserNameAsync(command.UserName, ct))
+            return new OpResult(false, $"登录名 {command.UserName} 已存在");
 
-    public async Task<OpResult> DeleteDeptAsync(long id)
-    {
-        if (await _depts.IsAnyAsync(d => d.ParentId == id))
-        {
-            return new OpResult(false, "存在下级部门，无法删除");
-        }
-
-        if (await _users.IsAnyAsync(u => u.DeptId == id && u.IsActive))
-        {
-            return new OpResult(false, "部门下存在用户，无法删除");
-        }
-
-        await _depts.DeleteByIdAsync(id);
-        return new OpResult(true);
-    }
-
-    // =========================================================
-    // 用户
-    // =========================================================
-
-    public async Task<IReadOnlyList<UserDto>> GetUsersAsync()
-    {
-        var list = await _users.GetListAsync();
-        return list.Select(ToDto).ToList();
-    }
-
-    public async Task<OpResult> CreateUserAsync(
-        UserDto dto, string? userName = null, string? password = null)
-    {
-        // ---- 1) 前置校验 ----
-        if (await _users.IsAnyAsync(u => u.UserNo == dto.UserNo))
-        {
-            return new OpResult(false, $"工号 {dto.UserNo} 已存在");
-        }
-
-        if (userName is not null && await _accounts.IsAnyAsync(a => a.UserName == userName))
-        {
-            return new OpResult(false, $"登录名 {userName} 已存在");
-        }
-
-        // ---- 2) 事务外预先计算哈希（CPU 密集，避免占用数据库事务） ----
+        // 事务外预算哈希（CPU 密集）
         string? passwordHash = null;
-        if (userName is not null && password is not null)
+        if (command.UserName is not null && command.Password is not null)
+            passwordHash = await _passwordService.HashAsync(command.Password, ct);
+
+        var now = DateTime.Now;
+        var user = User.Create(
+            _idGenerator.NewId(), command.UserNo, command.Name, command.DeptId, now);
+        if (!command.IsActive) user.Deactivate(now);
+
+        Account? account = null;
+        if (command.UserName is not null && passwordHash is not null)
         {
-            passwordHash = await _passwordService.HashAsync(password);
+            account = Account.Create(
+                _idGenerator.NewId(), command.UserName, passwordHash, user.Id, now);
         }
 
-        var user = new User
-        {
-            Id = _idGenerator.NewId(),
-            UserNo = dto.UserNo,
-            Name = dto.Name,
-            DeptId = dto.DeptId,
-            IsActive = dto.IsActive
-        };
-
-        // ---- 3) 事务内插入（哈希已算好，直接落库） ----
         await _unitOfWork.UseTranAsync(async () =>
         {
-            var users = _unitOfWork.GetRepository<User>();
-            var accounts = _unitOfWork.GetRepository<Account>();
-
-            await users.InsertAsync(user);
-
-            if (userName is not null && passwordHash is not null)
-            {
-                await accounts.InsertAsync(new Account
-                {
-                    Id = _idGenerator.NewId(),
-                    UserName = userName,
-                    PasswordHash = passwordHash,
-                    UserId = user.Id,
-                    IsEnabled = true
-                });
-            }
-
+            await _users.AddAsync(user, ct);
+            if (account is not null) await _accounts.AddAsync(account, ct);
             return true;
         });
 
         return new OpResult(true);
     }
 
-    public async Task<OpResult> UpdateUserAsync(UserDto dto)
+    public async Task<OpResult> UpdateAsync(
+        UpdateUserCommand command, CancellationToken ct = default)
     {
-        if (dto.Id is not { } id)
-        {
-            return new OpResult(false, "缺少用户 ID");
-        }
+        var user = await _users.GetByIdAsync(command.Id, ct);
+        if (user is null) return new OpResult(false, "用户不存在");
 
-        var entity = await _users.GetByIdAsync(id);
-        if (entity is null)
-        {
-            return new OpResult(false, "用户不存在");
-        }
+        if (!await _deptQuery.ExistsAsync(command.DeptId, ct))
+            return new OpResult(false, "部门不存在");
 
-        entity.UserNo = dto.UserNo;
-        entity.Name = dto.Name;
-        entity.DeptId = dto.DeptId;
-        entity.IsActive = dto.IsActive;
-        await _users.UpdateAsync(entity);
+        var now = DateTime.Now;
+        user.UpdateBasicInfo(command.UserNo, command.Name, now);
+        if (user.DeptId != command.DeptId) user.ChangeDept(command.DeptId, now);
+        if (command.IsActive) user.Activate(now); else user.Deactivate(now);
+
+        await _users.UpdateAsync(user, ct);
         return new OpResult(true);
     }
 
-    public async Task<OpResult> DeleteUserAsync(long id)
+    public async Task<OpResult> DeleteAsync(long id, CancellationToken ct = default)
     {
-        var user = await _users.GetByIdAsync(id);
-        if (user is null)
-        {
-            return new OpResult(false, "用户不存在");
-        }
+        var user = await _users.GetByIdAsync(id, ct);
+        if (user is null) return new OpResult(false, "用户不存在");
 
         await _unitOfWork.UseTranAsync(async () =>
         {
-            var userRoles = _unitOfWork.GetRepository<UserRole>();
-            var accounts = _unitOfWork.GetRepository<Account>();
-            var users = _unitOfWork.GetRepository<User>();
+            await _userRoles.DeleteByUserIdAsync(id, ct);
 
-            await userRoles.DeleteAsync(ur => ur.UserId == id);
-
-            var accountList = await accounts.GetListAsync(a => a.UserId == id);
+            var now = DateTime.Now;
+            var accountList = await _accounts.GetByUserIdAsync(id, ct);
             foreach (var account in accountList)
             {
-                account.IsEnabled = false;
-                account.UserId = null;
-                await accounts.UpdateAsync(account);
+                account.Disable(now);
+                account.BindUser(null, now);
+                await _accounts.UpdateAsync(account, ct);
             }
 
-            user.IsActive = false;
-            await users.UpdateAsync(user);
+            user.Deactivate(now);
+            await _users.UpdateAsync(user, ct);
             return true;
         });
 
         return new OpResult(true);
     }
 
-    public async Task<OpResult> AssignRolesAsync(long userId, IReadOnlyList<long> roleIds)
+    public async Task<OpResult> AssignRolesAsync(
+        AssignUserRolesCommand command, CancellationToken ct = default)
     {
-        if (await _users.GetByIdAsync(userId) is null)
-        {
+        if (!await _userQuery.ExistsAsync(command.UserId, ct))
             return new OpResult(false, "用户不存在");
-        }
 
         await _unitOfWork.UseTranAsync(async () =>
         {
-            var userRoles = _unitOfWork.GetRepository<UserRole>();
-            await userRoles.DeleteAsync(ur => ur.UserId == userId);
-
-            var links = roleIds.Distinct()
-                .Select(roleId => new UserRole
-                {
-                    Id = _idGenerator.NewId(),
-                    UserId = userId,
-                    RoleId = roleId
-                })
-                .ToList();
-
-            if (links.Count > 0)
-            {
-                await userRoles.InsertRangeAsync(links);
-            }
-
+            await _userRoles.DeleteByUserIdAsync(command.UserId, ct);
+            await _userRoles.AddRangeAsync(command.UserId, command.RoleIds, ct);
             return true;
         });
 
         return new OpResult(true);
     }
-
-    // =========================================================
-    // 账号
-    // =========================================================
-
-    public async Task<CreateAccountResult> CreateAccountAsync(
-        long userId, string userName, string password)
-    {
-        if (await _users.GetByIdAsync(userId) is null)
-        {
-            return new CreateAccountResult(false, "用户不存在");
-        }
-
-        if (await _accounts.IsAnyAsync(a => a.UserName == userName))
-        {
-            return new CreateAccountResult(false, $"登录名 {userName} 已存在");
-        }
-
-        // 走门面生成哈希（与登录校验算法一致）
-        var passwordHash = await _passwordService.HashAsync(password);
-
-        var account = new Account
-        {
-            Id = _idGenerator.NewId(),
-            UserName = userName,
-            PasswordHash = passwordHash,
-            UserId = userId,
-            IsEnabled = true
-        };
-        await _accounts.InsertAsync(account);
-        return new CreateAccountResult(true, null, account.Id);
-    }
-
-    public async Task<OpResult> ResetPasswordAsync(long accountId, string newPassword)
-    {
-        var account = await _accounts.GetByIdAsync(accountId);
-        if (account is null)
-        {
-            return new OpResult(false, "账号不存在");
-        }
-
-        // 走门面生成哈希（与登录校验算法一致）
-        account.PasswordHash = await _passwordService.HashAsync(newPassword);
-        account.FailedLoginAttempts = 0;
-        account.LockedUntil = null;
-        await _accounts.UpdateAsync(account);
-        return new OpResult(true);
-    }
-
-    // =========================================================
-    // 角色与权限
-    // =========================================================
-
-    public async Task<IReadOnlyList<RoleDto>> GetRolesAsync()
-    {
-        var list = await _roles.GetListAsync(r => r.IsActive);
-        return list.Select(ToDto).ToList();
-    }
-
-    public async Task<long> CreateRoleAsync(RoleDto dto)
-    {
-        if (await _roles.IsAnyAsync(r => r.Code == dto.Code))
-        {
-            throw new InvalidOperationException($"角色编码 {dto.Code} 已存在");
-        }
-
-        var role = new Role
-        {
-            Id = _idGenerator.NewId(),
-            Code = dto.Code,
-            Name = dto.Name,
-            DataScope = dto.DataScope,
-            IsSystem = false,
-            IsActive = dto.IsActive
-        };
-        await _roles.InsertAsync(role);
-        return role.Id;
-    }
-
-    public async Task<OpResult> UpdateRoleAsync(RoleDto dto)
-    {
-        if (dto.Id is not { } id)
-        {
-            return new OpResult(false, "缺少角色 ID");
-        }
-
-        var role = await _roles.GetByIdAsync(id);
-        if (role is null)
-        {
-            return new OpResult(false, "角色不存在");
-        }
-
-        if (role.IsSystem && role.Code != dto.Code)
-        {
-            return new OpResult(false, "预置角色编码不可修改");
-        }
-
-        role.Code = dto.Code;
-        role.Name = dto.Name;
-        role.DataScope = dto.DataScope;
-        role.IsActive = dto.IsActive;
-        await _roles.UpdateAsync(role);
-        return new OpResult(true);
-    }
-
-    public async Task<OpResult> DeleteRoleAsync(long id)
-    {
-        var role = await _roles.GetByIdAsync(id);
-        if (role is null)
-        {
-            return new OpResult(false, "角色不存在");
-        }
-
-        if (role.IsSystem)
-        {
-            return new OpResult(false, "预置角色不可删除");
-        }
-
-        await _unitOfWork.UseTranAsync(async () =>
-        {
-            var rolePermissions = _unitOfWork.GetRepository<RolePermission>();
-            var userRoles = _unitOfWork.GetRepository<UserRole>();
-            var roles = _unitOfWork.GetRepository<Role>();
-
-            await rolePermissions.DeleteAsync(rp => rp.RoleId == id);
-            await userRoles.DeleteAsync(ur => ur.RoleId == id);
-            await roles.DeleteByIdAsync(id);
-            return true;
-        });
-
-        return new OpResult(true);
-    }
-
-    public async Task<OpResult> SetRolePermissionsAsync(long roleId, IReadOnlyList<long> permissionIds)
-    {
-        if (await _roles.GetByIdAsync(roleId) is null)
-        {
-            return new OpResult(false, "角色不存在");
-        }
-
-        await _unitOfWork.UseTranAsync(async () =>
-        {
-            var rolePermissions = _unitOfWork.GetRepository<RolePermission>();
-            await rolePermissions.DeleteAsync(rp => rp.RoleId == roleId);
-
-            var links = permissionIds.Distinct()
-                .Select(pid => new RolePermission
-                {
-                    Id = _idGenerator.NewId(),
-                    RoleId = roleId,
-                    PermissionId = pid
-                })
-                .ToList();
-
-            if (links.Count > 0)
-            {
-                await rolePermissions.InsertRangeAsync(links);
-            }
-
-            return true;
-        });
-
-        return new OpResult(true);
-    }
-
-    public async Task<IReadOnlyList<PermissionDto>> GetPermissionCatalogAsync()
-    {
-        var list = await _permissions.GetListAsync(p => p.IsActive);
-        return list.Select(p => new PermissionDto(p.Id, p.Code, p.Name, p.Module)).ToList();
-    }
-
-    // =========================================================
-    // DTO 映射
-    // =========================================================
-
-    private static DeptDto ToDto(Dept d) =>
-        new(d.Id, d.Code, d.Name, d.ParentId, d.SortOrder, d.IsActive);
-
-    private static UserDto ToDto(User u) =>
-        new(u.Id, u.UserNo, u.Name, u.DeptId, u.IsActive);
-
-    private static RoleDto ToDto(Role r) =>
-        new(r.Id, r.Code, r.Name, r.DataScope, r.IsSystem, r.IsActive);
 }

@@ -1,4 +1,5 @@
 using System.Management;
+using System.Runtime.Versioning;
 using System.Text;
 using Station.Application.Licensing;
 using Station.Contracts.Registration;
@@ -12,6 +13,7 @@ namespace Station.Infrastructure.Licensing;
 /// 【算法固定】机器指纹固定使用 SM3，不读策略表。
 ///   原因：指纹是机器身份，算法变更会导致所有授权失效。
 /// </summary>
+[SupportedOSPlatform("windows")]
 public sealed class WindowsMachineFingerprintProvider : IMachineFingerprintProvider
 {
     private readonly Sm3Hasher _hasher = new();

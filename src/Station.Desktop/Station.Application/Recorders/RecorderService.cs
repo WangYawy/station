@@ -3,6 +3,8 @@ using Station.Domain.Entities;
 using Station.Data.Repositories;
 using Station.Data.IdGeneration;
 using Station.Crypto;
+using Station.Domain.Users;
+using Station.Domain.Departments;
 
 namespace Station.Application.Recorders;
 
@@ -20,15 +22,15 @@ namespace Station.Application.Recorders;
 public sealed class RecorderService : IRecorderService
 {
     private readonly IRepository<Recorder> _recorders;
-    private readonly IRepository<User> _users;
-    private readonly IRepository<Dept> _depts;
+    private readonly IUserRepository _users;
+    private readonly IDeptRepository _depts;
     private readonly RecorderBindingFile _bindingFile;
     private readonly IIdGenerator _idGenerator;
 
     public RecorderService(
         IRepository<Recorder> recorders,
-        IRepository<User> users,
-        IRepository<Dept> depts,
+        IUserRepository users,
+        IDeptRepository depts,
         RecorderBindingFile bindingFile,
         IIdGenerator idGenerator)
     {

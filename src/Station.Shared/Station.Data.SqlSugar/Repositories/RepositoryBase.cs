@@ -3,6 +3,7 @@ using Microsoft.Extensions.Options;
 using SqlSugar;
 using Station.Data.Paging;
 using Station.Data.Repositories;
+using Station.Data.SoftDelete;
 
 namespace Station.Data.SqlSugar.Repositories;
 
@@ -86,12 +87,43 @@ public class RepositoryBase<T> : IRepository<T> where T : class, new()
         => Db.Deleteable<T>().Where(predicate).ExecuteCommandAsync(ct);
 
     /// <inheritdoc />
-    public Task<int> SoftDeleteByIdAsync(long id, CancellationToken ct = default)
-        => Db.Deleteable<T>().In(id).ExecuteCommandAsync(ct);
+    public async Task<int> SoftDeleteByIdAsync(long id, CancellationToken ct = default)
+    {
+        if (!typeof(ISoftDelete).IsAssignableFrom(typeof(T)))
+            throw new NotSupportedException($"类型 {typeof(T).Name} 未实现 ISoftDelete，无法软删除。");
+
+        var entity = await Db.Queryable<T>().In(id).FirstAsync(ct);
+        if (entity is null) return 0;
+
+        var soft = (ISoftDelete)entity;
+        if (soft.IsDeleted) return 0;
+
+        soft.IsDeleted = true;
+        soft.DeletedAt = DateTime.Now;
+
+        return await Db.Updateable(entity).ExecuteCommandAsync(ct);
+    }
+
 
     /// <inheritdoc />
-    public Task<int> SoftDeleteAsync(Expression<Func<T, bool>> predicate, CancellationToken ct = default)
-        => Db.Updateable<T>().Where(predicate).ExecuteCommandAsync(ct);
+    public async Task<int> SoftDeleteAsync(Expression<Func<T, bool>> predicate, CancellationToken ct = default)
+    {
+        if (!typeof(ISoftDelete).IsAssignableFrom(typeof(T)))
+            throw new NotSupportedException($"类型 {typeof(T).Name} 未实现 ISoftDelete，无法软删除。");
+
+        var list = await Db.Queryable<T>().Where(predicate).ToListAsync(ct);
+        if (list.Count == 0) return 0;
+
+        var now = DateTime.Now;
+        foreach (var item in list)
+        {
+            var soft = (ISoftDelete)item;
+            soft.IsDeleted = true;
+            soft.DeletedAt ??= now;
+        }
+
+        return await Db.Updateable(list).ExecuteCommandAsync(ct);
+    }
 
     /// <inheritdoc />
     public Task<PageResult<T>> ToPageAsync<TKey>(

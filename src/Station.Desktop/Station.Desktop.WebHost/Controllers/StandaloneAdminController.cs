@@ -7,9 +7,15 @@ using Station.Application.Recorders;
 using Station.Application.Users;
 using Station.Contracts;
 using Station.Domain.Entities;
-using Station.Data.Repositories;
 using AuthService = Station.Application.Authorization.IAuthorizationService;
 using Station.Domain.Collecting;
+using Station.Domain.Accounts;
+using Station.Application.Departments;
+using Station.Application.Departments.Commands;
+using Station.Application.Users.Commands;
+using Station.Application.Roles;
+using Station.Application.Roles.Commands;
+using Station.Application.Accounts;
 
 namespace Station.Desktop.WebHost.Controllers;
 
@@ -20,29 +26,51 @@ namespace Station.Desktop.WebHost.Controllers;
 public class StandaloneAdminController : ControllerBase
 {
     private readonly IUserService _users;
+    private readonly IUserQueryService _userQuery;
+    private readonly IDeptService _depts;
+    private readonly IDeptQueryService _deptQuery;
+    private readonly IRoleService _roles;
+    private readonly IRoleQueryService _roleQuery;
+    //private readonly IPermissionService _permissions;
+    //private readonly IRoleQueryService _roleQuery;
+    private readonly IAccountService _accounts;
+    private readonly IAccountQueryService _accountQuery;
+
     private readonly IRecorderService _recorders;
     private readonly IAlertService _alerts;
     private readonly ICollectSourceProvider _sourceProvider;
-    private readonly IRepository<Account> _accounts;
+
     private readonly IAuditLogService _audit;
     private readonly AuthService _authorization;
     private readonly IDataScopeProvider _dataScope;
 
     public StandaloneAdminController(
         IUserService users,
+        IUserQueryService userQuery,
+        IDeptService depts,
+        IDeptQueryService deptQuery,
+        IRoleService roles,
+        IRoleQueryService roleQuery,
+        IAccountService accounts,
+        IAccountQueryService accountQuery,
         IRecorderService recorders,
         IAlertService alerts,
         ICollectSourceProvider sourceProvider,
-        IRepository<Account> accounts,
         IAuditLogService audit,
         AuthService authorization,
         IDataScopeProvider dataScope)
     {
         _users = users;
+        _userQuery = userQuery;
+        _depts = depts;
+        _deptQuery = deptQuery;
+        _roles = roles;
+        _roleQuery = roleQuery;
+        _accounts = accounts;
+        _accountQuery = accountQuery;
         _recorders = recorders;
         _alerts = alerts;
         _sourceProvider = sourceProvider;
-        _accounts = accounts;
         _audit = audit;
         _authorization = authorization;
         _dataScope = dataScope;
@@ -59,32 +87,32 @@ public class StandaloneAdminController : ControllerBase
         }
 
         var scope = await WebScopeHelper.GetScopeAsync(User, _authorization, _dataScope);
-        var depts = (await _users.GetDeptTreeAsync())
+        var depts = (await _deptQuery.GetTreeAsync())
             .Where(d => d.Id is { } id && (scope.IsAll || scope.AllowedDeptIds.Contains(id)))
             .ToList();
         return Ok(ApiOk(depts));
     }
 
     [HttpPost("depts")]
-    public async Task<IActionResult> CreateDept(DeptDto dto)
+    public async Task<IActionResult> CreateDept(CreateDeptCommand dto)
     {
         if (!await RequirePermissionAsync(Domain.Authorization.PermissionCodes.DeptManage))
         {
             return StatusCode(403, new { message = "无部门管理权限" });
         }
 
-        return Ok(ApiOk(await _users.CreateDeptAsync(dto with { Id = null })));
+        return Ok(ApiOk(await _depts.CreateAsync(dto)));
     }
 
     [HttpPut("depts/{deptId:long}")]
-    public async Task<IActionResult> UpdateDept(long deptId, DeptDto dto)
+    public async Task<IActionResult> UpdateDept(UpdateDeptCommand dto)
     {
         if (!await RequirePermissionAsync(Domain.Authorization.PermissionCodes.DeptManage))
         {
             return StatusCode(403, new { message = "无部门管理权限" });
         }
 
-        var result = await _users.UpdateDeptAsync(dto with { Id = deptId });
+        var result = await _depts.UpdateAsync(dto);
         return result.Success ? Ok(ApiOk(true)) : BadRequest(new { message = result.Message });
     }
 
@@ -96,7 +124,7 @@ public class StandaloneAdminController : ControllerBase
             return StatusCode(403, new { message = "无部门管理权限" });
         }
 
-        var result = await _users.DeleteDeptAsync(deptId);
+        var result = await _depts.DeleteAsync(deptId);
         return result.Success ? Ok(ApiOk(true)) : BadRequest(new { message = result.Message });
     }
 
@@ -111,7 +139,7 @@ public class StandaloneAdminController : ControllerBase
         }
 
         var scope = await WebScopeHelper.GetScopeAsync(User, _authorization, _dataScope);
-        var users = (await _users.GetUsersAsync())
+        var users = (await _userQuery.PageAsync(new Application.Users.Dtos.UserPageQuery { })).Items
             .Where(u => scope.IsAll || scope.AllowedDeptIds.Contains(u.DeptId))
             .ToList();
         return Ok(ApiOk(users));
@@ -125,20 +153,27 @@ public class StandaloneAdminController : ControllerBase
             return StatusCode(403, new { message = "无用户管理权限" });
         }
 
-        var dto = new UserDto(null, request.UserNo, request.Name, request.DeptId);
-        var result = await _users.CreateUserAsync(dto, request.UserNo, request.Password ?? "Station@123");
+        var user = new CreateUserCommand
+        {
+            UserNo = request.UserNo,
+            UserName = request.Name,
+            DeptId = request.DeptId,
+            Password = request.Password ?? "Station@123",
+            IsActive = true
+        };
+        var result = await _users.CreateAsync(user);
         return result.Success ? Ok(ApiOk(true)) : BadRequest(new { message = result.Message });
     }
 
     [HttpPut("users/{userId:long}")]
-    public async Task<IActionResult> UpdateUser(long userId, UserDto dto)
+    public async Task<IActionResult> UpdateUser(UpdateUserCommand dto)
     {
         if (!await RequirePermissionAsync(Domain.Authorization.PermissionCodes.UserManage))
         {
             return StatusCode(403, new { message = "无用户管理权限" });
         }
 
-        var result = await _users.UpdateUserAsync(dto with { Id = userId });
+        var result = await _users.UpdateAsync(dto);
         return result.Success ? Ok(ApiOk(true)) : BadRequest(new { message = result.Message });
     }
 
@@ -150,7 +185,7 @@ public class StandaloneAdminController : ControllerBase
             return StatusCode(403, new { message = "无角色分配权限" });
         }
 
-        var result = await _users.AssignRolesAsync(userId, request.RoleIds);
+        var result = await _users.AssignRolesAsync(new AssignUserRolesCommand(userId, request.RoleIds));
         return result.Success ? Ok(ApiOk(true)) : BadRequest(new { message = result.Message });
     }
 
@@ -162,13 +197,13 @@ public class StandaloneAdminController : ControllerBase
             return StatusCode(403, new { message = "无用户管理权限" });
         }
 
-        var account = await _accounts.FirstAsync(a => a.UserId == userId);
-        if (account is null)
+        var accounts = await _accountQuery.GetByUserIdAsync(userId);
+        if (accounts is null || accounts.Count == 0)
         {
             return NotFound(new { message = "用户未绑定登录账号" });
         }
-
-        var result = await _users.ResetPasswordAsync(account.Id, request.Password);
+        var account = accounts.First();
+        var result = await _accounts.ResetPasswordAsync(new Application.Accounts.Commands.ResetPasswordCommand(account.Id, request.Password));
         return result.Success ? Ok(ApiOk(true)) : BadRequest(new { message = result.Message });
     }
 
@@ -182,7 +217,7 @@ public class StandaloneAdminController : ControllerBase
             return StatusCode(403, new { message = "无角色查看权限" });
         }
 
-        return Ok(ApiOk(await _users.GetRolesAsync()));
+        return Ok(ApiOk(await _roleQuery.PageAsync(new Application.Roles.Dtos.RolePageQuery { })));
     }
 
     [HttpGet("permissions")]
@@ -193,29 +228,29 @@ public class StandaloneAdminController : ControllerBase
             return StatusCode(403, new { message = "无角色查看权限" });
         }
 
-        return Ok(ApiOk(await _users.GetPermissionCatalogAsync()));
+        return Ok(ApiOk(await _roleQuery.PageAsync(new Application.Roles.Dtos.RolePageQuery { })));
     }
 
     [HttpPost("roles")]
-    public async Task<IActionResult> CreateRole(RoleDto dto)
+    public async Task<IActionResult> CreateRole(CreateRoleCommand dto)
     {
         if (!await RequirePermissionAsync(Domain.Authorization.PermissionCodes.RoleManage))
         {
             return StatusCode(403, new { message = "无角色管理权限" });
         }
 
-        return Ok(ApiOk(await _users.CreateRoleAsync(dto with { Id = null })));
+        return Ok(ApiOk(await _roles.CreateAsync(dto)));
     }
 
     [HttpPut("roles/{roleId:long}")]
-    public async Task<IActionResult> UpdateRole(long roleId, RoleDto dto)
+    public async Task<IActionResult> UpdateRole(UpdateRoleCommand dto)
     {
         if (!await RequirePermissionAsync(Domain.Authorization.PermissionCodes.RoleManage))
         {
             return StatusCode(403, new { message = "无角色管理权限" });
         }
 
-        var result = await _users.UpdateRoleAsync(dto with { Id = roleId });
+        var result = await _roles.UpdateAsync(dto);
         return result.Success ? Ok(ApiOk(true)) : BadRequest(new { message = result.Message });
     }
 
@@ -227,7 +262,7 @@ public class StandaloneAdminController : ControllerBase
             return StatusCode(403, new { message = "无角色管理权限" });
         }
 
-        var result = await _users.SetRolePermissionsAsync(roleId, request.PermissionIds);
+        var result = await _roles.SetPermissionsAsync(new SetRolePermissionsCommand(roleId, request.PermissionIds));
         return result.Success ? Ok(ApiOk(true)) : BadRequest(new { message = result.Message });
     }
 

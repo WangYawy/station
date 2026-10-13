@@ -1,22 +1,25 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
+using Station.Application.Accounts;
 using Station.Application.Alerts;
 using Station.Application.Audit;
 using Station.Application.Authentication;
 using Station.Application.Authorization;
 using Station.Application.Collecting;
+using Station.Application.Departments;
 using Station.Application.Licensing;
+using Station.Application.OperationAccess;
 using Station.Application.PlatformSync;
 using Station.Application.Recorders;
+using Station.Application.Roles;
+using Station.Application.Session;
 using Station.Application.Settings;
 using Station.Application.Storage;
 using Station.Application.Uploading;
 using Station.Application.UsbPortCard;
 using Station.Application.UsbPortCard.Events;
 using Station.Application.Users;
-using Station.Application.OperationAccess;
-using Station.Application.Session;
 
 namespace Station.Application;
 
@@ -93,7 +96,10 @@ public static class DependencyInjection
         // 注册登录认证服务
         services.AddScoped<IAuthenticationService, AuthenticationService>();
         // 注册RBAC服务
+        services.AddScoped<IDeptService, DeptService>();
         services.AddScoped<IUserService, UserService>();
+        services.AddScoped<IRoleService, RoleService>();
+        services.AddScoped<IAccountService, AccountService>();
 
 
         services.AddSingleton<ISessionManager, SessionManager>();

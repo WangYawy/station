@@ -1,6 +1,7 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Station.Application.Authentication;
+using Station.Application.Authentication.Commands;
 using Station.Application.Session;
 
 namespace Station.Desktop.ViewModels;
@@ -47,7 +48,7 @@ public partial class LoginViewModel : ObservableObject
         IsBusy = true;
         try
         {
-            var result = await _authentication.LoginAsync(new LoginRequest(UserName.Trim(), Password, "desktop"));
+            var result = await _authentication.LoginAsync(new LoginCommand(UserName.Trim(), Password), "desktop", "");
             if (result.Success && result.Session is not null)
             {
                 Password = string.Empty;

@@ -3,7 +3,9 @@ using Microsoft.Extensions.Options;
 using Station.Crypto;
 using Station.Data.Repositories;
 using Station.Domain.Collecting;
+using Station.Domain.Departments;
 using Station.Domain.Entities;
+using Station.Domain.Users;
 
 namespace Station.Application.Recorders;
 
@@ -31,8 +33,8 @@ public sealed class RecorderIdentificationService : IRecorderIdentificationServi
 {
     private readonly IRecorderBindingFile _bindingFile;
     private readonly IRepository<Recorder> _recorders;
-    private readonly IRepository<User> _users;
-    private readonly IRepository<Dept> _depts;
+    private readonly IUserRepository _users;
+    private readonly IDeptRepository _depts;
     private readonly BindingOptions _options;
     private readonly ILogger<RecorderIdentificationService> _logger;
 
@@ -40,8 +42,8 @@ public sealed class RecorderIdentificationService : IRecorderIdentificationServi
         IOptions<BindingOptions> options,
         IRecorderBindingFile bindingFile,
         IRepository<Recorder> recorders,
-        IRepository<User> users,
-        IRepository<Dept> depts,
+        IUserRepository users,
+        IDeptRepository depts,
         ILogger<RecorderIdentificationService> logger)
     {
         _options = options.Value;
@@ -169,7 +171,7 @@ public sealed class RecorderIdentificationService : IRecorderIdentificationServi
         if (!string.IsNullOrWhiteSpace(binding.UserNo))
         {
             user = await _users
-                .FirstAsync(u => u.UserNo == binding.UserNo, ct)
+                .GetByUserNoAsync(binding.UserNo, ct)
                 .ConfigureAwait(false);
 
             if (user is null)
@@ -192,7 +194,7 @@ public sealed class RecorderIdentificationService : IRecorderIdentificationServi
         if (!string.IsNullOrWhiteSpace(binding.DeptCode))
         {
             dept = await _depts
-                .FirstAsync(d => d.Code == binding.DeptCode, ct)
+                .GetByCodeAsync(binding.DeptCode, ct)
                 .ConfigureAwait(false);
 
             if (dept is null)

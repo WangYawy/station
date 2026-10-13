@@ -1,16 +1,20 @@
 using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using SqlSugar;
 using Station.Application.Audit;
 using Station.Application.Collecting;
 using Station.Contracts;
 using Station.Contracts.Sync;
+using Station.Data.IdGeneration;
+using Station.Data.Repositories;
+using Station.Domain.Accounts;
+using Station.Domain.Departments;
 using Station.Domain.Entities;
 using Station.Domain.Enums;
-using Station.Data.Repositories;
+using Station.Domain.Permissions;
+using Station.Domain.Roles;
+using Station.Domain.Users;
 using static System.Formats.Asn1.AsnWriter;
-using Station.Data.IdGeneration;
 
 namespace Station.Application.PlatformSync;
 
@@ -177,122 +181,106 @@ public sealed class ConfigApplyService : IConfigApplyService
     {
         var rows = DeserializeRows<DeptSyncRow>(change.PayloadJson);
         using var scope = NewScope();
-        var deptRepo = scope.ServiceProvider.GetRequiredService<ILoopRepository<Dept>>();
+        var deptRepo = scope.ServiceProvider.GetRequiredService<IDeptSyncRepository>();
+
         var existing = await deptRepo.GetListAsync();
-        var idByCode = existing.ToDictionary(d => d.Code, d => d.Id, StringComparer.OrdinalIgnoreCase);
-        var entityById = existing.ToDictionary(d => d.Id, d => d);
+        var byCode = existing.ToDictionary(d => d.Code, d => d, StringComparer.OrdinalIgnoreCase);
+        var toAdd = new List<Dept>();
         var toUpdate = new List<Dept>();
+        var now = DateTime.Now;
 
         foreach (var row in rows)
         {
-            if (idByCode.TryGetValue(row.Code, out var id))
+            if (byCode.TryGetValue(row.Code, out var dept))
             {
-                var dept = existing.First(d => d.Id == id);
-                dept.Name = row.Name;
-                dept.SortOrder = row.SortOrder;
-                dept.IsActive = row.IsActive;
+                dept.UpdateInfo(row.Name, row.SortOrder, now);
+                if (row.IsActive) dept.Activate(now); else dept.Deactivate(now);
                 toUpdate.Add(dept);
             }
             else
             {
-                var dept = new Dept
-                {
-                    Id = _idGenerator.NewId(),
-                    Code = row.Code,
-                    Name = row.Name,
-                    SortOrder = row.SortOrder,
-                    IsActive = row.IsActive
-                };
-                idByCode[row.Code] = dept.Id;
-                entityById[dept.Id] = dept;
-                await deptRepo.InsertAsync(dept);
-                toUpdate.Add(dept); // 第二遍回填父级后统一落库
+                var created = Dept.Create(
+                    _idGenerator.NewId(), row.Code, row.Name, null, row.SortOrder, now);
+                if (!row.IsActive) created.Deactivate(now);
+                byCode[row.Code] = created;
+                toAdd.Add(created);
             }
         }
 
-        // 第二遍回填父级（避免行序导致父级未落库）
+        // 第二遍回填父级
         foreach (var row in rows)
         {
-            if (!idByCode.TryGetValue(row.Code, out var id) || !entityById.TryGetValue(id, out var dept))
-            {
-                continue;
-            }
-
-            dept.ParentId = row.ParentCode is { } parentCode &&
-                            idByCode.TryGetValue(parentCode, out var parentId)
-                ? parentId
-                : null;
+            if (!byCode.TryGetValue(row.Code, out var dept)) continue;
+            var parentId = row.ParentCode is { } pc && byCode.TryGetValue(pc, out var parent)
+                ? parent.Id
+                : (long?)null;
+            dept.MoveTo(parentId, now);
+            if (!toAdd.Contains(dept) && !toUpdate.Contains(dept)) toUpdate.Add(dept);
         }
 
-        // 快照外缺失部门软停用（保留历史引用，不物理删除）
         var seen = rows.Select(r => r.Code).ToHashSet(StringComparer.OrdinalIgnoreCase);
-        var disabled = existing.Count(d => !seen.Contains(d.Code) && d.IsActive);
-        foreach (var dept in existing.Where(d => !seen.Contains(d.Code) && d.IsActive))
+        foreach (var d in existing.Where(d => !seen.Contains(d.Code) && d.IsActive))
         {
-            dept.IsActive = false;
-            toUpdate.Add(dept);
+            d.Deactivate(now);
+            toUpdate.Add(d);
         }
 
-        if (toUpdate.Count > 0)
-        {
-            await deptRepo.UpdateRangeAsync(toUpdate);
-        }
+        foreach (var d in toAdd) await deptRepo.InsertAsync(d);
+        if (toUpdate.Count > 0) await deptRepo.UpdateRangeAsync(toUpdate);
 
-        return $"部门快照已应用：{rows.Count} 条（软停用 {disabled} 条）";
+        return $"部门快照已应用：{rows.Count} 条";
     }
 
     private async Task<string> ApplyUserAsync(ConfigChangeItem change)
     {
         var rows = DeserializeRows<UserSyncRow>(change.PayloadJson);
         using var scope = NewScope();
-        var userRepo = scope.ServiceProvider.GetRequiredService<ILoopRepository<User>>();
-        var deptRepo = scope.ServiceProvider.GetRequiredService<ILoopRepository<Dept>>();
+
+        var userRepo = scope.ServiceProvider.GetRequiredService<IUserSyncRepository>();
+        var deptRepo = scope.ServiceProvider.GetRequiredService<IDeptSyncRepository>();
+
         var existing = await userRepo.GetListAsync();
-        var idByUserNo = existing.ToDictionary(u => u.UserNo, u => u.Id, StringComparer.OrdinalIgnoreCase);
+        var byUserNo = existing.ToDictionary(u => u.UserNo, u => u, StringComparer.OrdinalIgnoreCase);
+
         var depts = await deptRepo.GetListAsync();
         var deptIdByCode = depts.ToDictionary(d => d.Code, d => d.Id, StringComparer.OrdinalIgnoreCase);
         var fallbackDeptId = deptIdByCode.TryGetValue("ROOT", out var rootId)
             ? rootId
             : depts.Count > 0 ? depts[0].Id : 0;
-        var touched = new List<User>();
+
+        var now = DateTime.Now;
+        var toAdd = new List<User>();
+        var toUpdate = new List<User>();
 
         foreach (var row in rows)
         {
             var deptId = deptIdByCode.TryGetValue(row.DeptCode, out var did) ? did : fallbackDeptId;
-            if (idByUserNo.TryGetValue(row.UserNo, out var id))
+
+            if (byUserNo.TryGetValue(row.UserNo, out var user))
             {
-                var user = existing.First(u => u.Id == id);
-                user.Name = row.Name;
-                user.DeptId = deptId;
-                user.IsActive = row.IsActive;
-                touched.Add(user);
+                user.UpdateBasicInfo(row.UserNo, row.Name, now);
+                if (user.DeptId != deptId) user.ChangeDept(deptId, now);
+                if (row.IsActive) user.Activate(now); else user.Deactivate(now);
+                toUpdate.Add(user);
             }
             else
             {
-                var user = new User
-                {
-                    Id = _idGenerator.NewId(),
-                    UserNo = row.UserNo,
-                    Name = row.Name,
-                    DeptId = deptId,
-                    IsActive = row.IsActive
-                };
-                idByUserNo[row.UserNo] = user.Id;
-                await userRepo.InsertAsync(user);
+                var created = User.Create(_idGenerator.NewId(), row.UserNo, row.Name, deptId, now);
+                if (!row.IsActive) created.Deactivate(now);
+                byUserNo[row.UserNo] = created;
+                toAdd.Add(created);
             }
         }
 
         var seen = rows.Select(r => r.UserNo).ToHashSet(StringComparer.OrdinalIgnoreCase);
-        foreach (var user in existing.Where(u => !seen.Contains(u.UserNo) && u.IsActive))
+        foreach (var u in existing.Where(u => !seen.Contains(u.UserNo) && u.IsActive))
         {
-            user.IsActive = false;
-            touched.Add(user);
+            u.Deactivate(now);
+            toUpdate.Add(u);
         }
 
-        if (touched.Count > 0)
-        {
-            await userRepo.UpdateRangeAsync(touched);
-        }
+        foreach (var u in toAdd) await userRepo.InsertAsync(u);
+        if (toUpdate.Count > 0) await userRepo.UpdateRangeAsync(toUpdate);
 
         return $"用户快照已应用：{rows.Count} 条";
     }
@@ -301,70 +289,59 @@ public sealed class ConfigApplyService : IConfigApplyService
     {
         var rows = DeserializeRows<RoleSyncRow>(change.PayloadJson);
         using var scope = NewScope();
-        var roleRepo = scope.ServiceProvider.GetRequiredService<ILoopRepository<Role>>();
-        var permissionRepo = scope.ServiceProvider.GetRequiredService<ILoopRepository<Permission>>();
-        var rolePermissionRepo = scope.ServiceProvider.GetRequiredService<ILoopRepository<RolePermission>>();
+
+        var roleRepo = scope.ServiceProvider.GetRequiredService<IRoleSyncRepository>();
+        var permissionRepo = scope.ServiceProvider.GetRequiredService<IPermissionRepository>();
+        var rolePermissionRepo = scope.ServiceProvider.GetRequiredService<IRolePermissionRepository>();
+
         var existing = await roleRepo.GetListAsync();
-        var idByCode = existing.ToDictionary(r => r.Code, r => r.Id, StringComparer.OrdinalIgnoreCase);
+        var byCode = existing.ToDictionary(r => r.Code, r => r, StringComparer.OrdinalIgnoreCase);
         var permissionIdByCode = (await permissionRepo.GetListAsync())
             .ToDictionary(p => p.Code, p => p.Id, StringComparer.OrdinalIgnoreCase);
-        var touched = new List<Role>();
+
+        var now = DateTime.Now;
+        var toAdd = new List<Role>();
+        var toUpdate = new List<Role>();
 
         foreach (var row in rows)
         {
             Role role;
-            if (idByCode.TryGetValue(row.Code, out var id))
+            if (byCode.TryGetValue(row.Code, out var existingRole))
             {
-                role = existing.First(r => r.Id == id);
-                role.Name = row.Name;
-                role.DataScope = (DataScope)row.DataScope;
-                role.IsActive = row.IsActive;
-                touched.Add(role);
+                role = existingRole;
+                role.Rename(row.Name, now);
+                role.ChangeDataScope((DataScope)row.DataScope, now);
+                if (row.IsActive) role.Activate(now); else role.Deactivate(now);
+                toUpdate.Add(role);
             }
             else
             {
-                role = new Role
-                {
-                    Id = _idGenerator.NewId(),
-                    Code = row.Code,
-                    Name = row.Name,
-                    DataScope = (DataScope)row.DataScope,
-                    IsSystem = row.IsSystem,
-                    IsActive = row.IsActive
-                };
-                idByCode[row.Code] = role.Id;
-                await roleRepo.InsertAsync(role);
+                role = Role.Create(
+                    _idGenerator.NewId(), row.Code, row.Name,
+                    (DataScope)row.DataScope, row.IsSystem, now);
+                if (!row.IsActive) role.Deactivate(now);
+                byCode[row.Code] = role;
+                toAdd.Add(role);
             }
 
-            // 角色权限全量重建（幂等）
-            await rolePermissionRepo.DeleteAsync(rp => rp.RoleId == role.Id);
-
-            var links = row.PermissionCodes
-                .Where(code => permissionIdByCode.TryGetValue(code, out var _))
-                .Select(code => new RolePermission
-                {
-                    Id = _idGenerator.NewId(),
-                    RoleId = role.Id,
-                    PermissionId = permissionIdByCode[code]
-                })
+            // 角色权限全量重建
+            await rolePermissionRepo.DeleteByRoleIdAsync(role.Id);
+            var permissionIds = row.PermissionCodes
+                .Where(code => permissionIdByCode.ContainsKey(code))
+                .Select(code => permissionIdByCode[code])
                 .ToList();
-            if (links.Count > 0)
-            {
-                await rolePermissionRepo.InsertRangeAsync(links);
-            }
+            await rolePermissionRepo.AddRangeAsync(role.Id, permissionIds);
         }
 
         var seen = rows.Select(r => r.Code).ToHashSet(StringComparer.OrdinalIgnoreCase);
-        foreach (var role in existing.Where(r => !seen.Contains(r.Code) && r.IsActive))
+        foreach (var r in existing.Where(r => !seen.Contains(r.Code) && r.IsActive))
         {
-            role.IsActive = false;
-            touched.Add(role);
+            r.Deactivate(now);
+            toUpdate.Add(r);
         }
 
-        if (touched.Count > 0)
-        {
-            await roleRepo.UpdateRangeAsync(touched);
-        }
+        foreach (var r in toAdd) await roleRepo.InsertAsync(r);
+        if (toUpdate.Count > 0) await roleRepo.UpdateRangeAsync(toUpdate);
 
         return $"角色快照已应用：{rows.Count} 条";
     }
@@ -373,30 +350,24 @@ public sealed class ConfigApplyService : IConfigApplyService
     {
         var rows = DeserializeRows<UserRoleSyncRow>(change.PayloadJson);
         using var scope = NewScope();
-        var userRepo = scope.ServiceProvider.GetRequiredService<ILoopRepository<User>>();
-        var roleRepo = scope.ServiceProvider.GetRequiredService<ILoopRepository<Role>>();
-        var userRoleRepo = scope.ServiceProvider.GetRequiredService<ILoopRepository<UserRole>>();
+
+        var userRepo = scope.ServiceProvider.GetRequiredService<IUserSyncRepository>();
+        var roleRepo = scope.ServiceProvider.GetRequiredService<IRoleSyncRepository>();
+        var userRoleRepo = scope.ServiceProvider.GetRequiredService<IUserRoleRepository>();
+
         var userNoToId = (await userRepo.GetListAsync())
             .ToDictionary(u => u.UserNo, u => u.Id, StringComparer.OrdinalIgnoreCase);
         var roleCodeToId = (await roleRepo.GetListAsync())
             .ToDictionary(r => r.Code, r => r.Id, StringComparer.OrdinalIgnoreCase);
 
-        // 派生表全量重建：先清空再按快照插入
-        await userRoleRepo.DeleteAsync(t => 1 == 1);
+        await userRoleRepo.DeleteAllAsync();
+
         var links = rows
-            .Where(r => userNoToId.TryGetValue(r.UserNo, out var _) &&
-                        roleCodeToId.TryGetValue(r.RoleCode, out var _))
-            .Select(r => new UserRole
-            {
-                Id = _idGenerator.NewId(),
-                UserId = userNoToId[r.UserNo],
-                RoleId = roleCodeToId[r.RoleCode]
-            })
+            .Where(r => userNoToId.ContainsKey(r.UserNo) && roleCodeToId.ContainsKey(r.RoleCode))
+            .Select(r => (userNoToId[r.UserNo], roleCodeToId[r.RoleCode]))
             .ToList();
-        if (links.Count > 0)
-        {
-            await  userRoleRepo.InsertRangeAsync(links);
-        }
+
+        await userRoleRepo.AddRangeBatchAsync(links);
 
         return $"用户角色快照已应用：{rows.Count} 条（有效 {links.Count} 条）";
     }
@@ -405,13 +376,17 @@ public sealed class ConfigApplyService : IConfigApplyService
     {
         var rows = DeserializeRows<AccountSyncRow>(change.PayloadJson);
         using var scope = NewScope();
-        var accountRepo = scope.ServiceProvider.GetRequiredService<ILoopRepository<Account>>();
-        var userRepo = scope.ServiceProvider.GetRequiredService<ILoopRepository<User>>();
+        var accountRepo = scope.ServiceProvider.GetRequiredService<IAccountLoopRepository>();
+        var userRepo = scope.ServiceProvider.GetRequiredService<IUserSyncRepository>();
         var existing = await accountRepo.GetListAsync();
         var idByUserName = existing.ToDictionary(a => a.UserName, a => a.Id, StringComparer.OrdinalIgnoreCase);
         var userNoToId = (await userRepo.GetListAsync())
             .ToDictionary(u => u.UserNo, u => u.Id, StringComparer.OrdinalIgnoreCase);
         var touched = new List<Account>();
+
+        var now = DateTime.Now;
+        var toAdd = new List<Account>();
+        var toUpdate = new List<Account>();
 
         foreach (var row in rows)
         {
@@ -421,35 +396,41 @@ public sealed class ConfigApplyService : IConfigApplyService
             if (idByUserName.TryGetValue(row.UserName, out var id))
             {
                 var account = existing.First(a => a.Id == id);
-                account.PasswordHash = row.PasswordHash;
-                account.UserId = userId;
-                account.IsEnabled = row.IsEnabled;
+                // 平台权威覆盖：密码、绑定、启用状态
+                account.ChangePassword(row.PasswordHash, now);
+                account.BindUser(userId, now);
+                if (row.IsEnabled) account.Enable(now);
+                else account.Disable(now);
                 // 本地运行态（失败次数/锁定截止）不随平台快照覆盖
-                touched.Add(account);
+                toUpdate.Add(account);
             }
             else
             {
-                await accountRepo.InsertAsync(new Account
+                var created = Account.Create(
+                   _idGenerator.NewId(),
+                   row.UserName,
+                   row.PasswordHash,
+                   userId,
+                   now);
+
+                if (!row.IsEnabled)
                 {
-                    Id = _idGenerator.NewId(),
-                    UserName = row.UserName,
-                    PasswordHash = row.PasswordHash,
-                    UserId = userId,
-                    IsEnabled = row.IsEnabled,
-                    FailedLoginAttempts = row.FailedLoginAttempts,
-                    LockedUntil = row.LockedUntil
-                });
+                    created.Disable(now);
+                }
+
+                toAdd.Add(created);
             }
         }
 
+        // 快照外缺失账号禁用（保留账号，不软删除）
         var seen = rows.Select(r => r.UserName).ToHashSet(StringComparer.OrdinalIgnoreCase);
         foreach (var account in existing.Where(a => !seen.Contains(a.UserName) && a.IsEnabled))
         {
-            account.IsEnabled = false;
-            touched.Add(account);
+            account.Disable(now);
+            toUpdate.Add(account);
         }
 
-        if (touched.Count > 0)
+        if (toUpdate.Count > 0)
         {
             await accountRepo.UpdateRangeAsync(touched);
         }
@@ -462,8 +443,8 @@ public sealed class ConfigApplyService : IConfigApplyService
         var rows = DeserializeRows<RecorderSyncRow>(change.PayloadJson);
         using var scope = NewScope();
         var recorderRepo = scope.ServiceProvider.GetRequiredService<ILoopRepository<Recorder>>();
-        var userRepo = scope.ServiceProvider.GetRequiredService<ILoopRepository<User>>();
-        var deptRepo = scope.ServiceProvider.GetRequiredService<ILoopRepository<Dept>>();
+        var userRepo = scope.ServiceProvider.GetRequiredService<IUserSyncRepository>();
+        var deptRepo = scope.ServiceProvider.GetRequiredService<IDeptSyncRepository>();
         var existing = await recorderRepo.GetListAsync();
         var idBySerial = existing.ToDictionary(r => r.SerialNumber, r => r.Id, StringComparer.OrdinalIgnoreCase);
         var userNoToId = (await userRepo.GetListAsync())

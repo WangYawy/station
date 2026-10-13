@@ -1,3 +1,4 @@
+using System.Runtime.Versioning;
 using System.Text;
 using Station.Application.Licensing;
 using Station.Contracts.Registration;
@@ -11,6 +12,7 @@ namespace Station.Infrastructure.Licensing;
 /// 
 /// 【算法固定】机器指纹固定使用 SM3，不读策略表。
 /// </summary>
+[SupportedOSPlatform("linux")]
 public sealed class LinuxMachineFingerprintProvider : IMachineFingerprintProvider
 {
     private readonly string _sysfsRoot;

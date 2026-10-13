@@ -1,26 +1,28 @@
 using Station.Application.Authentication;
-using Station.Domain.Entities;
+using Station.Domain.Accounts;
 using Station.Domain.Enums;
-using Station.Data.Repositories;
+using Station.Domain.Permissions;
+using Station.Domain.Roles;
+using Station.Domain.Users;
 
 namespace Station.Application.Authorization;
 
 public sealed class AuthorizationService : IAuthorizationService
 {
-    private readonly IRepository<Account> _accounts;
-    private readonly IRepository<User> _users;
-    private readonly IRepository<UserRole> _userRoles;
-    private readonly IRepository<Role> _roles;
-    private readonly IRepository<RolePermission> _rolePermissions;
-    private readonly IRepository<Permission> _permissions;
+    private readonly IAccountRepository _accounts;
+    private readonly IUserRepository _users;
+    private readonly IUserRoleRepository _userRoles;
+    private readonly IRoleRepository _roles;
+    private readonly IRolePermissionRepository _rolePermissions;
+    private readonly IPermissionRepository _permissions;
 
     public AuthorizationService(
-        IRepository<Account> accounts,
-        IRepository<User> users,
-        IRepository<UserRole> userRoles,
-        IRepository<Role> roles,
-        IRepository<RolePermission> rolePermissions,
-        IRepository<Permission> permissions)
+        IAccountRepository accounts,
+        IUserRepository users,
+        IUserRoleRepository userRoles,
+        IRoleRepository roles,
+        IRolePermissionRepository rolePermissions,
+        IPermissionRepository permissions)
     {
         _accounts = accounts;
         _users = users;
@@ -47,22 +49,23 @@ public sealed class AuthorizationService : IAuthorizationService
 
         if (user is not null)
         {
-            var userRoles = await _userRoles.GetListAsync(ur => ur.UserId == user.Id);
-            var roleIds = userRoles.Select(x => x.RoleId).Distinct().ToList();
+            var roleIds = await _userRoles.GetRoleIdsByUserIdAsync(user.Id);
             if (roleIds.Count > 0)
             {
-                var roles = await _roles.GetListAsync(r => roleIds.Contains(r.Id) && r.IsActive);
+                var roles = await _roles.GetActiveByIdsAsync(roleIds);
                 if (roles.Count > 0)
                 {
                     roleCodes = roles.Select(r => r.Code).ToList();
                     dataScope = (DataScope)roles.Min(r => (int)r.DataScope);
 
-                    var links = await _rolePermissions.GetListAsync(rp => roleIds.Contains(rp.RoleId));
-                    var permissionIds = links.Select(x => x.PermissionId).Distinct().ToList();
+                    var permissionIds = await _rolePermissions.GetPermissionIdsByRoleIdsAsync(roleIds);
                     if (permissionIds.Count > 0)
                     {
-                        var permissions = await _permissions.GetListAsync(p => permissionIds.Contains(p.Id) && p.IsActive);
-                        permissionCodes = permissions.Select(p => p.Code).ToList();
+                        var permissions = await _permissions.GetByIdsAsync(permissionIds);
+                        permissionCodes = permissions
+                            .Where(p => p.IsActive)
+                            .Select(p => p.Code)
+                            .ToList();
                     }
                 }
             }
@@ -83,11 +86,11 @@ public sealed class AuthorizationService : IAuthorizationService
     public async Task<bool> HasPermissionAsync(long accountId, string permissionCode)
     {
         var session = await GetSessionAsync(accountId);
-        return session.Roles.Contains(AuthRoleCodes.Admin) || session.Permissions.Contains(permissionCode);
+        return session.Roles.Contains(AuthRoleCodes.Admin)
+            || session.Permissions.Contains(permissionCode);
     }
 }
 
-/// <summary>预置角色编码常量。</summary>
 public static class AuthRoleCodes
 {
     public const string Admin = "admin";

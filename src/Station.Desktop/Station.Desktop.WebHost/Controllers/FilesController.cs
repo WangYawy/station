@@ -7,6 +7,8 @@ using Station.Domain.Enums;
 using Station.Data.Repositories;
 using AuthService = Station.Application.Authorization.IAuthorizationService;
 using Station.Domain.Authorization;
+using Station.Domain.Departments;
+using Station.Application.Departments;
 
 namespace Station.Desktop.WebHost.Controllers;
 
@@ -18,20 +20,23 @@ public class FilesController : ControllerBase
 {
     private readonly IRepository<CollectFile> _files;
     private readonly IRepository<CollectTask> _tasks;
-    private readonly IRepository<Dept> _depts;
+    private readonly IDeptRepository _depts;
     private readonly AuthService _authorization;
     private readonly IDataScopeProvider _dataScope;
+    private readonly IDeptQueryService _deptQuery;
 
     public FilesController(
         IRepository<CollectFile> files,
         IRepository<CollectTask> tasks,
-        IRepository<Dept> depts,
+        IDeptRepository depts,
+        IDeptQueryService deptQuery,
         AuthService authorization,
         IDataScopeProvider dataScope)
     {
         _files = files;
         _tasks = tasks;
         _depts = depts;
+        _deptQuery = deptQuery;
         _authorization = authorization;
         _dataScope = dataScope;
     }
@@ -136,7 +141,7 @@ public class FilesController : ControllerBase
         var tasks = await _tasks.GetListAsync(t => taskIds.Contains(t.Id));
         var taskMap = tasks.ToDictionary(t => t.Id);
         var deptIds = tasks.Where(t => t.DeptId != null).Select(t => t.DeptId!.Value).Distinct().ToList();
-        var deptMap = (await _depts.GetListAsync(d => deptIds.Contains(d.Id))).ToDictionary(d => d.Id, d => d.Name);
+        var deptMap = (await _deptQuery.GetNameMapAsync(deptIds));
         return files.Select(f =>
         {
             taskMap.TryGetValue(f.TaskId, out var task);

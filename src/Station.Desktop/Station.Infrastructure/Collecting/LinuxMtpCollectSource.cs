@@ -816,21 +816,18 @@ public sealed class LinuxMtpCollectSource : ICollectSource, IRecorderFileStore
         var list = Native.LIBMTP_Get_Files_And_Folders(session.Device, session.StorageId, folderId);
         if (list == IntPtr.Zero) return true;
 
-        var nodes = new List<IntPtr>();
         try
         {
-            for (var node = list; node != IntPtr.Zero; node = Native.FileNext(node))
-            {
-                nodes.Add(node);
-                return false;
-            }
-            return true;
+            return false;
         }
         finally
         {
-            foreach (var node in nodes)
+            var node = list;
+            while (list != IntPtr.Zero)
             {
+                var next = Native.FileNext(node);   // 必须先读 next，再 destroy
                 Native.LIBMTP_destroy_file_t(node);
+                node = next;
             }
         }
     }

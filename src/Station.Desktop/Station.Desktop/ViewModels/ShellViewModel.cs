@@ -265,7 +265,7 @@ public partial class ShellViewModel : ObservableObject, IDisposable
         if (_sessions.Current is { } session)
         {
             var auth = _services.GetRequiredService<IAuthenticationService>();
-            await auth.LogoutAsync(session.AccountId);
+            await auth.LogoutAsync(session.AccountId, "desktop", "");
         }
 
         _sessions.Clear();

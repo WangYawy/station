@@ -1,41 +1,46 @@
 using Microsoft.Extensions.Options;
 using Station.Application.Security;
 using Station.Data;
-using Station.Data.Repositories;
+using Station.Data.IdGeneration;
+using Station.Domain.Accounts;
 using Station.Domain.Authorization;
-using Station.Domain.Entities;
+using Station.Domain.Departments;
+using Station.Domain.Permissions;
+using Station.Domain.Roles;
+using Station.Domain.Users;
 
 namespace Station.Infrastructure.Persistence;
 
-/// <summary>认证相关表结构与种子数据初始化。</summary>
 public interface IAuthSeeder
 {
-    Task EnsureAsync();
+    Task EnsureAsync(CancellationToken ct = default);
 }
 
 public sealed class AuthSeeder : IAuthSeeder
 {
     private readonly IDatabaseInitializer _initializer;
-    private readonly IRepository<Role> _roles;
-    private readonly IRepository<Permission> _permissions;
-    private readonly IRepository<RolePermission> _rolePermissions;
-    private readonly IRepository<Account> _accounts;
-    private readonly IRepository<Dept> _depts;
-    private readonly IRepository<User> _users;
-    private readonly IRepository<UserRole> _userRoles;
+    private readonly IRoleRepository _roles;
+    private readonly IPermissionRepository _permissions;
+    private readonly IRolePermissionRepository _rolePermissions;
+    private readonly IAccountRepository _accounts;
+    private readonly IDeptRepository _depts;
+    private readonly IUserRepository _users;
+    private readonly IUserRoleRepository _userRoles;
     private readonly IPasswordService _passwordService;
+    private readonly IIdGenerator _idGenerator;
     private readonly AuthSeedOptions _options;
 
     public AuthSeeder(
         IDatabaseInitializer initializer,
-        IRepository<Role> roles,
-        IRepository<Permission> permissions,
-        IRepository<RolePermission> rolePermissions,
-        IRepository<Account> accounts,
-        IRepository<Dept> depts,
-        IRepository<User> users,
-        IRepository<UserRole> userRoles,
+        IRoleRepository roles,
+        IPermissionRepository permissions,
+        IRolePermissionRepository rolePermissions,
+        IAccountRepository accounts,
+        IDeptRepository depts,
+        IUserRepository users,
+        IUserRoleRepository userRoles,
         IPasswordService passwordService,
+        IIdGenerator idGenerator,
         IOptions<AuthSeedOptions> options)
     {
         _initializer = initializer;
@@ -47,142 +52,122 @@ public sealed class AuthSeeder : IAuthSeeder
         _users = users;
         _userRoles = userRoles;
         _passwordService = passwordService;
+        _idGenerator = idGenerator;
         _options = options.Value;
     }
 
-    public async Task EnsureAsync()
+    public async Task EnsureAsync(CancellationToken ct = default)
     {
         _initializer.EnsureCreated(AuthSeedData.EntityTypes);
 
-        // 权限目录（幂等升级：目录为空时全量播种，否则仅补新增权限码）
-        if (!await _permissions.IsAnyAsync(_ => true))
+        var now = DateTime.Now;
+
+        // ---- 权限目录 ----
+        if (!await _permissions.AnyAsync(ct))
         {
-            var seed = PermissionCodes.Catalog.Select((p, i) => new Permission
-            {
-                Id = i + 1,
-                Code = p.Code,
-                Name = p.Name,
-                Module = p.Module
-            }).ToList();
-            await _permissions.InsertRangeAsync(seed);
+            var seed = PermissionCodes.Catalog
+                .Select(p => Permission.Create(
+                    _idGenerator.NewId(), p.Code, p.Name, p.Module, now))
+                .ToList();
+            await _permissions.AddRangeAsync(seed, ct);
         }
         else
         {
-            var existing = await _permissions.GetListAsync();
+            var existing = await _permissions.GetListAsync(ct);
             var existingCodes = existing.Select(p => p.Code).ToHashSet();
-            var missing = PermissionCodes.Catalog.Where(p => !existingCodes.Contains(p.Code)).ToList();
+            var missing = PermissionCodes.Catalog
+                .Where(p => !existingCodes.Contains(p.Code))
+                .Select(p => Permission.Create(
+                    _idGenerator.NewId(), p.Code, p.Name, p.Module, now))
+                .ToList();
             if (missing.Count > 0)
             {
-                var maxId = existing.Max(p => p.Id);
-                await _permissions.InsertRangeAsync(missing.Select((p, i) => new Permission
-                {
-                    Id = maxId + i + 1,
-                    Code = p.Code,
-                    Name = p.Name,
-                    Module = p.Module
-                }).ToList());
+                await _permissions.AddRangeAsync(missing, ct);
             }
         }
 
-        // 预置角色 + 角色权限（幂等：缺失角色补建，系统角色按目录补齐缺失权限）
-        var roles = await _roles.GetListAsync();
-        var nextRoleId = roles.Count > 0 ? roles.Max(r => r.Id) + 1 : 1;
-        var allLinks = await _rolePermissions.GetListAsync();
-        var nextLinkId = allLinks.Count > 0 ? allLinks.Max(x => x.Id) + 1 : 1;
+        // ---- 预置角色 + 角色权限 ----
         foreach (var preset in PresetRoles.List)
         {
-            var role = await _roles.FirstAsync(r => r.Code == preset.Code);
+            var role = await _roles.GetByCodeAsync(preset.Code, ct);
             if (role is null)
             {
-                role = new Role
-                {
-                    Id = nextRoleId++,
-                    Code = preset.Code,
-                    Name = preset.Name,
-                    DataScope = preset.DataScope,
-                    IsSystem = true
-                };
-                await _roles.InsertAsync(role);
+                role = Role.Create(
+                    _idGenerator.NewId(), preset.Code, preset.Name,
+                    preset.DataScope, isSystem: true, now);
+                await _roles.AddAsync(role, ct);
             }
 
-            var presetPerms = await _permissions.GetListAsync(p => preset.Permissions.Contains(p.Code));
-            var granted = await _rolePermissions.GetListAsync(rp => rp.RoleId == role.Id);
-            var grantedPermissionIds = granted.Select(x => x.PermissionId).ToHashSet();
-            var missingLinks = presetPerms
-                .Where(p => !grantedPermissionIds.Contains(p.Id))
-                .Select(p => new RolePermission { Id = nextLinkId++, RoleId = role.Id, PermissionId = p.Id })
+            var presetPerms = await _permissions.GetByCodesAsync(preset.Permissions, ct);
+            var granted = await _rolePermissions.GetPermissionIdsByRoleIdAsync(role.Id, ct);
+            var grantedSet = granted.ToHashSet();
+
+            var missingPermissionIds = presetPerms
+                .Where(p => !grantedSet.Contains(p.Id))
+                .Select(p => p.Id)
                 .ToList();
-            if (missingLinks.Count > 0)
+
+            if (missingPermissionIds.Count > 0)
             {
-                await _rolePermissions.InsertRangeAsync(missingLinks);
+                await _rolePermissions.AddRangeAsync(role.Id, missingPermissionIds, ct);
             }
         }
 
-        // 根部门
+        // ---- 根部门 ----
         long rootDeptId;
-        if (!await _depts.IsAnyAsync(d => d.Code == RootDept.Code))
+        var rootDept = await _depts.GetByCodeAsync(RootDept.Code, ct);
+        if (rootDept is null)
         {
-            var root = new Dept
-            {
-                Id = 1,
-                Code = RootDept.Code,
-                Name = RootDept.Name,
-                ParentId = null,
-                SortOrder = 0
-            };
-            await _depts.InsertAsync(root);
-            rootDeptId = root.Id;
+            rootDept = Dept.Create(
+                _idGenerator.NewId(), RootDept.Code, RootDept.Name,
+                parentId: null, sortOrder: 0, now);
+            await _depts.AddAsync(rootDept, ct);
+            rootDeptId = rootDept.Id;
         }
         else
         {
-            rootDeptId = (await _depts.FirstAsync(d => d.Code == RootDept.Code))!.Id;
+            rootDeptId = rootDept.Id;
         }
 
-        // 系统管理员用户（挂 admin 角色，承载"管理员"数据范围）
+        // ---- 系统管理员用户 ----
         long adminUserId;
-        if (!await _users.IsAnyAsync(u => u.UserNo == _options.DefaultAdminUserName))
+        var adminUser = await _users.GetByUserNoAsync(_options.DefaultAdminUserName, ct);
+        if (adminUser is null)
         {
-            var adminUser = new User
-            {
-                Id = 1,
-                UserNo = _options.DefaultAdminUserName,
-                Name = "系统管理员",
-                DeptId = rootDeptId,
-                IsActive = true
-            };
-            await _users.InsertAsync(adminUser);
+            adminUser = User.Create(
+                _idGenerator.NewId(), _options.DefaultAdminUserName,
+                "系统管理员", rootDeptId, now);
+            await _users.AddAsync(adminUser, ct);
             adminUserId = adminUser.Id;
 
-            var adminRole = await _roles.FirstAsync(r => r.Code == PresetRoles.Admin);
+            var adminRole = await _roles.GetByCodeAsync(PresetRoles.Admin, ct);
             if (adminRole is not null)
             {
-                await _userRoles.InsertAsync(new UserRole { Id = 1, UserId = adminUserId, RoleId = adminRole.Id });
+                await _userRoles.AddAsync(adminUserId, adminRole.Id, ct);
             }
         }
         else
         {
-            adminUserId = (await _users.FirstAsync(u => u.UserNo == _options.DefaultAdminUserName))!.Id;
+            adminUserId = adminUser.Id;
         }
 
-        // 默认管理员账号
-        if (!await _accounts.IsAnyAsync(a => a.UserName == _options.DefaultAdminUserName))
+        // ---- 默认管理员账号 ----
+        if (!await _accounts.ExistsUserNameAsync(_options.DefaultAdminUserName, ct))
         {
-            await _accounts.InsertAsync(new Account
-            {
-                Id = 1,
-                UserName = _options.DefaultAdminUserName,
-                PasswordHash = await _passwordService.HashAsync(_options.DefaultAdminPassword),
-                UserId = adminUserId,
-                IsEnabled = true
-            });
+            var account = Account.Create(
+                _idGenerator.NewId(),
+                _options.DefaultAdminUserName,
+                await _passwordService.HashAsync(_options.DefaultAdminPassword),
+                adminUserId,
+                now);
+
+            await _accounts.AddAsync(account, ct);
         }
     }
 }
 
-/// <summary>种子账号配置，对应配置节 <c>Station:Auth</c>。</summary>
 public sealed class AuthSeedOptions
 {
     public string DefaultAdminUserName { get; set; } = "admin";
-
     public string DefaultAdminPassword { get; set; } = "Admin@123";
 }

@@ -1,21 +1,22 @@
-using Station.Domain.Entities;
+using Station.Domain.Departments;
 using Station.Domain.Enums;
-using Station.Data.Repositories;
+using Station.Domain.Roles;
+using Station.Domain.Users;
 
 namespace Station.Application.Authorization;
 
 public sealed class DataScopeProvider : IDataScopeProvider
 {
-    private readonly IRepository<User> _users;
-    private readonly IRepository<Dept> _depts;
-    private readonly IRepository<UserRole> _userRoles;
-    private readonly IRepository<Role> _roles;
+    private readonly IUserRepository _users;
+    private readonly IDeptRepository _depts;
+    private readonly IUserRoleRepository _userRoles;
+    private readonly IRoleRepository _roles;
 
     public DataScopeProvider(
-        IRepository<User> users,
-        IRepository<Dept> depts,
-        IRepository<UserRole> userRoles,
-        IRepository<Role> roles)
+        IUserRepository users,
+        IDeptRepository depts,
+        IUserRoleRepository userRoles,
+        IRoleRepository roles)
     {
         _users = users;
         _depts = depts;
@@ -28,12 +29,12 @@ public sealed class DataScopeProvider : IDataScopeProvider
         var user = await _users.GetByIdAsync(userId)
                    ?? throw new InvalidOperationException($"用户 {userId} 不存在");
 
-        var userRoles = await _userRoles.GetListAsync(ur => ur.UserId == user.Id);
-        var roleIds = userRoles.Select(x => x.RoleId).Distinct().ToList();
+        var roleIds = await _userRoles.GetRoleIdsByUserIdAsync(user.Id);
         var scope = DataScope.Self;
+
         if (roleIds.Count > 0)
         {
-            var roles = await _roles.GetListAsync(r => roleIds.Contains(r.Id) && r.IsActive);
+            var roles = await _roles.GetActiveByIdsAsync(roleIds);
             if (roles.Count > 0)
             {
                 scope = (DataScope)roles.Min(r => (int)r.DataScope);
@@ -56,7 +57,7 @@ public sealed class DataScopeProvider : IDataScopeProvider
 
     private async Task AddDescendantsAsync(long parentId, HashSet<long> deptIds)
     {
-        var children = await _depts.GetListAsync(d => d.ParentId == parentId && d.IsActive);
+        var children = await _depts.GetActiveChildrenAsync(parentId);
         foreach (var child in children)
         {
             if (deptIds.Add(child.Id))

@@ -20,6 +20,7 @@ public sealed class AuditLogService : IAuditLogService
     private readonly IRepository<AuditLog> _auditLogs;
     private readonly IIdGenerator _idGenerator;
     private readonly IUserService _users;
+    private readonly IUserQueryService _userQuery;
     private readonly ISessionManager _sessions;
     private readonly ILogger<AuditLogService> _logger;
 
@@ -27,6 +28,7 @@ public sealed class AuditLogService : IAuditLogService
         IRepository<AuditLog> auditLogs,
         IIdGenerator idGenerator,
         IUserService users,
+        IUserQueryService userQuery,
         ISessionManager sessions,
         ILogger<AuditLogService> logger)
     {
@@ -147,15 +149,15 @@ public sealed class AuditLogService : IAuditLogService
         var current = _sessions.Current;
         if (current is null) return [];
 
-        var users = await _users.GetUsersAsync();
+        var users = await _userQuery.PageAsync(new Users.Dtos.UserPageQuery { PageSize = 200 }, ct);
 
         var isAdmin = current.Roles?.Any(r =>
             string.Equals(r, "admin", StringComparison.OrdinalIgnoreCase)) == true;
 
         // 非管理员只看自己；current.UserName 为登录账号，对应 UserDto.UserNo
         var filtered = isAdmin
-            ? users
-            : users.Where(u => string.Equals(u.UserNo, current.UserName, StringComparison.OrdinalIgnoreCase));
+            ? users.Items
+            : users.Items.Where(u => string.Equals(u.UserNo, current.UserName, StringComparison.OrdinalIgnoreCase));
 
         return filtered
             .OrderBy(u => u.Name, StringComparer.OrdinalIgnoreCase)
