@@ -37,7 +37,11 @@
         <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,6">
           <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="5" VerticalAlignment="Center">
             <Ellipse Width="8" Height="8" Fill="{Binding LinkBrush}" VerticalAlignment="Center"/>
-            <TextBlock Classes="card-port" Text="{Binding PortText}"/>
+
+            <TextBlock Classes="card-port"
+                       Classes.unmapped="{Binding IsUnmapped}"
+                       Text="{Binding PortText}"/>
+
             <TextBlock Text="{Binding LinkText}"
                        FontSize="{DynamicResource FontSizeSmall}"
                        Foreground="{Binding LinkBrush}"
@@ -95,14 +99,19 @@
                      VerticalAlignment="Center"/>
         </Grid>
         <!-- 行4 提示（拒绝原因 / 授权提示 / 警告），非空时显示 -->
-        <TextBlock Grid.Row="4"
-                   Text="{Binding HintText}"
-                   IsVisible="{Binding HasHint}"
-                   Foreground="{Binding HintBrush}"
-                   FontSize="{DynamicResource FontSizeSmall}"
-                   FontWeight="SemiBold"
-                   TextTrimming="CharacterEllipsis"
-                   Margin="0,4,0,4"/>
+        <StackPanel Grid.Row="4" Spacing="2">
+          <TextBlock Text="{Binding HintText}"
+                     IsVisible="{Binding HasHint}"
+                     Foreground="{Binding HintBrush}"
+                     FontSize="{DynamicResource FontSizeSmall}"
+                     FontWeight="SemiBold"
+                     TextTrimming="CharacterEllipsis"/>
+          <TextBlock Text="{Binding UnmappedText}"
+                     IsVisible="{Binding IsUnmapped}"
+                     Foreground="#b45309"
+                     FontSize="{DynamicResource FontSizeSmall}"
+                     TextTrimming="CharacterEllipsis"/>
+        </StackPanel>
         <!-- 行5 进度条 + 速度 + 百分比 -->
         <StackPanel Grid.Row="5" Spacing="3" Margin="0,1,0,2"
                     VerticalAlignment="Bottom">
@@ -154,6 +163,11 @@
                   Content="明细"
                   Command="{Binding DetailsCommand}"
                   IsVisible="{Binding !IsIdle}" />
+
+          <Button Classes="card-btn warning"
+                  Content="重连"
+                  Command="{Binding RetryIdentifyCommand}"
+                  IsVisible="{Binding CanRetryIdentify}" />
         </WrapPanel>
       </Grid>
     </Grid>

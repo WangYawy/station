@@ -218,7 +218,10 @@
     <Setter Property="Foreground" Value="{DynamicResource TextInfo}"/>
     <Setter Property="FontWeight" Value="SemiBold"/>
   </Style>
-
+  <Style Selector="TextBlock.card-port.unmapped">
+    <Setter Property="Foreground" Value="#b45309"/>
+    <Setter Property="FontWeight" Value="Bold"/>
+  </Style>
   <!-- 进度条 -->
   <Style Selector="Border.progress-track">
     <Setter Property="Height" Value="12"/>

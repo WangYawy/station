@@ -16,7 +16,7 @@ public sealed class CollectTaskQueryService : ICollectTaskQueryService
             .Where(x => x.Id == taskId)
             .Select(x => new CollectTaskDto(
                 x.Id, x.TaskNo, x.RecorderName, x.RecorderSerial, x.Protocol,
-                x.OperatorUserId, x.DeptId, x.Status, x.IsAuto,
+                x.OperatorUserId, "", "", x.DeptId, "", x.Status, x.IsAuto,
                 x.TotalFiles, x.CollectedFiles, x.SkippedFiles, x.FailedFiles,
                 x.TotalBytes, x.CollectedBytes, x.SpeedBytesPerSecond,
                 x.IsEmergency,
@@ -34,7 +34,7 @@ public sealed class CollectTaskQueryService : ICollectTaskQueryService
             .Take(count)
             .Select(x => new CollectTaskDto(
                 x.Id, x.TaskNo, x.RecorderName, x.RecorderSerial, x.Protocol,
-                x.OperatorUserId, x.DeptId, x.Status, x.IsAuto,
+                x.OperatorUserId, "", "", x.DeptId, "", x.Status, x.IsAuto,
                 x.TotalFiles, x.CollectedFiles, x.SkippedFiles, x.FailedFiles,
                 x.TotalBytes, x.CollectedBytes, x.SpeedBytesPerSecond,
                 x.IsEmergency,
@@ -53,7 +53,7 @@ public sealed class CollectTaskQueryService : ICollectTaskQueryService
             .OrderBy(x => x.CreatedAt, OrderByType.Desc)
             .Select(x => new CollectTaskDto(
                 x.Id, x.TaskNo, x.RecorderName, x.RecorderSerial, x.Protocol,
-                x.OperatorUserId, x.DeptId, x.Status, x.IsAuto,
+                x.OperatorUserId, "", "", x.DeptId, "", x.Status, x.IsAuto,
                 x.TotalFiles, x.CollectedFiles, x.SkippedFiles, x.FailedFiles,
                 x.TotalBytes, x.CollectedBytes, x.SpeedBytesPerSecond,
                 x.IsEmergency,

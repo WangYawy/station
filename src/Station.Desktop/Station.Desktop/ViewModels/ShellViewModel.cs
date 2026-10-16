@@ -8,6 +8,7 @@ using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Station.Application.Alerts;
 using Station.Application.Alerts.Dtos;
 using Station.Application.Auditing;
@@ -25,6 +26,8 @@ using Station.Application.Uploading;
 using Station.Application.UsbPortCards;
 using Station.Contracts;
 using Station.Desktop.Services;
+using Station.Desktop.ViewModels.Settings;
+using Station.Device.Detection;
 
 namespace Station.Desktop.ViewModels;
 
@@ -164,9 +167,12 @@ public partial class ShellViewModel : ObservableObject, IDisposable
                 _collectService,
                 _operationAccess,
                 _services.GetRequiredService<IUsbPortCardService>(),
+                _services.GetRequiredService<IDevicePresenceService>(),
+                _services.GetRequiredService<ISlotRouter>(),
                 _services.GetRequiredService<IUiNotificationService>(),
                 _services.GetRequiredService<WindowModeOptions>(),
-                _services.GetRequiredService<CollectOptions>());
+                _services.GetRequiredService<CollectOptions>(),
+                _services.GetRequiredService<ILogger<WorkbenchViewModel>>());
             CurrentModule = _workbenchViewModel;
             return;
         }

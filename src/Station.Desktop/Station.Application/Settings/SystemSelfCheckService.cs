@@ -4,6 +4,8 @@ using Station.Application.Collecting;
 using Station.Application.Storages;
 using Microsoft.Extensions.Logging;
 using Station.Domain.Collecting;
+using Station.Device.Detection;
+using Station.Device.FileSystem;
 
 namespace Station.Application.Settings;
 
@@ -13,14 +15,14 @@ public sealed class SystemSelfCheckService : ISystemSelfCheckService
     private readonly CollectOptions _collect;
     private readonly IStorageConfiguration _storage;
     private readonly IReadOnlyList<IStorageTarget> _targets;
-    private readonly ICollectSource _source;
+    private readonly IDeviceFileSystem _source;
     private readonly ILogger<SystemSelfCheckService> _logger;
 
     public SystemSelfCheckService(
         CollectOptions collect,
         IStorageConfiguration storage,
         IReadOnlyList<IStorageTarget> targets,
-        ICollectSource source,
+        IDeviceFileSystem source,
         ILogger<SystemSelfCheckService> logger)
     {
         _collect = collect;
@@ -48,7 +50,7 @@ public sealed class SystemSelfCheckService : ISystemSelfCheckService
         try
         {
             var root = _source.GetRecorderRoot(
-                new CollectDeviceInfo("自检", "SELF-CHECK", Station.Contracts.ProtocolType.Ums));
+                new DetectedDevice("SELF-CHECK", "自检", "SELF-CHECK", Station.Contracts.ProtocolType.Ums,""));
             return new SelfCheckItemDto("采集设备", true, $"设备在线（{root}）");
         }
         catch (Exception ex)

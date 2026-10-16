@@ -1,109 +1,103 @@
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
-using Station.Application.Collecting;
 using Station.Application.Security;
-using Station.Contracts;
 using Station.Crypto;
-using Station.Domain.Collecting;
+using Station.Device.Detection;
+using Station.Device.FileSystem;
 
 namespace Station.Application.Recorders;
 
 /// <summary>
-/// 记录仪绑定文件（station_bind.ini）实现。
-///
-/// 【职责】IO + 策略 + 密钥获取。
-/// 【协议】全部交由 <see cref="BindingFileCodec"/> 处理（唯一实现）。
-///
-/// 【依赖倒置】只依赖 Application 层接口 + Crypto 契约，不引用 Engine / Infrastructure。
+/// 绑定文件业务实现：序列化 + MAC 计算 + 验签。
+/// 文件 IO 全部委托给 <see cref="IDeviceFileSystem"/>，本类不感知协议差异。
 /// </summary>
 public sealed class RecorderBindingFile : IRecorderBindingFile
 {
-    private readonly ICollectSourceProvider _sourceProvider;
+    private const string FileName = BindingFileCodec.FileName;
+
+    private readonly IDeviceFileSystemProvider _fileSystems;
     private readonly ICryptoPolicyService _cryptoPolicy;
     private readonly ICryptoAlgorithmRegistry _algorithmRegistry;
     private readonly ILogger<RecorderBindingFile> _logger;
 
     public RecorderBindingFile(
-        ICollectSourceProvider sourceProvider,
+        IDeviceFileSystemProvider fileSystems,
         ICryptoPolicyService cryptoPolicy,
         ICryptoAlgorithmRegistry algorithmRegistry,
         ILogger<RecorderBindingFile> logger)
     {
-        _sourceProvider = sourceProvider;
+        _fileSystems = fileSystems;
         _cryptoPolicy = cryptoPolicy;
         _algorithmRegistry = algorithmRegistry;
         _logger = logger;
     }
 
+    /// <inheritdoc />
     public async Task WriteAsync(
-        string recorderRootPath,
-        BindingInfo binding,
-        CancellationToken ct = default)
+        DetectedDevice device, BindingInfo binding, CancellationToken ct = default)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(recorderRootPath);
+        ArgumentNullException.ThrowIfNull(device);
         ArgumentNullException.ThrowIfNull(binding);
 
-        // 1) 策略：取 MAC 算法
+        // 1. 策略：取 MAC 算法
         var macProvider = await _cryptoPolicy
             .GetMacProviderAsync(CryptoUsage.RecorderBinding, ct)
             .ConfigureAwait(false);
 
-        // 2) 密钥：从主密钥 HKDF 派生
+        // 2. 密钥：从主密钥 HKDF 派生
         var key = await _cryptoPolicy
             .GetBindingMacKeyAsync(ct)
             .ConfigureAwait(false);
 
-        // 3) 协议：调 BindingFileCodec（唯一实现）
+        // 3. 协议：序列化 + MAC
         var mac = BindingFileCodec.ComputeMac(binding, key, macProvider);
         var content = BindingFileCodec.Serialize(binding, macProvider.Algorithm, mac);
 
-        // 4) IO
-        var store = GetFileStore(recorderRootPath);
-        store.WriteFile(recorderRootPath, BindingFileCodec.FileName, content);
+        // 4. IO：按协议走 Device 层
+        var fs = _fileSystems.GetFor(device.Protocol);
+        fs.WriteAllText(device, FileName, content);
 
-        _logger.LogDebug("绑定文件已写入：{Path}（MAC 算法 {Algo}）",
-            recorderRootPath, macProvider.Algorithm);
+        _logger.LogDebug("绑定文件已写入：{Root}（MAC 算法 {Algo}）",
+            device.Root, macProvider.Algorithm);
     }
 
-    // 读取
-    public BindingInfo? Read(string recorderRootPath)
+    /// <inheritdoc />
+    public BindingInfo? Read(DetectedDevice device)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(recorderRootPath);
+        ArgumentNullException.ThrowIfNull(device);
 
-        var store = GetFileStore(recorderRootPath);
-        var text = store.ReadFile(recorderRootPath, BindingFileCodec.FileName);
-        if (text is null) return null;
+        var fs = _fileSystems.GetFor(device.Protocol);
+        var content = fs.ReadAllText(device, FileName);
+        if (content is null) return null;
 
-        var info = BindingFileCodec.Parse(text);
+        var info = BindingFileCodec.Parse(content);
         if (info is null)
-            _logger.LogWarning("绑定文件格式错误：{Path}", recorderRootPath);
+            _logger.LogWarning("绑定文件格式错误：{Root}", device.Root);
 
         return info;
     }
 
-    // 验证
+    /// <inheritdoc />
     public async Task<bool> VerifySignatureAsync(
-        string recorderRootPath,
-        CancellationToken ct = default)
+        DetectedDevice device, CancellationToken ct = default)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(recorderRootPath);
+        ArgumentNullException.ThrowIfNull(device);
 
-        // 1) IO：读原始 INI 内容
-        var store = GetFileStore(recorderRootPath);
-        var content = store.ReadFile(recorderRootPath, BindingFileCodec.FileName);
+        // 1. IO：读原始内容
+        var fs = _fileSystems.GetFor(device.Protocol);
+        var content = fs.ReadAllText(device, FileName);
         if (content is null) return false;
 
-        // 2) 解析
+        // 2. 解析
         var info = BindingFileCodec.Parse(content);
         if (info is null || string.IsNullOrEmpty(info.Signature))
             return false;
 
-        // 3) 密钥：从主密钥 HKDF 派生
+        // 3. 密钥
         var key = await _cryptoPolicy
             .GetBindingMacKeyAsync(ct)
             .ConfigureAwait(false);
 
-        // 4) 从 INI 里读 mac_algo → 解析 MAC 提供者
+        // 4. 从 INI 里读 mac_algo → 解析 MAC 提供者
         var macAlgo = BindingFileCodec.GetMacAlgo(content) ?? CryptoAlgorithm.HmacSm3;
 
         IMacProvider macProvider;
@@ -117,40 +111,19 @@ public sealed class RecorderBindingFile : IRecorderBindingFile
             return false;
         }
 
-        // 5) 协议：调 BindingFileCodec（唯一实现，固定时间比较）
+        // 5. 校验（固定时间比较在 Codec 内部实现）
         var ok = BindingFileCodec.VerifyMac(info, key, macProvider);
-
         if (!ok)
-            _logger.LogWarning("绑定文件 MAC 校验失败：{Path}", recorderRootPath);
+            _logger.LogWarning("绑定文件 MAC 校验失败：{Root}", device.Root);
 
         return ok;
     }
 
-    // 删除
-    public void Delete(string recorderRootPath)
+    /// <inheritdoc />
+    public void Delete(DetectedDevice device)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(recorderRootPath);
-
-        var store = GetFileStore(recorderRootPath);
-        store.DeleteFile(recorderRootPath, BindingFileCodec.FileName);
-    }
-
-    // 内部：IO + 协议路由
-    private static ProtocolType ResolveProtocol(string recorderRoot)
-    {
-        if (MtpRoot.IsMtpRoot(recorderRoot)) return ProtocolType.Mtp;
-        return ProtocolType.Ums;
-    }
-
-    private IRecorderFileStore GetFileStore(string recorderRoot)
-    {
-        var protocol = ResolveProtocol(recorderRoot);
-        var source = _sourceProvider.GetFor(protocol);
-
-        if (source is not IRecorderFileStore store)
-            throw new InvalidOperationException(
-                $"采集源 {source.GetType().Name} 未实现 IRecorderFileStore，无法读写绑定文件");
-
-        return store;
+        ArgumentNullException.ThrowIfNull(device);
+        var fs = _fileSystems.GetFor(device.Protocol);
+        fs.DeleteFile(device, FileName);
     }
 }

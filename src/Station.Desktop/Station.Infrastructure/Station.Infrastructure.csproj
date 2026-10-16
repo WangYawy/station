@@ -12,7 +12,6 @@
         <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="8.0.3" />
         <PackageReference Include="Microsoft.Extensions.Logging" Version="8.0.1" />
         <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="8.0.0" />
-        <PackageReference Include="Vanara.PInvoke.PortableDeviceApi" Version="5.0.6" />
         <PackageReference Include="Microsoft.Extensions.Caching.Memory" Version="8.0.1" />
 
         <!-- Polly v8+：重试/超时/熔断，采用 ResiliencePipeline API -->

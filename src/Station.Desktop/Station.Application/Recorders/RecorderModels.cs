@@ -1,11 +1,25 @@
 using Station.Application.Recorders.Dtos;
 using Station.Crypto;
+using Station.Device.Detection;
 using Station.Domain.Collecting;
 using Station.Domain.Departments;
 using Station.Domain.Recorders;
 using Station.Domain.Users;
 
 namespace Station.Application.Recorders;
+
+/// <summary>
+/// 识别后的设备（业务层）。
+/// 组合探测结果 + 绑定文件 + 台账校验的最终归属。
+/// 只在应用层内部流转，不下沉到 Device 层。
+/// </summary>
+public sealed record BoundDevice(
+    DetectedDevice Device,
+    long? UserId,
+    long? DeptId,
+    long? RecorderId,
+    string? UserNo,
+    string? DeptCode);
 
 /// <summary>
 /// 记录仪识别结果。
@@ -16,7 +30,7 @@ namespace Station.Application.Recorders;
 /// </summary>
 public sealed record RecorderIdentifyResult(
     RecorderIdentifyStatus Status,
-    CollectDeviceInfo Device,
+    BoundDevice Device,
     BindingInfo? Binding,
     RecorderListItemDto? Recorder,
     string? Message)
@@ -34,29 +48,29 @@ public sealed record RecorderIdentifyResult(
 
     // ---- 工厂方法 ----
 
-    public static RecorderIdentifyResult NotFound(CollectDeviceInfo d, string msg) =>
+    public static RecorderIdentifyResult NotFound(BoundDevice d, string msg) =>
         new(RecorderIdentifyStatus.NotFound, d, null, null, msg);
 
-    public static RecorderIdentifyResult Legacy(CollectDeviceInfo d, BindingInfo b, string msg) =>
+    public static RecorderIdentifyResult Legacy(BoundDevice d, BindingInfo b, string msg) =>
         new(RecorderIdentifyStatus.Legacy, d, b, null, msg);
 
-    public static RecorderIdentifyResult Tampered(CollectDeviceInfo d, BindingInfo b, string msg) =>
+    public static RecorderIdentifyResult Tampered(BoundDevice d, BindingInfo b, string msg) =>
         new(RecorderIdentifyStatus.Tampered, d, b, null, msg);
 
-    public static RecorderIdentifyResult RecorderMissing(CollectDeviceInfo d, BindingInfo b, string msg) =>
+    public static RecorderIdentifyResult RecorderMissing(BoundDevice d, BindingInfo b, string msg) =>
         new(RecorderIdentifyStatus.RecorderMissing, d, b, null, msg);
 
-    public static RecorderIdentifyResult UserInactive(CollectDeviceInfo d, BindingInfo b, string msg) =>
+    public static RecorderIdentifyResult UserInactive(BoundDevice d, BindingInfo b, string msg) =>
         new(RecorderIdentifyStatus.UserInactive, d, b, null, msg);
 
-    public static RecorderIdentifyResult DeptInactive(CollectDeviceInfo d, BindingInfo b, string msg) =>
+    public static RecorderIdentifyResult DeptInactive(BoundDevice d, BindingInfo b, string msg) =>
         new(RecorderIdentifyStatus.DeptInactive, d, b, null, msg);
 
-    public static RecorderIdentifyResult Mismatch(CollectDeviceInfo d, BindingInfo b, string msg) =>
+    public static RecorderIdentifyResult Mismatch(BoundDevice d, BindingInfo b, string msg) =>
         new(RecorderIdentifyStatus.Mismatch, d, b, null, msg);
 
     public static RecorderIdentifyResult Matched(
-        CollectDeviceInfo d, BindingInfo b, RecorderListItemDto r) =>
+        BoundDevice d, BindingInfo b, RecorderListItemDto r) =>
         new(RecorderIdentifyStatus.Matched, d, b, r, null);
 }
 

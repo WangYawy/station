@@ -29,6 +29,7 @@ public sealed class WindowModeOptions
     public int ExitPinLength { get; set; } = 6;
     #endregion
     #region 采集卡片相关
+    
     /// <summary>行数</summary>
     public int Rows { get; set; } = 4;
     /// <summary>每行列数</summary>

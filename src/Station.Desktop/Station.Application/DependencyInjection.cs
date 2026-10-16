@@ -8,6 +8,7 @@ using Station.Application.Authentication;
 using Station.Application.Authorization;
 using Station.Application.Collecting;
 using Station.Application.Departments;
+using Station.Application.DeviceIntegration;
 using Station.Application.Licensing;
 using Station.Application.OperationAccess;
 using Station.Application.PlatformSync;
@@ -19,7 +20,7 @@ using Station.Application.Storages;
 using Station.Application.Uploading;
 using Station.Application.UsbPortCards;
 using Station.Application.Users;
-using Station.Domain.Auditing;
+using Station.Device.Events;
 
 namespace Station.Application;
 
@@ -115,6 +116,9 @@ public static class DependencyInjection
         
         services.AddScoped<ISystemSettingsService, SystemSettingsService>();
         services.AddScoped<ISystemSelfCheckService, SystemSelfCheckService>();
+
+        // 设备事件出口
+        services.AddSingleton<IDeviceEventSink, ApplicationDeviceEventSink>();
 
         // 窗口设置
         var windowsSection = configuration.GetSection(WindowModeOptions.SectionName);

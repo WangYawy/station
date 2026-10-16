@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
         <RootNamespace>Station.Application</RootNamespace>
@@ -21,6 +21,7 @@
     <ItemGroup>
         <ProjectReference Include="..\..\Station.Shared\Station.Crypto\Station.Crypto.csproj" />
         <ProjectReference Include="..\..\Station.Shared\Station.Data\Station.Data.csproj" />
+        <ProjectReference Include="..\Station.Device\Station.Device.csproj" />
         <ProjectReference Include="..\Station.Domain\Station.Domain.csproj" />
     </ItemGroup>
 

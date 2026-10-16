@@ -8,13 +8,13 @@ using Station.Application.Auditing;
 using Station.Application.Collecting;
 using Station.Application.Collecting.EventHandlers;
 using Station.Application.Departments;
-using Station.Application.DeviceDetection;
 using Station.Application.Licensing;
 using Station.Application.Notifications;
 using Station.Application.Permissions;
 using Station.Application.Recorders;
 using Station.Application.Roles;
 using Station.Application.Settings;
+using Station.Application.UsbPortCards;
 using Station.Application.Users;
 using Station.Data.Abstractions;
 using Station.Data.SqlSugar;
@@ -37,7 +37,6 @@ using Station.Domain.Stations;
 using Station.Domain.UploadedFiles;
 using Station.Domain.Users;
 using Station.Infrastructure.Collecting;
-using Station.Infrastructure.DeviceDetection;
 using Station.Infrastructure.Events;
 using Station.Infrastructure.Licensing;
 using Station.Infrastructure.Persistence;
@@ -60,6 +59,8 @@ using Station.Infrastructure.Persistence.Users;
 using Station.Infrastructure.Security;
 using Station.Infrastructure.Settings;
 using Station.Infrastructure.Storage;
+using Station.Infrastructure.UsbPortCards;
+using static Vanara.PInvoke.Ole32.PROPERTYKEY.System;
 
 namespace Station.Infrastructure;
 
@@ -202,40 +203,6 @@ public static class DependencyInjection
 
         // ==========================================
         // 5. 记录仪设备文件采集器
-        // MTP 需要根据不同平台引入包，在Desktop.Infrastructure中依赖注入
-        // ==========================================
-        // 1. 注册所有具体采集源实现
-        services.AddSingleton<UmsCollectSource>(); // ums采集源
-        services.AddSingleton<SimulatedCollectSource>(); // 模拟采集源
-        if (OperatingSystem.IsWindows())
-        {
-            services.AddSingleton<WPDMtpCollectSource>(); // mtp windows采集源
-        }
-        else if (OperatingSystem.IsLinux())
-        {
-            services.AddSingleton<LinuxMtpCollectSource>(); // mtp linux采集源
-        }
-        // 2. 注册采集源提供者（动态路由）
-        services.AddSingleton<ICollectSourceProvider, CollectSourceProvider>();
-        // ==========================================
-        // 6. 记录仪设备检测器
-        // MTP 需要根据不同平台引入包，在Desktop.Infrastructure中依赖注入
-        // ==========================================
-        services.AddSingleton<IRecorderDeviceDetector, UmsDeviceDetector>(); // ums 设备检测器
-        if (OperatingSystem.IsWindows())
-        {
-            services.AddSingleton<IRecorderDeviceDetector, WPDMtpDeviceDetector>(); // windows mtp设备检测器
-        }
-        else if (OperatingSystem.IsLinux())
-        {
-            services.AddSingleton<IRecorderDeviceDetector, LinuxMtpDeviceDetector>(); // linux mtp设备检测器
-        }
-        // 注册具体类为单例
-        services.AddSingleton<RecorderConnectMonitor>();
-        // 注册接口（指向同一个实例）
-        services.AddSingleton<IDevicePresenceService>(sp => sp.GetRequiredService<RecorderConnectMonitor>());
-        // 注册后台托管服务（复用同一个实例）
-        services.AddHostedService(sp => sp.GetRequiredService<RecorderConnectMonitor>());
 
         services.AddSingleton<ICollectTaskNoGenerator, CollectTaskNoGenerator>();
         services.AddSingleton<ICollectFileNoGenerator, CollectFileNoGenerator>();
@@ -289,6 +256,23 @@ public static class DependencyInjection
 
         // 后台 Dispatcher（仅 Channel 模式注册）
         services.AddHostedService<ChannelEventDispatcher>();
+
+        // 端口映射服务（单例，热加载）
+        services.Configure<UsbPortMapOptions>(configuration.GetSection(UsbPortMapOptions.SectionName));
+        services.AddSingleton<IUsbPortMapService, UsbPortMapService>();
+
+        // 槽位路由（按 SlotMode 选择实现）
+        services.AddSingleton<ISlotRouter>(sp =>
+        {
+            var stationInfo = sp.GetRequiredService<IStationInfoService>();
+            var portMap = sp.GetRequiredService<IUsbPortMapService>();
+            var capacity = stationInfo.Current.UsbPortCount;
+            var mode = SlotMode.Pooled;
+
+            return mode == SlotMode.Fixed
+                ? new FixedSlotRouter(portMap.GetMapping(), capacity)
+                : new PooledSlotRouter(capacity);
+        });
 
         return services;
     }

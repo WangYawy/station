@@ -536,7 +536,9 @@
           </ListBox>
         </StackPanel>
       </TabItem>
-
+     <!-- <TabItem Header="USB 端口发现">
+        <views:PortDiscoveryView DataContext="{Binding PortDiscovery}"/>
+      </TabItem>-->
     </TabControl>
 
     <!-- 底部状态栏 -->

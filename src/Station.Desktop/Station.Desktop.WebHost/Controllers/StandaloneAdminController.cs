@@ -15,6 +15,8 @@ using Station.Application.Roles;
 using Station.Application.Roles.Commands;
 using Station.Application.Accounts;
 using Station.Domain.Auditing;
+using Station.Device.FileSystem;
+using Station.Device.Detection;
 
 namespace Station.Desktop.WebHost.Controllers;
 
@@ -38,7 +40,7 @@ public class StandaloneAdminController : ControllerBase
     private readonly IRecorderService _recorders;
     private readonly IRecorderQueryService _recorderQuery;
     private readonly IAlertService _alerts;
-    private readonly ICollectSourceProvider _sourceProvider;
+    private readonly IDeviceFileSystemProvider _sourceProvider;
 
     private readonly IAuditLogService _audit;
     private readonly AuthService _authorization;
@@ -56,7 +58,7 @@ public class StandaloneAdminController : ControllerBase
         IRecorderService recorders,
         IRecorderQueryService recorderQuery,
         IAlertService alerts,
-        ICollectSourceProvider sourceProvider,
+        IDeviceFileSystemProvider sourceProvider,
         IAuditLogService audit,
         AuthService authorization,
         IDataScopeProvider dataScope)
@@ -299,8 +301,14 @@ public class StandaloneAdminController : ControllerBase
         try
         {
             var root = _sourceProvider.GetFor(recorder.Protocol).GetRecorderRoot(
-                new CollectDeviceInfo(recorder.SerialNumber, recorder.SerialNumber, recorder.Protocol));
-            await _recorders.WriteBindingAsync(recorder.SerialNumber, request.UserId, request.DeptId, root);
+                new DetectedDevice(recorder.SerialNumber, recorder.SerialNumber, recorder.SerialNumber, recorder.Protocol, ""));
+            await _recorders.BindAsync(new Application.Recorders.Commands.BindRecorderCommand
+            {
+                RecorderId = recorder.Id,
+                DeptId = request.DeptId,
+                UserId = request.UserId,
+                UpdatedBy = null
+            });
             await _audit.WriteAsync(new AuditLog
             {
                 OperatorAccount = User.Identity?.Name,
@@ -369,6 +377,6 @@ public sealed record ResetPasswordRequest(string Password);
 
 public sealed record PermissionIdsRequest(IReadOnlyList<long> PermissionIds);
 
-public sealed record BindRecorderWebRequest(long? UserId, long? DeptId);
+public sealed record BindRecorderWebRequest(long UserId, long DeptId);
 
 public sealed record AlertStatusRequest(AlertStatus Status);

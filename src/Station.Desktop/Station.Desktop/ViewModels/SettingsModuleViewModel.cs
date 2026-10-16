@@ -10,6 +10,7 @@ using Station.Application.Session;
 using Station.Application.Settings;
 using Station.Application.Storages;
 using Station.Crypto;
+using Station.Desktop.ViewModels.Settings;
 
 namespace Station.Desktop.ViewModels;
 
@@ -28,6 +29,8 @@ public partial class SettingsModuleViewModel : ObservableObject, IDisposable
     private readonly ILicenseService _license;
     private readonly ICryptoPolicyService _cryptoPolicy;
     private readonly IAuditLogService _auditService;
+
+    //  public PortDiscoveryViewModel PortDiscovery { get; }
 
     // ---- 表单 ----
     public BasicSettingsForm Basic { get; } = new();
@@ -134,6 +137,7 @@ public partial class SettingsModuleViewModel : ObservableObject, IDisposable
         _license = license;
         _cryptoPolicy = cryptoPolicy;
         _auditService = auditService;
+        // PortDiscovery = portDiscovery;
 
         var session = sessions.Current;
         CanManage = operationAccess.HasPermission(session!, "settings") &&

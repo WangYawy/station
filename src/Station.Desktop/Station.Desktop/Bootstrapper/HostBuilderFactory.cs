@@ -5,6 +5,7 @@ using Station.Application;
 using Station.Infrastructure.Settings;
 using Station.Desktop.WebHost;
 using Station.Infrastructure;
+using Station.Device.Runtime;
 
 namespace Station.Desktop.Bootstrapper;
 
@@ -45,6 +46,8 @@ public static class HostBuilderFactory
                 writeToProviders: true)
             .ConfigureServices((context, services) =>
             {
+                // 注册 Device 层
+                services.AddStationDevice(configuration);
                 // 应用层服务注册
                 services.AddStationApplication(context.Configuration);
                 // 基础设施在应用服务之后注册

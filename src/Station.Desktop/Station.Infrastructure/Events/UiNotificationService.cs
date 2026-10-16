@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Station.Application.Notifications;
+using Station.Device.Events;
 using Station.Domain.Collecting;
 
 namespace Station.Infrastructure.Events;
@@ -44,12 +45,12 @@ public sealed class UiNotificationService : IUiNotificationService
     public event EventHandler<TaskProgressUpdatedEvent>? TaskProgressUpdated;
     public event EventHandler<TaskFileCompletedEvent>? TaskFileCompleted;
 
-    public void PublishTaskStatus(long taskId, CollectTaskStatus status, bool isEmergency)
-        => Invoke(TaskStatusChanged,
+    public void PublishTaskStatus(long taskId, CollectTaskStatus status, bool isEmergency, string? physicalPortId = null, long version = 0)
+       => Invoke(TaskStatusChanged,
                   new TaskStatusChangedEvent(taskId, status, isEmergency),
                   "TaskStatusChanged");
 
-    public void PublishTaskProgress(long taskId, double progress, double speedBytesPerSecond)
+    public void PublishTaskProgress(long taskId, double progress, double speedBytesPerSecond, string? physicalPortId = null, long version = 0)
         => Invoke(TaskProgressUpdated,
                   new TaskProgressUpdatedEvent(taskId, progress, speedBytesPerSecond),
                   "TaskProgressUpdated");

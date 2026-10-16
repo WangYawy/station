@@ -38,4 +38,9 @@ public sealed class RecorderPo
     public DateTime? UpdatedAt { get; set; }
     [SugarColumn(IsNullable = true)]
     public long? UpdatedBy { get; set; }
+    public bool IsDeleted { get; set; }
+    [SugarColumn(IsNullable = true)]
+    public DateTime? DeletedAt { get; set; }
+    [SugarColumn(IsNullable = true)]
+    public long? DeletedBy { get; set; }
 }

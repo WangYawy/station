@@ -7,7 +7,7 @@ internal static class RecorderMapper
     public static Recorder ToDomain(RecorderPo po)
         => Recorder.Restore(
             po.Id, po.SerialNumber, po.Code, po.Name, po.Model, po.Protocol,
-            po.BoundUserId, po.DeptId, po.IsAuthorized, po.IsActive,
+            po.BoundUserId, po.DeptId, po.IsAuthorized, po.IsActive, po.IsDeleted, po.DeletedAt, po.DeletedBy,
             po.CreatedAt, po.CreatedBy, po.UpdatedAt, po.UpdatedBy);
 
     public static RecorderPo ToPo(Recorder r)
@@ -26,6 +26,9 @@ internal static class RecorderMapper
             CreatedAt = r.CreatedAt,
             CreatedBy = r.CreatedBy,
             UpdatedAt = r.UpdatedAt,
-            UpdatedBy = r.UpdatedBy
+            UpdatedBy = r.UpdatedBy,
+            IsDeleted = r.IsDeleted,
+            DeletedAt = r.DeletedAt,
+            DeletedBy = r.DeletedBy,
         };
 }

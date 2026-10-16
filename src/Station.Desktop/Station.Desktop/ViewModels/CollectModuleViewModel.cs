@@ -41,7 +41,7 @@ public partial class CollectModuleViewModel : ObservableObject, IDisposable
     private readonly IUploadService _uploadService;
     private readonly IRecorderService _recorderService;
     private readonly IRecorderIdentificationService _identification;
-    private readonly ICollectSource _source;
+    //private readonly ICollectSource _source;
     private readonly ISessionManager _sessions;
     private readonly DispatcherTimer _timer;
 
@@ -80,9 +80,9 @@ public partial class CollectModuleViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private async Task SimulateConnectAsync()
     {
-        var device = new CollectDeviceInfo("记录仪-演示", DemoSerial, ProtocolType.Ums);
-        var root = _source.GetRecorderRoot(device);
-        var result = await _identification.IdentifyAsync(device, root);
+        var device = new Device.Detection.DetectedDevice("", "记录仪-演示", DemoSerial, ProtocolType.Ums, "");
+        var root = "";
+        var result = await _identification.IdentifyAsync(device);
         if (result.Status != RecorderIdentifyStatus.NotFound)
         {
             Message = $"识别失败：{result.Message}";
@@ -90,9 +90,9 @@ public partial class CollectModuleViewModel : ObservableObject, IDisposable
             return;
         }
 
-        var boundDevice = device with { UserId = result.Recorder?.BoundUserId, DeptId = result.Recorder?.DeptId };
-        var task = await _service.CreateTaskAsync(boundDevice, isAuto: true);
-        Message = $"{result.Message}，自动采集已启动（{task.TaskNo}）";
+        //var boundDevice = device with { UserId = result.Recorder?.BoundUserId, DeptId = result.Recorder?.DeptId };
+        //var task = await _service.CreateTaskAsync(boundDevice, isAuto: true);
+        Message = $"{result.Message}，自动采集已启动（{""}）";
         await RefreshAsync();
     }
 
@@ -101,7 +101,7 @@ public partial class CollectModuleViewModel : ObservableObject, IDisposable
     {
         try
         {
-            await _recorderService.RegisterAsync(DemoSerial, "", "", "模拟记录仪", ProtocolType.Ums, true);
+            //await _recorderService.BindAsync(DemoSerial, "", "", "模拟记录仪", ProtocolType.Ums, true);
         }
         catch (InvalidOperationException)
         {
@@ -109,16 +109,16 @@ public partial class CollectModuleViewModel : ObservableObject, IDisposable
         }
 
         var session = _sessions.Current;
-        var root = _source.GetRecorderRoot(new CollectDeviceInfo("记录仪-演示", DemoSerial, ProtocolType.Ums));
-        await _recorderService.WriteBindingAsync(DemoSerial, session?.UserId, session?.DeptId, root);
+       // var root = _source.GetRecorderRoot(new CollectDeviceInfo("记录仪-演示", DemoSerial, ProtocolType.Ums));
+        //await _recorderService.WriteBindingAsync(DemoSerial, session?.UserId, session?.DeptId, root);
         Message = $"已写入绑定：{session?.Name ?? session?.UserName}（{session?.DeptId}）";
     }
 
     [RelayCommand]
     private async Task UnbindAsync()
     {
-        var root = _source.GetRecorderRoot(new CollectDeviceInfo("记录仪-演示", DemoSerial, ProtocolType.Ums));
-        await _recorderService.UnbindAsync(DemoSerial, root);
+        //var root = _source.GetRecorderRoot(new CollectDeviceInfo("记录仪-演示", DemoSerial, ProtocolType.Ums));
+        //await _recorderService.UnbindAsync(DemoSerial, root);
         Message = "已解除绑定（删除 ini + 清台账绑定）";
     }
 

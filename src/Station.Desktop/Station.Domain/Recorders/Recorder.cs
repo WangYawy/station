@@ -1,4 +1,5 @@
 using Station.Contracts;
+using Station.Domain.Abstractions;
 
 namespace Station.Domain.Recorders;
 
@@ -6,7 +7,7 @@ namespace Station.Domain.Recorders;
 /// 记录仪台账聚合根（含白名单）。
 /// 序列号为跨端自然键，创建后不可变。
 /// </summary>
-public sealed class Recorder
+public sealed class Recorder: AggregateRoot
 {
     public long Id { get; private set; }
     public string SerialNumber { get; private set; } = string.Empty;
@@ -23,7 +24,9 @@ public sealed class Recorder
     public long? CreatedBy { get; private set; }
     public DateTime? UpdatedAt { get; private set; }
     public long? UpdatedBy { get; private set; }
-
+    public bool IsDeleted { get; private set; }
+    public DateTime? DeletedAt { get; private set; }
+    public long? DeletedBy { get; private set; }
     private Recorder() { }
 
     // =========================================================
@@ -65,6 +68,7 @@ public sealed class Recorder
     public static Recorder Restore(
         long id, string serialNumber, string code, string name, string model, ProtocolType protocol,
         long? boundUserId, long? deptId, bool isAuthorized, bool isActive,
+        bool isDeleted, DateTime? deletedAt,long? deletedBy,
         DateTime createdAt, long? createdBy, DateTime? updatedAt, long? updatedBy)
         => new()
         {
@@ -78,6 +82,9 @@ public sealed class Recorder
             DeptId = deptId,
             IsAuthorized = isAuthorized,
             IsActive = isActive,
+            IsDeleted = isDeleted,
+            DeletedAt = deletedAt,
+            DeletedBy = deletedBy,
             CreatedAt = createdAt,
             CreatedBy = createdBy,
             UpdatedAt = updatedAt,
@@ -157,8 +164,26 @@ public sealed class Recorder
         Touch(now, updatedBy);
     }
 
+    /// <summary>软删除（已绑定时由应用服务保证先解绑）。</summary>
+    public void MarkDeleted(DateTime now, long? updatedBy = null)
+    {
+        if (IsDeleted) return;
+        IsDeleted = true;
+        DeletedAt = now;
+        Touch(now, updatedBy);
+    }
+
+    /// <summary>恢复（预留：管理员可恢复已删除台账）。</summary>
+    public void RestoreFromDeleted(DateTime now, long? updatedBy = null)
+    {
+        if (!IsDeleted) return;
+        IsDeleted = false;
+        DeletedAt = null;
+        Touch(now, updatedBy);
+    }
+
     /// <summary>是否允许采集（白名单 + 启用）。</summary>
-    public bool CanCollect() => IsAuthorized && IsActive;
+    public bool CanCollect() => IsAuthorized && IsActive && !IsDeleted;
 
     private void Touch(DateTime now, long? updatedBy)
     {

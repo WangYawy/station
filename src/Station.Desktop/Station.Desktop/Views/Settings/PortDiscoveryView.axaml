@@ -1,0 +1,91 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Station.Desktop.ViewModels.Settings"
+             x:Class="Station.Desktop.Views.Settings.PortDiscoveryView"
+             x:DataType="vm:PortDiscoveryViewModel">
+
+  <Grid RowDefinitions="Auto,*,Auto" Margin="16">
+
+    <!-- 标题栏 -->
+    <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,12">
+      <StackPanel Grid.Column="0" Orientation="Vertical" Spacing="4">
+        <TextBlock Text="USB 端口发现" FontSize="18" FontWeight="Bold"/>
+        <TextBlock Text="实时观察已连接设备的物理端口；为未映射端口指定 1-30 序号后保存生效"
+                   FontSize="{DynamicResource FontSizeSmall}"
+                   Foreground="#64748b"/>
+      </StackPanel>
+      <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+        <Button Content="刷新" Command="{Binding RefreshCommand}"/>
+        <Button Content="复制映射表 JSON" Command="{Binding CopyJsonCommand}"/>
+        <Button Content="保存并热加载" Command="{Binding SaveCommand}"
+                IsEnabled="{Binding !IsBusy}"/>
+      </StackPanel>
+    </Grid>
+
+    <!-- 列表 -->
+    <Border Grid.Row="1" BorderBrush="#e2e8f0" BorderThickness="1" CornerRadius="4">
+      <ScrollViewer>
+        <ItemsControl ItemsSource="{Binding Items}">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="vm:PortDiscoveryItemViewModel">
+              <Border Padding="8,6" BorderBrush="#e2e8f0" BorderThickness="0,0,0,1"
+                      Classes.unmapped="{Binding !IsMapped}"
+                      Classes.disconnected="{Binding !IsConnected}">
+                <Grid ColumnDefinitions="240,220,80,100,120,*">
+                  <!-- 物理端口 ID -->
+                  <TextBlock Grid.Column="0" Text="{Binding PhysicalPortId}"
+                             TextTrimming="CharacterEllipsis"
+                             VerticalAlignment="Center"/>
+                  <!-- 设备名 -->
+                  <TextBlock Grid.Column="1" Text="{Binding DeviceName}"
+                             TextTrimming="CharacterEllipsis"
+                             VerticalAlignment="Center"/>
+                  <!-- 协议 -->
+                  <TextBlock Grid.Column="2" Text="{Binding ProtocolText}"
+                             VerticalAlignment="Center"
+                             Foreground="#64748b"/>
+                  <!-- 当前序号 -->
+                  <TextBlock Grid.Column="3" Text="{Binding DisplayPortText}"
+                             FontWeight="Bold"
+                             VerticalAlignment="Center"/>
+                  <!-- 未映射警告 -->
+                  <TextBlock Grid.Column="4" Text="未映射 ⚠"
+                             Foreground="#b45309"
+                             IsVisible="{Binding !IsMapped}"
+                             VerticalAlignment="Center"/>
+                  <!-- 操作 -->
+                  <StackPanel Grid.Column="5" Orientation="Horizontal" Spacing="6"
+                              HorizontalAlignment="Right">
+                    <TextBox Text="{Binding InputPortNo}"
+                             Watermark="1-30"
+                             Width="70"
+                             VerticalAlignment="Center"/>
+                    <Button Content="指定" Command="{Binding AssignCommand}"/>
+                    <Button Content="删除" Command="{Binding RemoveCommand}"
+                            IsVisible="{Binding IsMapped}"/>
+                  </StackPanel>
+                </Grid>
+              </Border>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </ScrollViewer>
+    </Border>
+
+    <!-- 状态栏 -->
+    <TextBlock Grid.Row="2" Text="{Binding StatusText}"
+               Margin="0,8,0,0"
+               FontSize="{DynamicResource FontSizeSmall}"
+               Foreground="#475569"/>
+  </Grid>
+
+  <UserControl.Styles>
+    <Style Selector="Border.unmapped">
+      <Setter Property="Background" Value="#fff7ed"/>
+    </Style>
+    <Style Selector="Border.disconnected">
+      <Setter Property="Opacity" Value="0.6"/>
+    </Style>
+  </UserControl.Styles>
+
+</UserControl>

@@ -25,6 +25,7 @@
 
     <ItemGroup>
       <ProjectReference Include="..\Station.Desktop.WebHost\Station.Desktop.WebHost.csproj" />
+      <ProjectReference Include="..\Station.Device.Runtime\Station.Device.Runtime.csproj" />
       <ProjectReference Include="..\Station.Infrastructure\Station.Infrastructure.csproj" />
     </ItemGroup>
 
