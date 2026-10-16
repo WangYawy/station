@@ -2,14 +2,13 @@ using System.Collections.Concurrent;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using Station.Application.Alerts;
 using Station.Application.Collecting;
 using Station.Application.DeviceDetection;
+using Station.Application.Notifications;
 using Station.Application.Recorders;
-using Station.Application.UsbPortCard.Events;
+using Station.Application.UsbPortCards;
 using Station.Contracts;
 using Station.Domain.Collecting;
-using Station.Domain.Entities;
 
 namespace Station.Infrastructure.DeviceDetection;
 
@@ -26,7 +25,7 @@ public sealed class RecorderConnectMonitor : IDevicePresenceService, IHostedServ
 {
     private readonly CollectOptions _options;
     private readonly IReadOnlyList<IRecorderDeviceDetector> _detectors;
-    private readonly IUsbPortCardEventService _eventService;
+    private readonly IUiNotificationService _eventService;
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<RecorderConnectMonitor> _logger;
     private readonly int _settlePolls;
@@ -42,7 +41,7 @@ public sealed class RecorderConnectMonitor : IDevicePresenceService, IHostedServ
     public RecorderConnectMonitor(
         CollectOptions options,
         IEnumerable<IRecorderDeviceDetector> detectors,
-        IUsbPortCardEventService eventService,
+        IUiNotificationService eventService,
         IServiceScopeFactory scopeFactory,
         ILogger<RecorderConnectMonitor> logger,
         int settlePolls = 2)
@@ -196,8 +195,8 @@ public sealed class RecorderConnectMonitor : IDevicePresenceService, IHostedServ
                 // ============================================================
                 if (result.Status == RecorderIdentifyStatus.Matched)
                 {
-                    var userId = result.User?.Id;
-                    var deptId = result.Dept?.Id;
+                    var userId = result.Recorder?.BoundUserId;
+                    var deptId = result.Recorder?.DeptId;
 
                     // 只有用户和部门都有效时才发布 Bound 事件
                     if (userId.HasValue && deptId.HasValue)

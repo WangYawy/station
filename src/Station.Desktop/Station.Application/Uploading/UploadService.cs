@@ -1,98 +1,93 @@
 using Microsoft.Extensions.Logging;
 using Station.Application.Collecting;
 using Station.Application.Security;
-using Station.Application.Storage;
+using Station.Application.Storages;
 using Station.Contracts;
-using Station.Domain.Entities;
-using Station.Domain.Enums;
-using Station.Data.Repositories;
 using Station.Data.IdGeneration;
+using Station.Data.Repositories;
+using Station.Domain.Abstractions;
+using Station.Domain.Collecting;
+using Station.Domain.UploadedFiles;
 
 namespace Station.Application.Uploading;
 
 public sealed class UploadService : IUploadService
 {
-    private readonly ILoopRepository<CollectTask> _taskRepo;
-    private readonly ILoopRepository<CollectFile> _fileRepo;
-    private readonly IRepository<UploadedFile> _uploadedFileRepo;
+    // 长连接（后台批量上传，长连接避免与主线程竞争）
+    private readonly ICollectTaskSyncRepository _taskSync;
+    private readonly ICollectFileSyncRepository _fileSync;
+
+    private readonly IUploadedFileRepository _uploadedFileRepo;
     private readonly IIdGenerator _idGenerator;
     private readonly IStorageService _storageService;
     private readonly CollectOptions _collectOptions;
     private readonly StorageOptions _storageConfig;
-    private readonly ILogger<UploadService> _logger;
     private readonly IFileCryptoService _fileCrypto;
     private readonly IDirectoryTemplateRenderer _renderer;
+    private readonly IDomainEventBus _eventBus;
+    private readonly ILogger<UploadService> _logger;
 
     public UploadService(
-        ILoopRepository<CollectTask> taskRepo,
-        ILoopRepository<CollectFile> fileRepo,
-        IRepository<UploadedFile> uploadedFileRepo,
+        ICollectTaskSyncRepository taskSync,
+        ICollectFileSyncRepository fileSync,
+        IUploadedFileRepository uploadedFileRepo,
         IIdGenerator idGenerator,
         IStorageService storageService,
         IDirectoryTemplateRenderer renderer,
         IFileCryptoService fileCrypto,
         CollectOptions collectOptions,
         StorageOptions storageConfig,
+        IDomainEventBus eventBus,
         ILogger<UploadService> logger)
     {
-        _taskRepo = taskRepo;
-        _fileRepo = fileRepo;
+        _taskSync = taskSync;
+        _fileSync = fileSync;
         _uploadedFileRepo = uploadedFileRepo;
+        _idGenerator = idGenerator;
         _storageService = storageService;
         _renderer = renderer;
         _fileCrypto = fileCrypto;
         _collectOptions = collectOptions;
         _storageConfig = storageConfig;
-        _idGenerator = idGenerator;
+        _eventBus = eventBus;
         _logger = logger;
     }
 
-    public async Task<UploadSummary> ProcessTaskAsync(long taskId)
+    public async Task<UploadSummary> ProcessTaskAsync(long taskId, CancellationToken ct = default)
     {
-        var task = _taskRepo.GetById(taskId);
+        var task = _taskSync.GetById(taskId);
         if (task is null) return new UploadSummary(taskId, 0, 0, 0, false);
-        if (task.Status != CollectTaskStatus.Completed) return new UploadSummary(taskId, 0, 0, 0, false);
+        if (task.Status != CollectTaskStatus.Completed)
+            return new UploadSummary(taskId, 0, 0, 0, false);
 
-        var pendingFiles = _fileRepo.GetList(f => f.TaskId == taskId && f.SyncStatus == UploadStatus.Pending);
-        if (!pendingFiles.Any())
+        var pendingFiles = _fileSync.GetPendingUploadsByTaskId(taskId);
+        if (pendingFiles.Count == 0)
         {
-            task.SyncStatus = UploadStatus.Uploaded;
-            _taskRepo.Update(task);
+            task.MarkUploaded(DateTime.Now);
+            _taskSync.Update(task);
+            await PublishAndClearAsync(task);
             return new UploadSummary(taskId, 0, 0, 0, false);
         }
 
         var uploaded = 0;
         var failed = 0;
         var circuitOpened = false;
+        var now = DateTime.Now;
 
         foreach (var file in pendingFiles)
         {
-            var localPath = Path.Combine(_collectOptions.CacheDirectory, task.TaskNo, file.RelativePath!);
+            var localPath = Path.Combine(
+                _collectOptions.CacheDirectory, task.TaskNo, file.RelativePath!);
+
             if (!File.Exists(localPath))
             {
-                file.SyncStatus = UploadStatus.Failed;
-                file.UploadError = "本地缓存文件缺失";
-                file.UploadRetryCount = _storageConfig.RetryCount;
-                _fileRepo.Update(file);
+                file.FailUpload("本地缓存文件缺失", _storageConfig.RetryCount, now);
+                _fileSync.Update(file);
+                await PublishAndClearAsync(file);   // ← await
                 failed++;
                 continue;
             }
 
-            file.SyncStatus = UploadStatus.Uploading;
-            file.UploadProgress = 0;
-            file.UploadError = null;
-            _fileRepo.Update(file);
-
-            var remoteDir = _renderer.Render(
-                _storageConfig.DirectoryTemplate,
-                _storageConfig.StationNo,
-                task.CreatedAt,
-                task.RecorderName,
-                task.OperatorUserId,
-                task.DeptId,
-                Path.GetExtension(file.FileName).TrimStart('.').ToLowerInvariant()) + "/" + file.FileName;
-
-            // 根据上传语义选择流工厂
             Func<Stream>? streamFactory = null;
             long uploadSize = file.Size;
 
@@ -100,86 +95,107 @@ public sealed class UploadService : IUploadService
             {
                 if (_storageConfig.RemoteContentMode == RemoteContentMode.Plaintext)
                 {
-                    // 上传明文：解密流
                     streamFactory = () => _fileCrypto.OpenDecryptStream(localPath);
-                    uploadSize = file.Size;   // 明文大小
+                    uploadSize = file.Size;
                 }
                 else
                 {
-                    // 上传密文：直接读原文件
                     streamFactory = null;
-                    uploadSize = file.EncryptedSize;   // 密文大小
+                    uploadSize = file.EncryptedSize;
                 }
             }
 
-            // 上传（expectedDigest 用 ContentDigest，始终是明文摘要）
+            file.ResetForRetry(now);
+            file.BeginUpload(uploadSize, now);
+            _fileSync.Update(file);
+            await PublishAndClearAsync(file);   // ← await
+
+            var remoteDir = _renderer.Render(
+                _storageConfig.DirectoryTemplate, _storageConfig.StationNo,
+                task.CreatedAt, task.RecorderName, task.OperatorUserId, task.DeptId,
+                Path.GetExtension(file.FileName).TrimStart('.').ToLowerInvariant())
+                + "/" + file.FileName;
+
             var result = await _storageService.UploadFileAsync(
-                localPath,
-                remoteDir,
-                file.FileName,
-                uploadSize,
-                file.ContentDigest,   // 始终是明文摘要
-                streamFactory,
-                CancellationToken.None);
+                localPath, remoteDir, file.FileName,
+                uploadSize, file.ContentDigest, streamFactory, ct);
 
             if (result.Success)
             {
-                file.SyncStatus = UploadStatus.Uploaded;
-                file.UploadProgress = 1;
-                file.RemotePath = result.PrimaryRemotePath;
-                file.UploadError = null;
-                _fileRepo.Update(file);
+                file.CompleteUpload(result.PrimaryRemotePath ?? string.Empty, DateTime.Now);
+                _fileSync.Update(file);
+                await PublishAndClearAsync(file);   // ← await
 
-                await WriteUploadedFileAsync(task, file, result.PrimaryRemotePath);   // ← 同步改
+                await WriteUploadedFileAsync(task, file, result.PrimaryRemotePath);
 
                 uploaded++;
-                task.UploadedFiles++;
-                task.UploadedBytes += file.Size;
-                _taskRepo.Update(task);
-                _logger.LogInformation("任务 {TaskNo} 文件 {FileName} 上传成功",
-                    task.TaskNo, file.FileName);
+                task.AddUploadedFile(file.Size, DateTime.Now);
+                _taskSync.UpdateStateOnly(task);
+                await PublishAndClearAsync(task);   // ← await（通常空）
             }
             else
             {
-                file.UploadRetryCount++;
-                file.UploadError = result.ErrorMessage;
-                file.SyncStatus = file.UploadRetryCount >= _storageConfig.RetryCount
-                    ? UploadStatus.Failed
-                    : UploadStatus.Pending;
-                _fileRepo.Update(file);
+                file.FailUpload(result.ErrorMessage ?? "未知错误",
+                    _storageConfig.RetryCount, DateTime.Now);
+                _fileSync.Update(file);
+                await PublishAndClearAsync(file);
                 failed++;
-                _logger.LogWarning("任务 {TaskNo} 文件 {FileName} 上传失败: {Error}",
-                    task.TaskNo, file.FileName, result.ErrorMessage);
             }
 
             if (result.CircuitOpen)
             {
                 circuitOpened = true;
-                _logger.LogWarning("任务 {TaskNo} 上传中断：存储熔断已打开", task.TaskNo);
                 break;
             }
         }
 
-        var pendingCount = _fileRepo.Count(f => f.TaskId == taskId && f.SyncStatus == UploadStatus.Pending);
-        task.SyncStatus = failed > 0 ? UploadStatus.Failed
-            : (pendingCount == 0 ? UploadStatus.Uploaded : UploadStatus.Pending);
-        task.UploadError = circuitOpened ? "存储熔断中"
-            : (failed > 0 ? $"有 {failed} 个文件上传失败" : null);
-        _taskRepo.Update(task);
+        var pendingCount = _fileSync.CountPendingUploadsByTaskId(taskId);
+        if (failed > 0) task.MarkUploadFailed($"有 {failed} 个文件上传失败", DateTime.Now);
+        else if (pendingCount == 0) task.MarkUploaded(DateTime.Now);
+        if (circuitOpened) task.MarkUploadFailed("存储熔断中", DateTime.Now);
+
+        _taskSync.UpdateStateOnly(task);
+        await PublishAndClearAsync(task);   // ← await（任务级终态）
 
         return new UploadSummary(taskId, uploaded, failed, pendingCount, circuitOpened);
     }
 
-    /// <summary>上传成功后写 station_uploaded_file。</summary>
+    public async Task<int> RetryFailedFilesAsync(long taskId, CancellationToken ct = default)
+    {
+        var failedFiles = _fileSync
+            .GetByTaskId(taskId)
+            .Where(f => f.SyncStatus == UploadStatus.Failed)
+            .ToList();
+
+        if (failedFiles.Count > 0)
+        {
+            var now = DateTime.Now;
+            foreach (var f in failedFiles)
+                f.ResetForRetry(now);
+
+            _fileSync.UpdateRange(failedFiles);
+            foreach (var f in failedFiles) await PublishAndClearAsync(f);
+        }
+
+        await ProcessTaskAsync(taskId, ct);
+        return failedFiles.Count;
+    }
+
+    public Task<int> CountPendingUploadsAsync(CancellationToken ct = default)
+        => Task.FromResult(_fileSync.CountPendingUploads());
+
+    // =========================================================
+    // 内部
+    // =========================================================
+
     private async Task WriteUploadedFileAsync(CollectTask task, CollectFile file, string? remotePath)
     {
-        // 幂等：同一 LocalFileId 已存在则跳过
-        if (await _uploadedFileRepo.IsAnyAsync(u => u.LocalFileId == file.Id))
+        if (await _uploadedFileRepo.ExistsByLocalFileIdAsync(file.Id))
             return;
 
         var uploaded = new UploadedFile
         {
-            Id = _idGenerator.NewId(),   // 你项目里的 ID 生成器
+            Id = _idGenerator.NewId(),
             LocalFileId = file.Id,
             FileNo = file.FileName,
             FileName = file.FileName,
@@ -197,7 +213,7 @@ public sealed class UploadService : IUploadService
             Status = Station.Contracts.TaskStatus.Completed
         };
 
-        await _uploadedFileRepo.InsertAsync(uploaded);
+        await _uploadedFileRepo.AddAsync(uploaded);
     }
 
     private static FileKind ResolveKind(string? ext) => ext?.ToLowerInvariant() switch
@@ -209,24 +225,19 @@ public sealed class UploadService : IUploadService
         _ => FileKind.Other
     };
 
-    public async Task<int> RetryFailedFilesAsync(long taskId)
+    private async Task PublishAndClearAsync(CollectTask task, CancellationToken ct = default)
     {
-        var failedFiles = (await _fileRepo.GetListAsync(f =>
-                f.TaskId == taskId && f.SyncStatus == UploadStatus.Failed))
-            .ToList();
-
-        foreach (var file in failedFiles)
-        {
-            file.SyncStatus = UploadStatus.Pending;
-            file.UploadError = null;
-        }
-
-        if (failedFiles.Count > 0) await _fileRepo.UpdateRangeAsync(failedFiles);
-
-        await ProcessTaskAsync(taskId);
-        return failedFiles.Count;
+        if (task.DomainEvents.Count == 0) return;
+        var events = task.DomainEvents.ToList();
+        task.ClearDomainEvents();
+        await _eventBus.PublishRangeAsync(events, ct);
     }
 
-    public async Task<int> CountPendingUploadsAsync() =>
-        await _fileRepo.CountAsync(f => f.SyncStatus == UploadStatus.Pending);
+    private async Task PublishAndClearAsync(CollectFile file, CancellationToken ct = default)
+    {
+        if (file.DomainEvents.Count == 0) return;
+        var events = file.DomainEvents.ToList();
+        file.ClearDomainEvents();
+        await _eventBus.PublishRangeAsync(events, ct);
+    }
 }

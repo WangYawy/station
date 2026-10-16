@@ -34,7 +34,7 @@ CREATE TABLE "station_recorder" (
 -- ----------------------------
 -- Records of "station_recorder"
 -- ----------------------------
-INSERT INTO "station_recorder" VALUES (1, 'dev1', 'JW7137A', 0, 363130139426557952, 1, 1, 1);
+INSERT INTO "station_recorder" VALUES (1, 'dev1', 'JW7137A', 0, 202610140000000001, 1, 1, 1);
 
 -- ----------------------------
 -- Indexes structure for table station_recorder

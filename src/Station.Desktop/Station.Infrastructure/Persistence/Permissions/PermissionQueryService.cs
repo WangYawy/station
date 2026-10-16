@@ -1,7 +1,7 @@
 using Microsoft.Extensions.Options;
 using SqlSugar;
 using Station.Application.Permissions.Dtos;
-using Station.Application.Permissions.Queries;
+using Station.Application.Permissions;
 using Station.Data.Paging;
 using Station.Infrastructure.Persistence.Roles;
 

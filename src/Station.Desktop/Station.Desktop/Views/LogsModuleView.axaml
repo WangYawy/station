@@ -1,7 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:Station.Desktop.ViewModels"
-             xmlns:audit="using:Station.Application.Audit"
+             xmlns:audit="using:Station.Application.Auditing.Dtos"
              xmlns:conv="using:Station.Desktop.Converters"
              xmlns:controls="using:Station.Desktop.Controls"
              x:Class="Station.Desktop.Views.LogsModuleView"

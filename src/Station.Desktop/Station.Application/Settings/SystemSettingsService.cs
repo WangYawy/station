@@ -1,14 +1,14 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Microsoft.Extensions.Logging;
-using Station.Application.Audit;
+using Station.Application.Auditing;
 using Station.Application.Authentication;
 using Station.Application.Collecting;
 using Station.Application.Licensing;
 using Station.Application.PlatformSync;
-using Station.Application.Storage;
-using Station.Domain.Entities;
+using Station.Application.Storages;
 using Station.Crypto;
+using Station.Domain.Auditing;
 
 namespace Station.Application.Settings;
 

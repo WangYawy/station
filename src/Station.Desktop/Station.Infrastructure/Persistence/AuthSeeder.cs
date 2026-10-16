@@ -119,7 +119,7 @@ public sealed class AuthSeeder : IAuthSeeder
         if (rootDept is null)
         {
             rootDept = Dept.Create(
-                _idGenerator.NewId(), RootDept.Code, RootDept.Name,
+                1, RootDept.Code, RootDept.Name,
                 parentId: null, sortOrder: 0, now);
             await _depts.AddAsync(rootDept, ct);
             rootDeptId = rootDept.Id;
@@ -160,6 +160,43 @@ public sealed class AuthSeeder : IAuthSeeder
                 await _passwordService.HashAsync(_options.DefaultAdminPassword),
                 adminUserId,
                 now);
+
+            await _accounts.AddAsync(account, ct);
+        }
+    }
+
+    public async Task AddTestUser(CancellationToken ct = default)
+    {
+        long userId;
+        var user = await _users.GetByUserNoAsync("test", ct);
+        if (user is null)
+        {
+            user = User.Create(
+                202610140000000001, "test",
+                "测试账号", 1, DateTime.Now);
+            await _users.AddAsync(user, ct);
+            userId = user.Id;
+
+            var adminRole = await _roles.GetByCodeAsync(PresetRoles.Admin, ct);
+            if (adminRole is not null)
+            {
+                await _userRoles.AddAsync(userId, adminRole.Id, ct);
+            }
+        }
+        else
+        {
+            userId = user.Id;
+        }
+
+        // ---- 默认管理员账号 ----
+        if (!await _accounts.ExistsUserNameAsync("test", ct))
+        {
+            var account = Account.Create(
+                _idGenerator.NewId(),
+                "test",
+                await _passwordService.HashAsync(_options.DefaultAdminPassword),
+                userId,
+                DateTime.Now);
 
             await _accounts.AddAsync(account, ct);
         }

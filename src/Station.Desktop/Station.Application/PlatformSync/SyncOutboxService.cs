@@ -3,28 +3,31 @@ using SqlSugar;
 using Station.Contracts.Alerts;
 using Station.Contracts.Registration;
 using Station.Contracts.Reporting;
-using Station.Domain.Entities;
 using Station.Data.Repositories;
 using Microsoft.Extensions.DependencyInjection;
 using Station.Data.IdGeneration;
+using Station.Domain.Outbox;
 
 namespace Station.Application.PlatformSync;
 
 public sealed class SyncOutboxService : ISyncOutboxService
 {
-    private readonly IRepository<SyncOutbox> _outbox;
+    private readonly ISyncOutboxRepository _outbox;
+    private readonly ISyncOutboxSyncRepository _outboxSync;
     private readonly IPlatformClient _client;
     private readonly IIdGenerator _idGenerator;
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly JsonSerializerOptions _json = new(JsonSerializerDefaults.Web);
 
     public SyncOutboxService(
-        IRepository<SyncOutbox> outbox,
+        ISyncOutboxRepository outbox,
+        ISyncOutboxSyncRepository outboxSync,
         IPlatformClient client,
         IIdGenerator idGenerator,
         IServiceScopeFactory scopeFactory)
     {
         _outbox = outbox;
+        _outboxSync = outboxSync;
         _client = client;
         _idGenerator = idGenerator;
         _scopeFactory = scopeFactory;
@@ -32,27 +35,18 @@ public sealed class SyncOutboxService : ISyncOutboxService
 
     public async Task<long> EnqueueAsync(string topic, string payloadJson)
     {
-        var entry = new SyncOutbox
-        {
-            Id = _idGenerator.NewId(),
-            Topic = topic,
-            PayloadJson = payloadJson,
-            Status = 0,
-            CreatedAt = DateTime.Now
-        };
-        await _outbox.InsertAsync(entry);
+        var entry = SyncOutboxItem.Create(_idGenerator.NewId(), topic, payloadJson, DateTime.Now);
+
+        await _outbox.AddAsync(entry);
         return entry.Id;
     }
 
     public async Task<int> DrainAsync(int maxItems = 50)
     {
         using var scope = _scopeFactory.CreateScope();
-        var outboxRepo = scope.ServiceProvider.GetRequiredService<ILoopRepository<SyncOutbox>>();
+        var outboxRepo = scope.ServiceProvider.GetRequiredService<ISyncOutboxSyncRepository>();
         var now = DateTime.Now;
-        var pending = outboxRepo.GetList()
-            .Where(o => o.Status == 0 && (o.NextRetryAt == null || o.NextRetryAt <= now))
-            .OrderBy(o => o.Id)
-            .Take(maxItems)
+        var pending = outboxRepo.TakePending(maxItems)
             .ToList();
 
         var sent = 0;
@@ -61,16 +55,12 @@ public sealed class SyncOutboxService : ISyncOutboxService
             try
             {
                 await SendAsync(item);
-                item.Status = 1;
-                item.SentAt = DateTime.Now;
-                item.Error = null;
+                item.MarkSent(DateTime.Now);
                 sent++;
             }
             catch (Exception ex)
             {
-                item.RetryCount++;
-                item.Error = ex.Message;
-                item.NextRetryAt = DateTime.Now.AddSeconds(Math.Min(300, 15 * Math.Pow(2, Math.Min(item.RetryCount, 5))));
+                item.MarkFailed(ex.Message, 3, DateTime.Now);
             }
             outboxRepo.Update(item);
         }
@@ -78,10 +68,9 @@ public sealed class SyncOutboxService : ISyncOutboxService
         return sent;
     }
 
-    public async Task<int> CountPendingAsync() =>
-        await _outbox.CountAsync(o => o.Status == 0);
+    public int CountPendingAsync() => _outboxSync.CountPending();
 
-    private async Task SendAsync(SyncOutbox item)
+    private async Task SendAsync(SyncOutboxItem item)
     {
         switch (item.Topic)
         {

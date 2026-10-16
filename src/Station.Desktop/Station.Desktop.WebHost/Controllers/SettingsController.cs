@@ -1,11 +1,11 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Station.Application.Audit;
+using Station.Application.Auditing;
 using Station.Application.Exporting;
 using Station.Application.Licensing;
 using Station.Application.Settings;
 using Station.Desktop.WebHost.Settings;
-using Station.Domain.Entities;
+using Station.Domain.Auditing;
 using AuthService = Station.Application.Authorization.IAuthorizationService;
 
 namespace Station.Desktop.WebHost.Controllers;

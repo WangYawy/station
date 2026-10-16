@@ -1,10 +1,12 @@
 using Microsoft.Extensions.Logging;
-using Station.Application.Audit;
 using Station.Application.Security;
 using Station.Contracts;
-using Station.Domain.Entities;
-using Station.Data.Repositories;
 using Station.Data.IdGeneration;
+using Station.Domain.Auditing;
+using Station.Application.Auditing;
+using Station.Domain.Licensing;
+using Station.Domain.Clocks;
+using System.ComponentModel.DataAnnotations;
 
 namespace Station.Application.Licensing;
 
@@ -19,8 +21,8 @@ namespace Station.Application.Licensing;
 /// </summary>
 public sealed class LicenseService : ILicenseService
 {
-    private readonly IRepository<LicenseInfo> _licenses;
-    private readonly IRepository<ClockState> _clockStates;
+    private readonly ILicenseRepository _licenses;
+    private readonly IClockStateRepository _clockStates;
     private readonly LicenseOptions _options;
     private readonly IMachineFingerprintProvider _fingerprint;
     private readonly IIdGenerator _idGenerator;
@@ -31,8 +33,8 @@ public sealed class LicenseService : ILicenseService
     public event EventHandler<LicenseCheckResult>? LicenseChanged;
 
     public LicenseService(
-        IRepository<LicenseInfo> licenses,
-        IRepository<ClockState> clockStates,
+        ILicenseRepository licenses,
+        IClockStateRepository clockStates,
         LicenseOptions options,
         IMachineFingerprintProvider fingerprint,
         IIdGenerator idGenerator,
@@ -61,12 +63,12 @@ public sealed class LicenseService : ILicenseService
         if (rollback)
         {
             _logger.LogError("授权检查失败：检测到时钟回拨，授权已锁定");
-            return new LicenseCheckResult(LicenseStatus.Locked, null, 0, false,
+            return new LicenseCheckResult(LicenseStatus.Deactivated, null, 0, false,
                 "检测到时钟回拨，已锁定");
         }
 
         // 2) 查询当前激活授权
-        var active = await _licenses.FirstAsync(l => l.IsActive);
+        var active = await _licenses.GetActiveAsync();
         if (active is null)
         {
             var trialEnd = DateTime.Now.AddDays(_options.TrialDays);
@@ -78,7 +80,7 @@ public sealed class LicenseService : ILicenseService
         if (DateTime.Now > active.ExpiresAt)
         {
             _logger.LogWarning("授权已到期（{ExpiresAt}），请续期激活", active.ExpiresAt);
-            return new LicenseCheckResult(LicenseStatus.Locked, active.ExpiresAt, 0, false,
+            return new LicenseCheckResult(LicenseStatus.Expired, active.ExpiresAt, 0, false,
                 "授权已到期，请续期激活");
         }
 
@@ -93,26 +95,17 @@ public sealed class LicenseService : ILicenseService
     private async Task<bool> DetectClockRollbackAsync()
     {
         var now = DateTime.Now;
-        var state = await _clockStates.FirstAsync(c => c.Id == 1);
+        var state = await _clockStates.GetAsync();
 
         if (state is not null && state.LastCheckAt > now.AddMinutes(2))
             return true;
 
-        if (state is null)
+        await _clockStates.UpsertAsync(new ClockState
         {
-            await _clockStates.InsertAsync(new ClockState
-            {
-                Id = 1,
-                LastCheckAt = now,
-                UpdatedAt = now
-            });
-        }
-        else
-        {
-            state.LastCheckAt = now;
-            state.UpdatedAt = now;
-            await _clockStates.UpdateAsync(state);
-        }
+            Id = 1,
+            LastCheckAt = now,
+            UpdatedAt = now
+        });
 
         return false;
     }
@@ -144,27 +137,14 @@ public sealed class LicenseService : ILicenseService
         var payload = validation.Payload!;
 
         // 3) 停用旧授权
-        var actives = await _licenses.GetListAsync(l => l.IsActive);
-        foreach (var existing in actives) existing.IsActive = false;
-        if (actives.Count > 0) await _licenses.UpdateRangeAsync(actives);
+        var active = await _licenses.GetActiveAsync();
+        active?.Revoke();
+        await _licenses.UpdateAsync(active!);
 
         // 4) 落库（PayloadEnc 用 secret_field 策略加密）
         var protectedText = await _licenseCrypto.EncryptLicenseTextAsync(licenseFileText);
-
-        await _licenses.InsertAsync(new LicenseInfo
-        {
-            Id = _idGenerator.NewId(),
-            LicenseKey = payload.LicenseKey,
-            ProductCode = payload.ProductCode,
-            StationCode = payload.StationCode,
-            Fingerprint = payload.Fingerprint,
-            PayloadEnc = protectedText,
-            IssuedAt = payload.IssuedAt,
-            ExpiresAt = payload.ExpiresAt,
-            Status = LicenseStatus.Activated,
-            ActivatedAt = DateTime.Now,
-            IsActive = true
-        });
+        var license = License.Create(_idGenerator.NewId(), payload.LicenseKey, payload.ProductCode, payload.StationCode, payload.Fingerprint, protectedText, payload.IssuedAt, payload.ExpiresAt, DateTime.Now);
+        await _licenses.AddAsync(license);
 
         // 5) 审计
         await _audit.WriteAsync(new AuditLog

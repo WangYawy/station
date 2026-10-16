@@ -1,12 +1,10 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Station.Application.Collecting;
-using Station.Domain.Entities;
-using Station.Domain.Enums;
 using Microsoft.Extensions.Logging;
-using Station.Data.Repositories;
+using Station.Domain.Collecting;
 
-namespace Station.Desktop.Infrastructure;
+namespace Station.Infrastructure;
 
 /// <summary>
 /// 台账与上报后台任务：扫描"采集完成且未入台账"的任务，
@@ -30,9 +28,9 @@ public sealed class LedgerAndReportWorkerHostedService : BackgroundService
             try
             {
                 using var scope = _scopeFactory.CreateScope();
-                var tasks = scope.ServiceProvider.GetRequiredService<IRepository<CollectTask>>();
-                var candidates = (await tasks.GetListAsync(t =>
-                        t.Status == CollectTaskStatus.Completed && t.LedgeredAt == null))
+                var tasks = scope.ServiceProvider.GetRequiredService<ICollectTaskRepository>();
+                var candidates = (await tasks.GetActiveAsync(stoppingToken)).Where(t =>
+                        t.Status == CollectTaskStatus.Completed && t.LedgeredAt == null)
                     .OrderBy(t => t.Id)
                     .ToList();
 

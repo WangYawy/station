@@ -1,7 +1,7 @@
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using Station.Application.Collecting;
-using Station.Application.Storage;
+using Station.Application.Storages;
 using Microsoft.Extensions.Logging;
 using Station.Domain.Collecting;
 

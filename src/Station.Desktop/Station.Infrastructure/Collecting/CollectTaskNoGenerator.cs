@@ -1,10 +1,6 @@
 using System.Collections.Concurrent;
 using Microsoft.Extensions.Logging;
-using SqlSugar;
 using Station.Application.Collecting;
-using Station.Data.Repositories;
-using Station.Data.SqlSugar.Extensions;
-using Station.Domain.Entities;
 
 namespace Station.Infrastructure.Collecting;
 
@@ -13,7 +9,7 @@ public sealed class CollectTaskNoGenerator : ICollectTaskNoGenerator
     private const string Prefix = "CT";
     private const int MaxRetry = 3;
 
-    private readonly IRepository<CollectTask> _tasks;
+    private readonly ICollectTaskQueryService _taskQuery;
     private readonly ILogger<CollectTaskNoGenerator> _logger;
 
     /// <summary>
@@ -22,9 +18,9 @@ public sealed class CollectTaskNoGenerator : ICollectTaskNoGenerator
     /// </summary>
     private readonly ConcurrentDictionary<string, int> _seqCache = new();
 
-    public CollectTaskNoGenerator(IRepository<CollectTask> tasks, ILogger<CollectTaskNoGenerator> logger)
+    public CollectTaskNoGenerator(ICollectTaskQueryService taskQuery, ILogger<CollectTaskNoGenerator> logger)
     {
-        _tasks = tasks;
+        _taskQuery = taskQuery;
         _logger = logger;
     }
 
@@ -47,9 +43,7 @@ public sealed class CollectTaskNoGenerator : ICollectTaskNoGenerator
             try
             {
                 // 用轻量存在性检查预判冲突（避免直接 INSERT 依赖唯一索引抛异常）
-                var exists = await _tasks.AsQueryable()
-                    .Where(x => x.TaskNo == taskNo)
-                    .AnyAsync(ct)
+                var exists = await _taskQuery.ExistsTaskNoAsync(taskNo)
                     .ConfigureAwait(false);
 
                 if (exists)
@@ -97,11 +91,7 @@ public sealed class CollectTaskNoGenerator : ICollectTaskNoGenerator
         var (stationCode, deviceId, second) = (parts[0], parts[1], parts[2]);
         var prefix = $"{Prefix}-{stationCode}-{deviceId}-{second}-";
 
-        var maxTaskNo = _tasks.AsQueryable()
-            .Where(x => x.TaskNo.StartsWith(prefix))
-            .OrderByDescending(x => x.TaskNo)
-            .Select(x => x.TaskNo)
-            .First();
+        var maxTaskNo = _taskQuery.GetMaxTaskNo(prefix);
 
         if (string.IsNullOrEmpty(maxTaskNo)) return 0;
 

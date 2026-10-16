@@ -1,5 +1,3 @@
-using Station.Domain.Enums;
-
 namespace Station.Domain.Roles;
 
 /// <summary>角色。IsSystem=true 时编码不可改、不可删除。</summary>

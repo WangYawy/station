@@ -3,7 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Station.Application.Security;
-using Station.Application.Storage;
+using Station.Application.Storages;
 using Station.Infrastructure.Storage.CircuitBreaker;
 using Station.Infrastructure.Storage.Retry;
 using Station.Infrastructure.Storage.Telemetry;

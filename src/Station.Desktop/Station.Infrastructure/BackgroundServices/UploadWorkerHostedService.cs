@@ -2,12 +2,10 @@ using System.Collections.Concurrent;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Station.Application.Uploading;
-using Station.Domain.Entities;
-using Station.Domain.Enums;
-using Station.Data.Repositories;
 using Microsoft.Extensions.Logging;
+using Station.Domain.Collecting;
 
-namespace Station.Desktop.Infrastructure;
+namespace Station.Infrastructure;
 
 /// <summary>
 /// 上传后台任务：周期扫描"采集完成且未上传完"的任务并执行上传；
@@ -32,9 +30,9 @@ public sealed class UploadWorkerHostedService : BackgroundService
             try
             {
                 using var scope = _scopeFactory.CreateScope();
-                var tasks = scope.ServiceProvider.GetRequiredService<IRepository<CollectTask>>();
-                var candidates = (await tasks.GetListAsync(t =>
-                        t.Status == CollectTaskStatus.Completed && t.SyncStatus != UploadStatus.Uploaded))
+                var tasks = scope.ServiceProvider.GetRequiredService<ICollectTaskRepository>();
+                var candidates = (await tasks.GetActiveAsync()).Where(t =>
+                        t.Status == CollectTaskStatus.Completed && t.SyncStatus != UploadStatus.Uploaded)
                     .OrderBy(t => t.Id)
                     .ToList();
 

@@ -2,7 +2,7 @@ using FluentFTP;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Station.Application.Security;
-using Station.Application.Storage;
+using Station.Application.Storages;
 using Station.Crypto;
 using Station.Infrastructure.Storage.Pool;
 

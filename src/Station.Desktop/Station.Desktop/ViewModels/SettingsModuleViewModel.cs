@@ -1,14 +1,14 @@
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using Station.Application.Audit;
+using Station.Application.Auditing;
 using Station.Application.Authorization;
 using Station.Application.Licensing;
 using Station.Application.OperationAccess;
 using Station.Application.Security;
 using Station.Application.Session;
 using Station.Application.Settings;
-using Station.Application.Storage;
+using Station.Application.Storages;
 using Station.Crypto;
 
 namespace Station.Desktop.ViewModels;
@@ -136,7 +136,7 @@ public partial class SettingsModuleViewModel : ObservableObject, IDisposable
         _auditService = auditService;
 
         var session = sessions.Current;
-        CanManage = operationAccess.HasPermission(session, "settings") &&
+        CanManage = operationAccess.HasPermission(session!, "settings") &&
                     (session?.Roles.Contains(AuthRoleCodes.Admin) == true ||
                      session?.Permissions.Contains(Domain.Authorization.PermissionCodes.SettingManage) == true);
 
@@ -218,7 +218,7 @@ public partial class SettingsModuleViewModel : ObservableObject, IDisposable
                 StorageTargets.Add(new StorageTargetForm
                 {
                     Kind = dto.Kind.ToString(),
-                    Name = dto.Name,
+                    Name = dto.Name!,
                     Enabled = dto.Enabled,
                     IsPrimary = dto.IsPrimary,
                     LocalRoot = dto.LocalRoot ?? string.Empty,

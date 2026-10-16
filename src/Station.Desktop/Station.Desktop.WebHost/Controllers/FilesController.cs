@@ -2,13 +2,14 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Station.Application.Authorization;
 using Station.Application.Authentication;
-using Station.Domain.Entities;
-using Station.Domain.Enums;
-using Station.Data.Repositories;
 using AuthService = Station.Application.Authorization.IAuthorizationService;
 using Station.Domain.Authorization;
 using Station.Domain.Departments;
 using Station.Application.Departments;
+using Station.Domain.Collecting;
+using Station.Application.Collecting;
+using Station.Application.Collecting.Dtos;
+using Station.Domain.Roles;
 
 namespace Station.Desktop.WebHost.Controllers;
 
@@ -18,22 +19,25 @@ namespace Station.Desktop.WebHost.Controllers;
 [Route("api/v1/files")]
 public class FilesController : ControllerBase
 {
-    private readonly IRepository<CollectFile> _files;
-    private readonly IRepository<CollectTask> _tasks;
+    private readonly ICollectFileRepository _files;
+    private readonly ICollectFileQueryService _fileQuery;
+    private readonly ICollectTaskRepository _tasks;
     private readonly IDeptRepository _depts;
     private readonly AuthService _authorization;
     private readonly IDataScopeProvider _dataScope;
     private readonly IDeptQueryService _deptQuery;
 
     public FilesController(
-        IRepository<CollectFile> files,
-        IRepository<CollectTask> tasks,
+        ICollectFileRepository files,
+        ICollectFileQueryService fileQuery,
+        ICollectTaskRepository tasks,
         IDeptRepository depts,
         IDeptQueryService deptQuery,
         AuthService authorization,
         IDataScopeProvider dataScope)
     {
         _files = files;
+        _fileQuery = fileQuery;
         _tasks = tasks;
         _depts = depts;
         _deptQuery = deptQuery;
@@ -58,19 +62,19 @@ public class FilesController : ControllerBase
         }
 
         var taskIds = await AllowedTaskIdsAsync();
-        var query = await _files.GetListAsync(f =>
-            taskIds.Contains(f.TaskId) &&
-            (extension == null || f.Extension == extension) &&
-            (status == null || f.Status == status) &&
-            (syncStatus == null || f.SyncStatus == syncStatus) &&
-            (from == null || (f.CollectedAt != null && f.CollectedAt >= from)) &&
-            (to == null || (f.CollectedAt != null && f.CollectedAt <= to)) &&
-            (string.IsNullOrWhiteSpace(keyword) ||
-             f.FileName.Contains(keyword) || (f.FileNo != null && f.FileNo.Contains(keyword))));
-        var total = query.Count();
-        var items = query.OrderBy(f => f.Id);
-        //var views = await ToViewsAsync(items);
-        return Ok(new { success = true, code = 0, message = "ok", data = new { pageIndex = page, pageSize = size, totalCount = total } });
+        var query = await _fileQuery.PageAsync(new CollectFilePageQuery
+        {
+            PageIndex = page,
+            PageSize = size,
+            Keyword = keyword,
+            Extension = extension,
+            Status = status,
+            SyncStatus = syncStatus,
+            From = from,
+            To = to
+        });
+        var views = await ToViewsAsync(new List<CollectFile>());
+        return Ok(new { success = true, code = 0, message = "ok", data = new { pageIndex = page, pageSize = size, totalCount = query.Total, items = query.Items } });
     }
 
     [HttpGet("export")]
@@ -101,8 +105,8 @@ public class FilesController : ControllerBase
         //    .OrderBy(f => f.Id, SqlSugar.OrderByType.Desc)
         //    .Take(10000)
         //    .ToListAsync();
-        var taskMap = (await _tasks.GetListAsync(t => taskIds.Contains(t.Id)))
-            .ToDictionary(t => t.Id);
+        //var taskMap = (await _tasks.GetListAsync(t => taskIds.Contains(t.Id)))
+        //    .ToDictionary(t => t.Id);
         //return ExportFile("文件台账", format,
         //    ["编号", "文件名", "类型", "大小(B)", "采集时间", "原始时间", "SM3", "采集状态", "上传状态", "记录仪", "存储位置"],
         //    rows.Select(f =>
@@ -137,29 +141,30 @@ public class FilesController : ControllerBase
 
     private async Task<List<FileView>> ToViewsAsync(List<CollectFile> files)
     {
-        var taskIds = files.Select(f => f.TaskId).Distinct().ToList();
-        var tasks = await _tasks.GetListAsync(t => taskIds.Contains(t.Id));
-        var taskMap = tasks.ToDictionary(t => t.Id);
-        var deptIds = tasks.Where(t => t.DeptId != null).Select(t => t.DeptId!.Value).Distinct().ToList();
-        var deptMap = (await _deptQuery.GetNameMapAsync(deptIds));
-        return files.Select(f =>
-        {
-            taskMap.TryGetValue(f.TaskId, out var task);
-            return new FileView(
-                f.Id, f.FileNo, f.FileName, f.Extension, f.Size,
-                f.Status, f.SyncStatus, f.CollectedAt, f.OriginalModifiedAt, f.Signature,
-                task?.RecorderSerial ?? task?.RecorderName ?? string.Empty,
-                task?.OperatorUserId,
-                task?.DeptId is { } did && deptMap.TryGetValue(did, out var name) ? name : null,
-                f.RemotePath, f.ErrorMessage);
-        }).ToList();
+        //var taskIds = files.Select(f => f.TaskId).Distinct().ToList();
+        //var tasks = await _tasks.GetListAsync(t => taskIds.Contains(t.Id));
+        //var taskMap = tasks.ToDictionary(t => t.Id);
+        //var deptIds = tasks.Where(t => t.DeptId != null).Select(t => t.DeptId!.Value).Distinct().ToList();
+        //var deptMap = (await _deptQuery.GetNameMapAsync(deptIds));
+        //return files.Select(f =>
+        //{
+        //    taskMap.TryGetValue(f.TaskId, out var task);
+        //    return new FileView(
+        //        f.Id, f.FileNo, f.FileName, f.Extension, f.Size,
+        //        f.Status, f.SyncStatus, f.CollectedAt, f.OriginalModifiedAt, f.Signature,
+        //        task?.RecorderSerial ?? task?.RecorderName ?? string.Empty,
+        //        task?.OperatorUserId,
+        //        task?.DeptId is { } did && deptMap.TryGetValue(did, out var name) ? name : null,
+        //        f.RemotePath, f.ErrorMessage);
+        //}).ToList();
+        return null;
     }
 
     private async Task<List<long>> AllowedTaskIdsAsync()
     {
         var session = await CurrentSessionAsync();
         var scope = await WebScopeHelper.GetScopeAsync(User, _authorization, _dataScope);
-        var query = await _tasks.GetListAsync();
+        var query = new List<CollectFile>(); //await _tasks.GetListAsync();
         if (scope.IsAll)
         {
             return (query.Select(t => t.Id)).Distinct().ToList();

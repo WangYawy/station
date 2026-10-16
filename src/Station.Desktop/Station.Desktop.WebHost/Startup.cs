@@ -3,13 +3,11 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Http;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
-using Station.Application.Audit;
+using Station.Application.Auditing;
 using Station.Application.Authentication;
-using Station.Domain.Entities;
 using Station.Application.Settings;
 using Station.Desktop.WebHost.Settings;
+using Station.Domain.Auditing;
 
 namespace Station.Desktop.WebHost;
 

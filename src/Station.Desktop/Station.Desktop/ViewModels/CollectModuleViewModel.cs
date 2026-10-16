@@ -90,7 +90,7 @@ public partial class CollectModuleViewModel : ObservableObject, IDisposable
             return;
         }
 
-        var boundDevice = device with { UserId = result.User.Id, DeptId = result.Dept.Id };
+        var boundDevice = device with { UserId = result.Recorder?.BoundUserId, DeptId = result.Recorder?.DeptId };
         var task = await _service.CreateTaskAsync(boundDevice, isAuto: true);
         Message = $"{result.Message}，自动采集已启动（{task.TaskNo}）";
         await RefreshAsync();
@@ -101,7 +101,7 @@ public partial class CollectModuleViewModel : ObservableObject, IDisposable
     {
         try
         {
-            await _recorderService.RegisterAsync(DemoSerial, "模拟记录仪", ProtocolType.Ums, true);
+            await _recorderService.RegisterAsync(DemoSerial, "", "", "模拟记录仪", ProtocolType.Ums, true);
         }
         catch (InvalidOperationException)
         {
@@ -220,9 +220,9 @@ public partial class CollectModuleViewModel : ObservableObject, IDisposable
                     task.IsAuto ? "自动" : "手动",
                     SyncStatusText(task.SyncStatus),
                     SyncStatusColor(task.SyncStatus),
-                    task.Status is Station.Domain.Enums.CollectTaskStatus.Scanning
-                        or Station.Domain.Enums.CollectTaskStatus.Collecting
-                        or Station.Domain.Enums.CollectTaskStatus.Paused));
+                    task.Status is CollectTaskStatus.Scanning
+                        or CollectTaskStatus.Collecting
+                        or CollectTaskStatus.Paused));
             }
 
             SelectedTask = Tasks.FirstOrDefault(t => t.TaskId == selectedId) ?? Tasks.FirstOrDefault();
@@ -248,7 +248,7 @@ public partial class CollectModuleViewModel : ObservableObject, IDisposable
             foreach (var file in files)
             {
                 Files.Add(new CollectFileItemViewModel(
-                    file.FileId,
+                    file.Id,
                     file.FileName,
                     FormatSize(file.Size),
                     CollectFileStatusText.Of(file.Status),
@@ -268,38 +268,38 @@ public partial class CollectModuleViewModel : ObservableObject, IDisposable
         _timer.Stop();
     }
 
-    private static string StatusColor(Station.Domain.Enums.CollectTaskStatus status) => status switch
+    private static string StatusColor(CollectTaskStatus status) => status switch
     {
-        Station.Domain.Enums.CollectTaskStatus.Completed => "#22c55e",
-        Station.Domain.Enums.CollectTaskStatus.Collecting or Station.Domain.Enums.CollectTaskStatus.Scanning => "#2563eb",
-        Station.Domain.Enums.CollectTaskStatus.Paused => "#f59e0b",
-        Station.Domain.Enums.CollectTaskStatus.Interrupted or Station.Domain.Enums.CollectTaskStatus.Failed => "#ef4444",
+        CollectTaskStatus.Completed => "#22c55e",
+        CollectTaskStatus.Collecting or CollectTaskStatus.Scanning => "#2563eb",
+        CollectTaskStatus.Paused => "#f59e0b",
+        CollectTaskStatus.Interrupted or CollectTaskStatus.Failed => "#ef4444",
         _ => "#94a3b8"
     };
 
-    private static string StatusColor(Station.Domain.Enums.CollectFileStatus status) => status switch
+    private static string StatusColor(CollectFileStatus status) => status switch
     {
-        Station.Domain.Enums.CollectFileStatus.Completed => "#22c55e",
-        Station.Domain.Enums.CollectFileStatus.Copying or Station.Domain.Enums.CollectFileStatus.Verifying => "#2563eb",
-        Station.Domain.Enums.CollectFileStatus.Skipped => "#94a3b8",
-        Station.Domain.Enums.CollectFileStatus.Failed or Station.Domain.Enums.CollectFileStatus.Abnormal => "#ef4444",
+        CollectFileStatus.Completed => "#22c55e",
+        CollectFileStatus.Copying or CollectFileStatus.Verifying => "#2563eb",
+        CollectFileStatus.Skipped => "#94a3b8",
+        CollectFileStatus.Failed or CollectFileStatus.Abnormal => "#ef4444",
         _ => "#94a3b8"
     };
 
-    private static string SyncStatusText(Station.Domain.Enums.UploadStatus status) => status switch
+    private static string SyncStatusText(UploadStatus status) => status switch
     {
-        Station.Domain.Enums.UploadStatus.Pending => "待上传",
-        Station.Domain.Enums.UploadStatus.Uploading => "上传中",
-        Station.Domain.Enums.UploadStatus.Uploaded => "已同步",
-        Station.Domain.Enums.UploadStatus.Failed => "同步失败",
+        UploadStatus.Pending => "待上传",
+        UploadStatus.Uploading => "上传中",
+        UploadStatus.Uploaded => "已同步",
+        UploadStatus.Failed => "同步失败",
         _ => status.ToString()
     };
 
-    private static string SyncStatusColor(Station.Domain.Enums.UploadStatus status) => status switch
+    private static string SyncStatusColor(UploadStatus status) => status switch
     {
-        Station.Domain.Enums.UploadStatus.Uploaded => "#22c55e",
-        Station.Domain.Enums.UploadStatus.Uploading => "#2563eb",
-        Station.Domain.Enums.UploadStatus.Failed => "#ef4444",
+        UploadStatus.Uploaded => "#22c55e",
+        UploadStatus.Uploading => "#2563eb",
+        UploadStatus.Failed => "#ef4444",
         _ => "#94a3b8"
     };
 

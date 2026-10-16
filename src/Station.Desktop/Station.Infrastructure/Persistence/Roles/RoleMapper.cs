@@ -1,4 +1,3 @@
-using Station.Domain.Enums;
 using Station.Domain.Roles;
 
 namespace Station.Infrastructure.Persistence.Roles;

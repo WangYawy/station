@@ -1,21 +1,11 @@
-using Station.Contracts;
+using Station.Application.Recorders.Dtos;
 using Station.Crypto;
 using Station.Domain.Collecting;
 using Station.Domain.Departments;
-using Station.Domain.Entities;
+using Station.Domain.Recorders;
 using Station.Domain.Users;
 
 namespace Station.Application.Recorders;
-
-public sealed record RecorderDto(
-    long? Id,
-    string SerialNumber,
-    string Model,
-    ProtocolType Protocol,
-    long? BoundUserId,
-    long? DeptId,
-    bool IsAuthorized,
-    bool IsActive);
 
 /// <summary>
 /// 记录仪识别结果。
@@ -28,9 +18,7 @@ public sealed record RecorderIdentifyResult(
     RecorderIdentifyStatus Status,
     CollectDeviceInfo Device,
     BindingInfo? Binding,
-    Recorder? Recorder,
-    User? User,
-    Dept? Dept,
+    RecorderListItemDto? Recorder,
     string? Message)
 {
     /// <summary>是否可以通过识别进入采集。</summary>
@@ -47,29 +35,29 @@ public sealed record RecorderIdentifyResult(
     // ---- 工厂方法 ----
 
     public static RecorderIdentifyResult NotFound(CollectDeviceInfo d, string msg) =>
-        new(RecorderIdentifyStatus.NotFound, d, null, null, null, null, msg);
+        new(RecorderIdentifyStatus.NotFound, d, null, null, msg);
 
     public static RecorderIdentifyResult Legacy(CollectDeviceInfo d, BindingInfo b, string msg) =>
-        new(RecorderIdentifyStatus.Legacy, d, b, null, null, null, msg);
+        new(RecorderIdentifyStatus.Legacy, d, b, null, msg);
 
     public static RecorderIdentifyResult Tampered(CollectDeviceInfo d, BindingInfo b, string msg) =>
-        new(RecorderIdentifyStatus.Tampered, d, b, null, null, null, msg);
+        new(RecorderIdentifyStatus.Tampered, d, b, null, msg);
 
     public static RecorderIdentifyResult RecorderMissing(CollectDeviceInfo d, BindingInfo b, string msg) =>
-        new(RecorderIdentifyStatus.RecorderMissing, d, b, null, null, null, msg);
+        new(RecorderIdentifyStatus.RecorderMissing, d, b, null, msg);
 
     public static RecorderIdentifyResult UserInactive(CollectDeviceInfo d, BindingInfo b, string msg) =>
-        new(RecorderIdentifyStatus.UserInactive, d, b, null, null, null, msg);
+        new(RecorderIdentifyStatus.UserInactive, d, b, null, msg);
 
     public static RecorderIdentifyResult DeptInactive(CollectDeviceInfo d, BindingInfo b, string msg) =>
-        new(RecorderIdentifyStatus.DeptInactive, d, b, null, null, null, msg);
+        new(RecorderIdentifyStatus.DeptInactive, d, b, null, msg);
 
     public static RecorderIdentifyResult Mismatch(CollectDeviceInfo d, BindingInfo b, string msg) =>
-        new(RecorderIdentifyStatus.Mismatch, d, b, null, null, null, msg);
+        new(RecorderIdentifyStatus.Mismatch, d, b, null, msg);
 
     public static RecorderIdentifyResult Matched(
-        CollectDeviceInfo d, BindingInfo b, Recorder r, User? u, Dept? dept) =>
-        new(RecorderIdentifyStatus.Matched, d, b, r, u, dept, null);
+        CollectDeviceInfo d, BindingInfo b, RecorderListItemDto r) =>
+        new(RecorderIdentifyStatus.Matched, d, b, r, null);
 }
 
 /// <summary>识别状态。</summary>

@@ -1,7 +1,7 @@
 using Station.Application.Permissions.Dtos;
 using Station.Data.Paging;
 
-namespace Station.Application.Permissions.Queries;
+namespace Station.Application.Permissions;
 
 public interface IPermissionQueryService
 {

@@ -1,12 +1,7 @@
-using System.Linq.Expressions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.WebUtilities;
-using Station.Application.Audit;
-using Station.Application.Authorization;
+using Station.Application.Auditing;
 using Station.Domain.Authorization;
-using Station.Domain.Entities;
-using Station.Data.Repositories;
 using AuthService = Station.Application.Authorization.IAuthorizationService;
 
 namespace Station.Desktop.WebHost.Controllers;
@@ -18,13 +13,16 @@ namespace Station.Desktop.WebHost.Controllers;
 public class AuditLogsController : ControllerBase
 {
     private readonly IAuditLogService _logService;
+    private readonly IAuditLogQueryService _logQuery;
     private readonly AuthService _authorization;
 
     public AuditLogsController(
         IAuditLogService logService,
+        IAuditLogQueryService logQuery,
         AuthService authorization)
     {
         _logService = logService;
+        _logQuery = logQuery;
         _authorization = authorization;
     }
 
@@ -55,7 +53,7 @@ public class AuditLogsController : ControllerBase
         //Expression<Func<AuditLog, object>> orderBy = a => a.CreatedAt;
         //var query = await _logs.ToPageAsync(page, size, filter, orderBy);
 
-        var query = await _logService.SearchAsync();
+        var query = await _logQuery.SearchAsync(from, to, operationType, null, null, null, page, size);
 
         return Ok(new
         {

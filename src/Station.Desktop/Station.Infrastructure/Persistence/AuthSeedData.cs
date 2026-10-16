@@ -1,5 +1,5 @@
-using Station.Domain.Entities;
 using Station.Infrastructure.Persistence.Accounts;
+using Station.Infrastructure.Persistence.Auditing;
 using Station.Infrastructure.Persistence.Departments;
 using Station.Infrastructure.Persistence.Permissions;
 using Station.Infrastructure.Persistence.Roles;
@@ -19,7 +19,6 @@ public static class AuthSeedData
         typeof(PermissionPo),
         typeof(RolePermissionPo),
         typeof(UserRolePo),
-        typeof(AuditLog),
-        typeof(AuditLogArchive)
+        typeof(AuditLogArchivePo)
     ];
 }

@@ -3,7 +3,7 @@ using Microsoft.Extensions.Options;
 using Station.Application.Diagnostics;
 using Station.Application.Licensing;
 using Station.Application.Security;
-using Station.Application.Storage;
+using Station.Application.Storages;
 using Station.Data.Abstractions;
 using Station.Crypto;
 using Station.Infrastructure.Security.Keys;

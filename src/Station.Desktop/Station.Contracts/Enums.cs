@@ -61,9 +61,11 @@ public enum AlertStatus
 public enum LicenseStatus
 {
     Trial = 0,
-    Grace = 1,
-    Activated = 2,
-    Locked = 3,
+    //Grace = 1,
+    Activated,
+    Expired,
+    Revoked,
+    Deactivated
 }
 
 /// <summary>采集站运行状态（P1：维修/报废）。</summary>

@@ -6,13 +6,14 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Station.Application;
 using Station.Application.Collecting;
+using Station.Application.Collecting.Dtos;
 using Station.Application.Licensing;
 using Station.Application.PlatformSync;
 using Station.Application.Security;
 using Station.Contracts.Registration;
 using Station.Contracts.Reporting;
 
-namespace Station.Desktop.Infrastructure;
+namespace Station.Infrastructure;
 
 /// <summary>
 /// 平台同步后台任务：注册上报（一次）→ 补报 Outbox → 指令轮询执行回执；

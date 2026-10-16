@@ -3,7 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Station.Application.Accounts;
 using Station.Application.Alerts;
-using Station.Application.Audit;
+using Station.Application.Auditing;
 using Station.Application.Authentication;
 using Station.Application.Authorization;
 using Station.Application.Collecting;
@@ -15,11 +15,11 @@ using Station.Application.Recorders;
 using Station.Application.Roles;
 using Station.Application.Session;
 using Station.Application.Settings;
-using Station.Application.Storage;
+using Station.Application.Storages;
 using Station.Application.Uploading;
-using Station.Application.UsbPortCard;
-using Station.Application.UsbPortCard.Events;
+using Station.Application.UsbPortCards;
 using Station.Application.Users;
+using Station.Domain.Auditing;
 
 namespace Station.Application;
 
@@ -80,7 +80,7 @@ public static class DependencyInjection
         services.AddScoped<ICommandService, CommandService>();
         services.AddScoped<IFileLedgerService, FileLedgerService>();
         services.AddScoped<IConfigApplyService, ConfigApplyService>();
-        services.AddScoped<IUsbPortCardEventService, UsbPortCardEventService>();
+        
         services.AddScoped<IUsbPortCardService, UsbPortCardService>();
         // 注册授权服务
         var licenseSection = configuration.GetSection(LicenseOptions.SectionName);

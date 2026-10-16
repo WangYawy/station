@@ -1,30 +1,22 @@
 using System.Collections.Concurrent;
-using System.Threading.Tasks;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Station.Application.Collecting.Dtos;
 using Station.Application.Licensing;
+using Station.Application.Notifications;
 using Station.Application.PlatformSync;
 using Station.Application.Security;
-using Station.Application.Storage;
-using Station.Application.UsbPortCard.Events;
+using Station.Application.Storages;
 using Station.Crypto;
 using Station.Data.IdGeneration;
-using Station.Data.Paging;
-using Station.Data.Repositories;
+using Station.Domain.Abstractions;
 using Station.Domain.Collecting;
-using Station.Domain.Entities;
-using Station.Domain.Enums;
 
 namespace Station.Application.Collecting;
 
-/// <summary>
-/// 采集任务服务
-/// </summary>
+/// <summary>采集任务应用服务（聚合仓储 + 领域事件）。</summary>
 public sealed class CollectTaskService : ICollectTaskService
 {
-    /// <summary>
-    /// 采集任务控件
-    /// </summary>
     private sealed class TaskControl
     {
         public CancellationTokenSource Cts { get; } = new();
@@ -33,29 +25,34 @@ public sealed class CollectTaskService : ICollectTaskService
         public long CurrentFileId;
     }
 
-    private readonly IRepository<CollectTask> _tasks;
-    private readonly IRepository<CollectFile> _files;
+    // 短连接（前台操作）
+    private readonly ICollectTaskRepository _tasks;
+    private readonly ICollectFileRepository _files;
+
+    // 读侧
+    private readonly ICollectTaskQueryService _taskQuery;
+
     private readonly IIdGenerator _idGenerator;
     private readonly ICollectSourceProvider _sources;
     private readonly CollectOptions _options;
     private readonly ICollectControl _collectControl;
     private readonly ILicenseService _licenseService;
     private readonly IServiceScopeFactory _scopeFactory;
-    private readonly ConcurrentDictionary<long, TaskControl> _controls = new();
-    private readonly ILogger<CollectTaskService> _logger;
     private readonly IFileCryptoService _fileCrypto;
     private readonly StorageOptions _storageConfig;
-    private readonly IUsbPortCardEventService _eventService;
+    private readonly IUiNotificationService _ui;
     private readonly IStationInfoService _station;
     private readonly ICollectTaskNoGenerator _taskNoGen;
     private readonly ICollectFileNoGenerator _fileNoGen;
+    private readonly IDomainEventBus _eventBus;
 
-    // 上次已发布状态，避免重复事件
-    private readonly ConcurrentDictionary<long, CollectTaskStatus> _lastPublishedStatus = new();
+    private readonly ConcurrentDictionary<long, TaskControl> _controls = new();
+    private readonly ILogger<CollectTaskService> _logger;
 
     public CollectTaskService(
-        IRepository<CollectTask> tasks,
-        IRepository<CollectFile> files,
+        ICollectTaskRepository tasks,
+        ICollectFileRepository files,
+        ICollectTaskQueryService taskQuery,
         IIdGenerator idGenerator,
         ICollectSourceProvider sources,
         CollectOptions options,
@@ -64,55 +61,59 @@ public sealed class CollectTaskService : ICollectTaskService
         IServiceScopeFactory scopeFactory,
         IFileCryptoService fileCrypto,
         StorageOptions storageConfig,
-        IUsbPortCardEventService eventService,
+        IUiNotificationService ui,
         IStationInfoService station,
         ICollectTaskNoGenerator taskNoGen,
         ICollectFileNoGenerator fileNoGen,
+        IDomainEventBus eventBus,
         ILogger<CollectTaskService> logger)
     {
         _tasks = tasks;
         _files = files;
+        _taskQuery = taskQuery;
         _idGenerator = idGenerator;
         _sources = sources;
         _options = options;
         _collectControl = collectControl;
         _licenseService = licenseService;
         _scopeFactory = scopeFactory;
-        _logger = logger;
         _fileCrypto = fileCrypto;
         _storageConfig = storageConfig;
-        _eventService = eventService;
+        _ui = ui;
         _station = station;
         _taskNoGen = taskNoGen;
         _fileNoGen = fileNoGen;
+        _eventBus = eventBus;
+        _logger = logger;
     }
 
-    public async Task<CollectTaskDto> CreateTaskAsync(CollectDeviceInfo device, bool isAuto, CancellationToken ct = default)
+    // =========================================================
+    // 创建 / 启动
+    // =========================================================
+
+    public async Task<CollectTaskDto> CreateTaskAsync(
+        CollectDeviceInfo device, bool isAuto, CancellationToken ct = default)
     {
         var now = DateTime.Now;
         var id = _idGenerator.NewId();
-        var taskNo = await _taskNoGen.NextAsync(_station.Current.StationCode, device.Serial!, now);
-        var task = new CollectTask
-        {
-            Id = id,
-            TaskNo = $"{device.Serial}-{now:yyyyMMddHHmmss}-{id % 1000000:D6}",
-            RecorderName = device.Name,
-            RecorderSerial = device.Serial,
-            Protocol = device.Protocol,
-            SourceRoot = device.RootPath!,
-            OperatorUserId = device.UserId,
-            DeptId = device.DeptId,
-            Status = CollectTaskStatus.Created,
-            IsAuto = isAuto,
-            CreatedAt = now
-        };
-        await _tasks.InsertAsync(task);
-        _logger.LogInformation("采集任务创建 {TaskNo}：记录仪 {Recorder}（{Protocol}，{Mode}）",
+        var taskNo = await _taskNoGen.NextAsync(_station.Current.StationCode, device.Serial!, now, ct);
+
+        var task = CollectTask.Create(
+            id, taskNo,
+            device.Name, device.Serial, device.Protocol, device.RootPath,
+            device.UserId, device.DeptId, isAuto, now);
+
+        await _tasks.AddAsync(task, ct);
+        await PublishAndClearAsync(task, ct);
+        _ui.PublishTaskStatus(task.Id, task.Status, task.IsEmergency);
+
+        _logger.LogInformation(
+            "采集任务创建 {TaskNo}：记录仪 {Recorder}（{Protocol}，{Mode}）",
             task.TaskNo, device.Name, device.Protocol, isAuto ? "自动" : "手动");
 
         if (isAuto && _options.AutoCollectOnConnect)
         {
-            return await StartAsync(task.Id);
+            return await StartAsync(task.Id, ct);
         }
 
         return ToDto(task);
@@ -121,39 +122,32 @@ public sealed class CollectTaskService : ICollectTaskService
     public async Task<CollectTaskDto> StartAsync(long taskId, CancellationToken ct = default)
     {
         if (!await _licenseService.IsValidNowAsync())
-        {
             throw new InvalidOperationException("授权不可用，无法采集");
-        }
 
         if (!_collectControl.CollectingEnabled)
-        {
             throw new InvalidOperationException($"采集已停止：{_collectControl.StoppedReason ?? "远程指令"}");
-        }
 
-        var task = await RequireTaskAsync(taskId);
+        var task = await _tasks.GetByIdAsync(taskId, ct)
+            ?? throw new InvalidOperationException($"任务 {taskId} 不存在");
+
         if (_controls.ContainsKey(taskId))
-        {
             throw new InvalidOperationException("任务正在运行中");
-        }
 
-        // ==================== 1. 扫描阶段 ====================
-        task.Status = CollectTaskStatus.Scanning;
-        task.StartedAt ??= DateTime.Now;
-        task.ErrorMessage = null;
-        await _tasks.UpdateAsync(task);
-        PublishStatusIfChanged(taskId, task.Status, task.IsEmergency);
+        // ---- 1. 扫描阶段 ----
+        task.BeginScanning(DateTime.Now);
+        await _tasks.UpdateAsync(task, ct);
+        await PublishAndClearAsync(task, ct);
+        _ui.PublishTaskStatus(taskId, task.Status, task.IsEmergency); // 立即通知UI
 
+        // ---- 2. 扫描设备文件 ----
         var device = new CollectDeviceInfo(
             task.RecorderName, task.RecorderSerial, task.Protocol,
             RootPath: task.SourceRoot);
         var collectSource = _sources.GetFor(device.Protocol);
-        var sources = await collectSource.ScanAsync(device, CancellationToken.None);
+        var sources = await collectSource.ScanAsync(device, ct);
+        var accepted = sources.OrderBy(f => f.FileName, StringComparer.OrdinalIgnoreCase).ToList();
 
-        var accepted = sources
-            .OrderBy(f => f.FileName, StringComparer.OrdinalIgnoreCase)
-            .ToList();
-
-        // ==================== 2. 一次性查询已完成的指纹（合并 N+1 查询） ====================
+        // ---- 3. 已采集指纹（合并 N+1） ----
         HashSet<string> completedFingerprints;
         if (_options.SkipCollected && accepted.Count > 0)
         {
@@ -162,77 +156,58 @@ public sealed class CollectTaskService : ICollectTaskService
                 .Where(fp => !string.IsNullOrEmpty(fp))
                 .Distinct(StringComparer.Ordinal)
                 .ToList();
-
-            // 一次 SELECT 拉全表，内存过滤
-            var completedList = await _files.GetListAsync(f =>
-                fingerprints.Contains(f.Fingerprint!) &&
-                f.Status == CollectFileStatus.Completed);
-
-            completedFingerprints = new HashSet<string>(
-                completedList.Select(f => f.Fingerprint!),
-                StringComparer.Ordinal);
+            completedFingerprints = await _files.GetCompletedFingerprintsAsync(fingerprints, ct);
         }
         else
         {
             completedFingerprints = new HashSet<string>(StringComparer.Ordinal);
         }
 
-        // ==================== 3. 批量构造 CollectFile 列表（合并 N+1 插入） ====================
+        // ---- 4. 批量构造聚合 ----
         using var fileCtx = await _fileNoGen.CreateContextAsync(task.TaskNo, ct);
         var toInsert = new List<CollectFile>(accepted.Count);
-        int skipped = 0;
+        var skipped = 0;
+
         foreach (var source in accepted)
         {
             var already = _options.SkipCollected && completedFingerprints.Contains(source.Fingerprint);
             if (already) skipped++;
 
-            toInsert.Add(new CollectFile
-            {
-                Id = _idGenerator.NewId(),
-                TaskId = taskId,
-                TaskNo = task.TaskNo,
-                FileNo = fileCtx.Next(),
-                FileName = source.FileName,
-                Extension = Path.GetExtension(source.FileName).ToLowerInvariant(),
-                RelativePath = source.RelativePath,
-                Size = source.Size,
-                Fingerprint = source.Fingerprint,
-                Status = already ? CollectFileStatus.Skipped : CollectFileStatus.Pending,
-                OriginalModifiedAt = source.ModifiedAt
-            });
+            var file = CollectFile.Create(
+                _idGenerator.NewId(), taskId, task.TaskNo, fileCtx.Next(),
+                source.FileName,
+                Path.GetExtension(source.FileName).ToLowerInvariant(),
+                source.RelativePath, source.Size, source.Fingerprint,
+                source.ModifiedAt, already, DateTime.Now);
+
+            toInsert.Add(file);
         }
 
         if (toInsert.Count > 0)
-        {
-            await _files.InsertRangeAsync(toInsert);
-        }
+            await _files.AddRangeAsync(toInsert, ct);
 
         _logger.LogInformation(
             "设备 {Recorder} 任务 {TaskNo} 扫描完成：{Total} 个文件（跳过 {Skipped}）",
             task.RecorderSerial, task.TaskNo, accepted.Count, skipped);
 
-        task.TotalFiles = accepted.Count;
-        task.SkippedFiles = skipped;
-        task.TotalBytes = accepted.Sum(f => f.Size);
-        task.Status = CollectTaskStatus.Collecting;
-        await _tasks.UpdateAsync(task);
-        PublishStatusIfChanged(taskId, task.Status, task.IsEmergency);
+        // ---- 5. 进入采集状态（聚合方法同时设统计字段） ----
+        task.BeginCollecting(
+            accepted.Count, skipped,
+            accepted.Sum(f => f.Size), DateTime.Now);
 
-        // ==================== 4. 后台启动采集（LongRunning 专用线程，避免线程池饥饿） ====================
+        await _tasks.UpdateAsync(task, ct);
+        await PublishAndClearAsync(task, ct);
+        _ui.PublishTaskStatus(taskId, task.Status, task.IsEmergency);   // UI 立即
+
+        // ---- 6. 后台采集线程 ----
         var control = new TaskControl();
         _controls[taskId] = control;
 
         _ = Task.Factory.StartNew(
             () =>
             {
-                try
-                {
-                    RunCollectAsync(taskId, control).GetAwaiter().GetResult();
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "采集线程未捕获异常 {TaskId}", taskId);
-                }
+                try { RunCollectAsync(taskId, control).GetAwaiter().GetResult(); }
+                catch (Exception ex) { _logger.LogError(ex, "采集线程未捕获异常 {TaskId}", taskId); }
             },
             CancellationToken.None,
             TaskCreationOptions.LongRunning,
@@ -240,6 +215,10 @@ public sealed class CollectTaskService : ICollectTaskService
 
         return ToDto(task);
     }
+
+    // =========================================================
+    // 暂停 / 恢复 / 取消 / 中断
+    // =========================================================
 
     public Task PauseAsync(long taskId, CancellationToken ct = default)
     {
@@ -249,26 +228,21 @@ public sealed class CollectTaskService : ICollectTaskService
             control.Cts.Cancel();
             _logger.LogInformation("采集任务 {TaskId} 暂停请求", taskId);
         }
-
         return Task.CompletedTask;
     }
 
     public async Task ResumeAsync(long taskId, CancellationToken ct = default)
     {
-        var task = await RequireTaskAsync(taskId);
+        var task = await _tasks.GetByIdAsync(taskId, ct)
+            ?? throw new InvalidOperationException($"任务 {taskId} 不存在");
+
         if (_controls.ContainsKey(taskId))
-        {
             throw new InvalidOperationException("任务正在运行中");
-        }
 
-        if (task.Status != CollectTaskStatus.Paused)
-        {
-            throw new InvalidOperationException("仅暂停中的任务可恢复");
-        }
-
-        task.Status = CollectTaskStatus.Collecting;
-        task.ErrorMessage = null;
-        await _tasks.UpdateAsync(task);
+        task.Resume(DateTime.Now);
+        await _tasks.UpdateAsync(task, ct);
+        await PublishAndClearAsync(task, ct);
+        _ui.PublishTaskStatus(taskId, task.Status, task.IsEmergency);
 
         var control = new TaskControl();
         _controls[taskId] = control;
@@ -276,14 +250,8 @@ public sealed class CollectTaskService : ICollectTaskService
         _ = Task.Factory.StartNew(
             () =>
             {
-                try
-                {
-                    RunCollectAsync(taskId, control).GetAwaiter().GetResult();
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "采集线程未捕获异常 {TaskId}", taskId);
-                }
+                try { RunCollectAsync(taskId, control).GetAwaiter().GetResult(); }
+                catch (Exception ex) { _logger.LogError(ex, "采集线程未捕获异常 {TaskId}", taskId); }
             },
             CancellationToken.None,
             TaskCreationOptions.LongRunning,
@@ -292,275 +260,244 @@ public sealed class CollectTaskService : ICollectTaskService
         _logger.LogInformation("采集任务 {TaskId} 恢复", taskId);
     }
 
-    public Task CancelAsync(long taskId, CancellationToken ct = default) =>
-        SetFinalAsync(taskId, CollectTaskStatus.Canceled);
+    public Task CancelAsync(long taskId, CancellationToken ct = default)
+        => SetFinalAsync(taskId, CollectTaskStatus.Canceled, null, ct);
 
-    public Task InterruptAsync(long taskId, string reason, CancellationToken ct = default) =>
-        SetFinalAsync(taskId, CollectTaskStatus.Interrupted, reason);
+    public Task InterruptAsync(long taskId, string reason, CancellationToken ct = default)
+        => SetFinalAsync(taskId, CollectTaskStatus.Interrupted, reason, ct);
 
-    public async Task<bool> SetEmergencyAsync(long taskId, bool isEmergency, CancellationToken ct = default)
+    public async Task<bool> SetEmergencyAsync(
+        long taskId, bool isEmergency, CancellationToken ct = default)
     {
-        var task = await RequireTaskAsync(taskId);
+        var task = await _tasks.GetByIdAsync(taskId, ct)
+            ?? throw new InvalidOperationException($"任务 {taskId} 不存在");
+
         if (isEmergency && !task.IsEmergency)
         {
-            var current = await _tasks.CountAsync(t =>
-                t.IsEmergency &&
-                (t.Status == CollectTaskStatus.Scanning ||
-                 t.Status == CollectTaskStatus.Collecting ||
-                 t.Status == CollectTaskStatus.Paused));
+            var current = await _tasks.CountActiveEmergencyAsync(ct);
             if (current >= _options.MaxEmergencyTasks)
-            {
                 return false;
-            }
         }
 
-        task.IsEmergency = isEmergency;
-        await _tasks.UpdateAsync(task);
-        _eventService.PublishTaskStatus(taskId, task.Status, task.IsEmergency);
+        task.MarkEmergency(isEmergency, DateTime.Now);
+        await _tasks.UpdateAsync(task, ct);
+        await PublishAndClearAsync(task, ct);
+        _ui.PublishTaskStatus(taskId, task.Status, task.IsEmergency);
+
         _logger.LogInformation("任务 {TaskId} 紧急优先标记 -> {Value}", taskId, isEmergency);
         return true;
     }
 
-    public async Task<CollectTaskDto?> GetTaskAsync(long taskId, CancellationToken ct = default)
+    // =========================================================
+    // 读（走 QueryService）
+    // =========================================================
+
+    public Task<CollectTaskDto?> GetTaskAsync(long taskId, CancellationToken ct = default)
+        => _taskQuery.GetByIdAsync(taskId, ct);
+
+    public async Task<IReadOnlyList<CollectTaskDto>> GetTasksAsync(
+        int count, CancellationToken ct = default)
+        => await _taskQuery.GetRecentAsync(count, ct);
+
+    public async Task<IReadOnlyList<CollectTaskDto>> GetActiveTasksAsync(
+        CancellationToken ct = default)
+        => await _taskQuery.GetActiveAsync(ct);
+
+    public async Task<IReadOnlyList<CollectFileDto>> GetTaskFilesAsync(
+        long taskId, CancellationToken ct = default)
     {
-        var task = await _tasks.GetByIdAsync(taskId, ct);
-        return task is null ? null : ToDto(task);
+        var files = await _files.GetByTaskIdAsync(taskId, ct);
+        return files.OrderBy(f => f.Id).Select(ToDto).ToList();
     }
 
-    public async Task<IReadOnlyList<CollectTaskDto>> GetTasksAsync(int count, CancellationToken ct = default)
-    {
-        var query = new PageQuery<CollectTask>
-        {
-            PageIndex = 1,
-            PageSize = count,
-            Predicate = null,
-            CountTotal = false
-        };
-        var page = await _tasks.ToPageAsync(query, orderBy: t => t.CreatedAt, descending: true, ct);
-        return page.Items.Select(ToDto).ToList();
-    }
+    // =========================================================
+    // 内部：收尾
+    // =========================================================
 
-    public async Task<IReadOnlyList<CollectTaskDto>> GetActiveTasksAsync(CancellationToken ct = default)
-    {
-        var list = await _tasks.GetListAsync(t =>
-            t.Status == CollectTaskStatus.Scanning ||
-            t.Status == CollectTaskStatus.Collecting ||
-            t.Status == CollectTaskStatus.Paused
-            , ct);
-        return list.OrderByDescending(t => t.CreatedAt).Select(ToDto).ToList();
-    }
-
-    public async Task<IReadOnlyList<CollectFileDto>> GetTaskFilesAsync(long taskId, CancellationToken ct = default)
-    {
-        var list = await _files.GetListAsync(f => f.TaskId == taskId, ct);
-        return list.OrderBy(f => f.Id).Select(ToDto).ToList();
-    }
-
-    // ---------- 内部 ----------
-    /// <summary>仅在状态真正变化时发布（关键：避免每个文件都重复发布 Collecting）</summary>
-    private void PublishStatusIfChanged(long taskId, CollectTaskStatus status, bool isEmergency)
-    {
-        if (_lastPublishedStatus.TryGetValue(taskId, out var last) && last == status)
-            return;
-
-        _lastPublishedStatus[taskId] = status;
-        _eventService.PublishTaskStatus(taskId, status, isEmergency);
-    }
-
-    private async Task SetFinalAsync(long taskId, CollectTaskStatus finalStatus, string? reason = null, CancellationToken ct = default)
+    private async Task SetFinalAsync(
+        long taskId, CollectTaskStatus finalStatus, string? reason,
+        CancellationToken ct = default)
     {
         if (_controls.TryGetValue(taskId, out var control))
         {
             control.FinalStatus = finalStatus;
+
             if (!string.IsNullOrEmpty(reason))
             {
                 var task = await _tasks.GetByIdAsync(taskId, ct);
                 if (task is not null)
                 {
-                    task.ErrorMessage = reason;
+                    task.AppendErrorMessage(reason);
                     await _tasks.UpdateAsync(task, ct);
+                    // 错误信息变化不视为状态变化，无需发布领域事件
+                    task.ClearDomainEvents();
                 }
             }
 
             control.Cts.Cancel();
+            return;
         }
-        else if (await _tasks.GetByIdAsync(taskId, ct) is { } idle)
+
+        // 无活动控制块：直接对空闲任务执行终态
+        var idle = await _tasks.GetByIdAsync(taskId, ct);
+        if (idle is null) return;
+
+        var now = DateTime.Now;
+        switch (finalStatus)
         {
-            idle.Status = finalStatus;
-            idle.CompletedAt = DateTime.Now;
-            idle.ErrorMessage = reason;
-            await _tasks.UpdateAsync(idle, ct);
-            var pending = (await _files.GetListAsync(f => f.TaskId == taskId && f.Status == CollectFileStatus.Pending, ct))
-                .Select(f => { f.Status = CollectFileStatus.Canceled; return f; })
-                .ToList();
-            if (pending.Count > 0)
+            case CollectTaskStatus.Canceled:
+                idle.Cancel(reason, now);
+                break;
+            case CollectTaskStatus.Interrupted:
+                idle.Interrupt(reason ?? "任务中断", now);
+                break;
+            default:
+                idle.Fail(reason ?? "任务失败", now);
+                break;
+        }
+
+        await _tasks.UpdateAsync(idle, ct);
+        await PublishAndClearAsync(idle, ct);
+        _ui.PublishTaskStatus(taskId, idle.Status, idle.IsEmergency);
+
+        var pending = await _files.GetPendingByTaskIdAsync(taskId, ct);
+        if (pending.Count > 0)
+        {
+            foreach (var f in pending)
             {
-                await _files.UpdateRangeAsync(pending, ct);
+                if (finalStatus == CollectTaskStatus.Interrupted)
+                    f.Interrupt("设备断开，采集中断", now);
+                else
+                    f.Cancel("任务已取消", now);
             }
+            await _files.UpdateRangeAsync(pending, ct);
+            await PublishFilesAsync(pending, ct);
         }
     }
 
-    /// <summary>
-    /// 开始文件采集
-    /// </summary>
+    // =========================================================
+    // 内部：后台采集主循环（长连接）
+    // =========================================================
+
     private async Task RunCollectAsync(long taskId, TaskControl control)
     {
-        // 后台采集使用独立长连接客户端，DB 操作用同步调用（Kdbndp 异步长连接易报 command already in progress）
         using var scope = _scopeFactory.CreateScope();
-        var taskLoop = scope.ServiceProvider.GetRequiredService<ILoopRepository<CollectTask>>();
-        var fileLoop = scope.ServiceProvider.GetRequiredService<ILoopRepository<CollectFile>>();
+        var taskSync = scope.ServiceProvider.GetRequiredService<ICollectTaskSyncRepository>();
+        var fileSync = scope.ServiceProvider.GetRequiredService<ICollectFileSyncRepository>();
 
         CollectTask? task = null;
         try
         {
             var ct = control.Cts.Token;
-            task = taskLoop.GetById(taskId);
-            if (task is null)
-            {
-                return;
-            }
+            task = taskSync.GetById(taskId);
+            if (task is null) return;
 
             var device = new CollectDeviceInfo(
                 task.RecorderName, task.RecorderSerial, task.Protocol,
                 RootPath: task.SourceRoot);
             var source = _sources.GetFor(device.Protocol);
 
-            // ==================== 一次性拉取所有 Pending 文件（避免每次循环查库） ====================
-            // 语义与原先"每轮查一条 Pending"等价：按 Id 升序依次处理；
-            // 暂停/恢复时，FinalizeAsync 会把 Copying/Verifying 回退为 Pending，任务重启会重新拉取。
-            var pendingFiles = fileLoop
-                .GetList(f => f.TaskId == taskId && f.Status == CollectFileStatus.Pending)
-                .OrderBy(f => f.Id)
-                .ToList();
+            var pendingFiles = fileSync.GetPendingByTaskId(taskId);
 
-            // 速度计算：以任务累积字节作为采样点，跨文件连续；使用字段替代 Queue+LINQ
             var speedLastTime = DateTime.MinValue;
             long speedLastBytes = 0;
-
-            // 授权检查节流：首次立即检查，之后每 5 秒一次
-            // var nextLicenseCheck = DateTime.UtcNow;
-
             var cursor = 0;
+
             while (!ct.IsCancellationRequested && cursor < pendingFiles.Count)
             {
-                //// 授权检查（节流）
-                //if (DateTime.UtcNow >= nextLicenseCheck)
-                //{
-                //    if (!await _licenseService.IsValidNowAsync())
-                //    {
-                //        // 授权到期：正在进行的采集立即中断
-                //        control.FinalStatus = CollectTaskStatus.Interrupted;
-                //        break;
-                //    }
-                //    nextLicenseCheck = DateTime.UtcNow.AddSeconds(5);
-                //}
-
                 var file = pendingFiles[cursor++];
-
-                // 记录当前文件的起始状态
                 control.CurrentFileId = file.Id;
-                file.Status = CollectFileStatus.Copying;
-                file.Progress = 0;
-                fileLoop.Update(file);
 
-                // 任务已完成的旧文件总字节数
+                file.BeginCopy(DateTime.Now);
+                fileSync.Update(file);
+                await PublishAndClearAsync(file);
+
                 var baseCompletedBytes = task.CollectedBytes;
-                var destination = Path.Combine(_options.CacheDirectory, task.TaskNo, file.RelativePath);
-                double lastPersistedProgress = -1;
+                var destination = Path.Combine(_options.CacheDirectory, task.TaskNo, file.RelativePath!);
 
-                // 开始复制，传入进度回调（无 async，返回 Task.CompletedTask 消除状态机分配）
                 await source.CopyAsync(
                     device,
-                    new SourceFileInfo(file.RelativePath, file.FileName, file.Size, file.OriginalModifiedAt ?? DateTime.UtcNow),
+                    new SourceFileInfo(file.RelativePath, file.FileName, file.Size,
+                        file.OriginalModifiedAt ?? DateTime.UtcNow),
                     destination,
                     progress =>
                     {
-                        // 1. 更新单个文件进度
-                        file.Progress = progress;
-
-                        // 2. 任务级累积字节（用 totalDoneBytes 作为速度样本，跨文件连续）
-                        var totalDoneBytes = baseCompletedBytes + (long)(file.Size * progress);
-                        double overallProgress = task.TotalBytes > 0
-                            ? Math.Clamp((double)totalDoneBytes / task.TotalBytes, 0, 1)
-                            : 0;
-
-                        // 3. 速度计算：两次采样差值（无 LINQ / Queue 分配）
-                        var now = DateTime.UtcNow;
-                        if (speedLastTime != DateTime.MinValue)
+                        try
                         {
-                            var dt = (now - speedLastTime).TotalSeconds;
-                            if (dt > 0.001)
+                            // 1. 聚合内 10% 节流：返回 true 表示跨档，需要更新字段
+                            var crossed = file.ReportCopyProgress(progress);
+
+                            // 2. 速度（跨文件连续采样）
+                            var totalDoneBytes = baseCompletedBytes + (long)(file.Size * progress);
+                            var nowUtc = DateTime.UtcNow;
+                            if (speedLastTime != DateTime.MinValue)
                             {
-                                var speed = (totalDoneBytes - speedLastBytes) / dt;
-                                file.SpeedBytesPerSecond = speed;
-                                task.SpeedBytesPerSecond = speed;
+                                var dt = (nowUtc - speedLastTime).TotalSeconds;
+                                if (dt > 0.001)
+                                {
+                                    var speed = (totalDoneBytes - speedLastBytes) / dt;
+                                    file.SetSpeed(speed);
+                                    task.SetSpeed(speed);
+                                }
+                            }
+                            speedLastTime = nowUtc;
+                            speedLastBytes = totalDoneBytes;
+
+                            // 3. UI 进度（同步写缓存，由 UI 层 150ms 合并）
+                            var overall = task.TotalBytes > 0
+                                ? Math.Clamp((double)totalDoneBytes / task.TotalBytes, 0, 1)
+                                : 0;
+
+                            _ui.PublishTaskProgress(taskId, overall * 100, task.SpeedBytesPerSecond);
+
+                            // 4. 进度落库（按 10% 档）
+                            if (crossed)
+                            {
+                                try { fileSync.Update(file); }
+                                catch { /* 忽略进度落库失败 */ }
                             }
                         }
-                        speedLastTime = now;
-                        speedLastBytes = totalDoneBytes;
-
-                        // 4. 发布进度事件（同步写入缓存，500ms 合并派发，无阻塞）
-                        _eventService.PublishTaskProgress(
-                            taskId,
-                            overallProgress * 100,
-                            task.SpeedBytesPerSecond);
-
-                        // 5. 进度落库节流（≥10% 增量），失败不中断复制
-                        if (progress - lastPersistedProgress >= 0.1)
+                        catch (Exception ex)
                         {
-                            lastPersistedProgress = progress;
-                            try
-                            {
-                                fileLoop.Update(file);
-                            }
-                            catch
-                            {
-                                // 忽略进度落库失败
-                            }
+                            _logger.LogWarning(ex, "进度回调异常 file={File}", file.FileName);
                         }
-
                         return Task.CompletedTask;
                     },
                     ct);
 
-                // ==================== 校验大小 ====================
-                file.Status = CollectFileStatus.Verifying;
-                fileLoop.Update(file);
+                // 校验大小
+                file.BeginVerify();
+                fileSync.Update(file);
 
                 var copied = new FileInfo(destination).Length;
                 if (copied != file.Size)
-                {
                     throw new IOException($"文件大小校验失败：期望 {file.Size}，实际 {copied}");
-                }
 
-                // ==================== 加密前算明文摘要 ====================
+                // 摘要 + 签名 + 加密
+                string? digest = null, digestAlgo = null, signature = null, signAlgo = null;
+                var encryptedSize = 0L;
+                var localEncrypted = false;
+
                 try
                 {
-                    var (digest, digestAlgo) = await _fileCrypto.ComputeDigestAsync(destination, ct);
-                    file.ContentDigest = digest;
-                    file.DigestAlgorithm = digestAlgo;
+                    (digest, digestAlgo) = await _fileCrypto.ComputeDigestAsync(destination, ct);
 
-                    //  构造元数据 + 签名
                     if (_storageConfig.EnableFileSignature)
                     {
                         try
                         {
                             var meta = new FileMetadata(
-                                FileNo: $"-{file.Id}", // {StationCode}
+                                FileNo: $"-{file.Id}",
                                 FileName: file.FileName,
                                 Size: file.Size,
                                 ContentDigest: digest,
                                 DigestAlgorithm: digestAlgo,
                                 CollectedAt: DateTime.UtcNow,
                                 StationCode: "");
-
-                            var (signature, signAlgo) = await _fileCrypto.SignMetadataAsync(meta, ct);
-                            file.Signature = signature;
-                            file.SignatureAlgorithm = signAlgo;
+                            (signature, signAlgo) = await _fileCrypto.SignMetadataAsync(meta, ct);
                         }
                         catch (Exception ex)
                         {
-                            // 签名失败不阻塞采集，记录错误
                             _logger.LogWarning(ex, "文件 {File} 元数据签名失败", file.FileName);
                         }
                     }
@@ -568,175 +505,208 @@ public sealed class CollectTaskService : ICollectTaskService
                 catch (Exception ex)
                 {
                     _logger.LogWarning(ex, "文件 {File} 摘要计算失败", file.FileName);
-                    file.ErrorMessage = $"摘要失败：{ex.Message}";
+                    file.FailCollecting($"摘要失败：{ex.Message}", DateTime.Now);
+                    fileSync.Update(file);
+                    await PublishAndClearAsync(file);
+                    continue;
                 }
-                // ==================== 就地加密 ====================
+
                 if (_options.EncryptCache)
                 {
                     try
                     {
-                        var encryptedSize = await _fileCrypto.EncryptInPlaceAsync(destination, ct);
-                        file.EncryptedSize = encryptedSize;
-                        file.LocalEncrypted = true;
+                        encryptedSize = await _fileCrypto.EncryptInPlaceAsync(destination, ct);
+                        localEncrypted = true;
                     }
                     catch (Exception ex)
                     {
                         _logger.LogError(ex, "文件 {File} 加密失败", file.FileName);
-                        file.ErrorMessage = $"加密失败：{ex.Message}";
-                        throw;   // 加密失败是严重错误，中断当前文件
+                        file.FailCollecting($"加密失败：{ex.Message}", DateTime.Now);
+                        fileSync.Update(file);
+                        await PublishAndClearAsync(file);
+                        throw;
                     }
                 }
 
-                file.Status = CollectFileStatus.Completed;
-                file.Progress = 1;
-                file.CollectedAt = DateTime.Now;
-                fileLoop.Update(file);
-                _eventService.PublishTaskFileCompleted(taskId, file.Id, file.Status);
+                // 采集完成
+                file.CompleteCollecting(digest, digestAlgo, signature, signAlgo,
+                    localEncrypted, encryptedSize, DateTime.Now);
+                fileSync.Update(file);
+                await PublishAndClearAsync(file);
+                _ui.PublishTaskFileCompleted(taskId, file.Id, file.Status);
 
-                task.CollectedFiles++;
-                task.CollectedBytes += file.Size;
-                task.Status = CollectTaskStatus.Collecting;
-                taskLoop.Update(task);
-                PublishStatusIfChanged(taskId, task.Status, task.IsEmergency);
+                // 任务累计（长连接上直接更新）
+                task.AddCollectedFile(file.Size, DateTime.Now);
+                // taskSync.Update(task); // 不写 DB：进度字段由 ProgressAggregator 累加
+                await PublishAndClearAsync(task);
 
                 control.CurrentFileId = 0;
             }
         }
-        catch (OperationCanceledException)
-        {
-            // 中断/取消/暂停
-        }
+        catch (OperationCanceledException) { /* 正常取消 */ }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "采集任务 {TaskId} 执行异常（记录仪 {Recorder}）", taskId, task?.RecorderName);
+            _logger.LogError(ex, "采集任务 {TaskId} 执行异常（记录仪 {Recorder}）",
+                taskId, task?.RecorderName);
+
             if (task is not null)
             {
-                task.FailedFiles++;
-                task.ErrorMessage = ex.Message;
-                var failedFile = fileLoop.GetById(control.CurrentFileId);
-                if (failedFile is not null)
+                task.AddFailedFile(DateTime.Now);
+                task.AppendErrorMessage(ex.Message);
+
+                if (control.CurrentFileId != 0)
                 {
-                    failedFile.Status = CollectFileStatus.Failed;
-                    failedFile.ErrorMessage = ex.Message;
-                    fileLoop.Update(failedFile);
-                    _eventService.PublishTaskFileCompleted(taskId, failedFile.Id, failedFile.Status);
+                    var failedFile = fileSync.GetById(control.CurrentFileId);
+                    if (failedFile is not null)
+                    {
+                        failedFile.FailCollecting(ex.Message, DateTime.Now);
+                        fileSync.Update(failedFile);
+                        await PublishAndClearAsync(failedFile);
+                        _ui.PublishTaskFileCompleted(taskId, failedFile.Id, failedFile.Status);
+                    }
                 }
 
-                taskLoop.Update(task);
+                taskSync.UpdateStateOnly(task);
+                await PublishAndClearAsync(task);
             }
         }
 
         try
         {
-            FinalizeAsync(taskId, control, taskLoop, fileLoop);
+            await FinalizeAsync(taskId, control);
         }
         catch (Exception ex)
         {
-            // 兜底：收尾失败不产生未观察异常；尝试用共享仓储将任务标记为失败并记录原因
             _controls.TryRemove(taskId, out _);
             try
             {
                 var shared = await _tasks.GetByIdAsync(taskId);
                 if (shared is not null)
                 {
-                    shared.Status = CollectTaskStatus.Failed;
-                    shared.CompletedAt = DateTime.Now;
-                    shared.ErrorMessage = $"收尾异常：{ex.Message}";
+                    shared.Fail($"收尾异常：{ex.Message}", DateTime.Now);
                     await _tasks.UpdateAsync(shared);
+                    await PublishAndClearAsync(shared);
 
-                    PublishStatusIfChanged(taskId, shared.Status, shared.IsEmergency);
-                    _lastPublishedStatus.TryRemove(taskId, out _);
-
-                    _logger.LogError(ex, "采集任务 {TaskId} 收尾异常（记录仪 {Recorder}）", taskId, task?.RecorderName);
+                    _logger.LogError(ex, "采集任务 {TaskId} 收尾异常", taskId);
                 }
             }
-            catch
-            {
-                // 忽略二次失败
-            }
+            catch { /* 忽略二次失败 */ }
         }
     }
 
-    private void FinalizeAsync(long taskId, TaskControl control, ILoopRepository<CollectTask> taskLoop, ILoopRepository<CollectFile> fileLoop)
+    private async Task FinalizeAsync(long taskId, TaskControl control)
     {
-        var task = taskLoop.GetById(taskId);
+        using var scope = _scopeFactory.CreateScope();
+        var taskSync = scope.ServiceProvider.GetRequiredService<ICollectTaskSyncRepository>();
+        var fileSync = scope.ServiceProvider.GetRequiredService<ICollectFileSyncRepository>();
+
+        var task = taskSync.GetById(taskId);
         if (task is null)
         {
             _controls.TryRemove(taskId, out _);
             return;
         }
 
-        var files = fileLoop.GetList(f => f.TaskId == taskId).ToList();
+        var files = fileSync.GetByTaskId(taskId).ToList();
         var current = control.CurrentFileId;
 
+        // ---- 暂停分支 ----
         if (control.PauseRequested &&
-            files.Any(f => f.Status is CollectFileStatus.Pending or CollectFileStatus.Copying or CollectFileStatus.Verifying))
+            files.Any(f => f.Status is CollectFileStatus.Pending
+                        or CollectFileStatus.Copying
+                        or CollectFileStatus.Verifying))
         {
-            // 暂停：当前文件回到待采集，其余保持待采集
             if (current != 0)
             {
                 var currentFile = files.FirstOrDefault(f => f.Id == current);
                 if (currentFile is { Status: CollectFileStatus.Copying or CollectFileStatus.Verifying })
                 {
-                    currentFile.Status = CollectFileStatus.Pending;
-                    currentFile.Progress = 0;
-                    fileLoop.Update(currentFile);
+                    currentFile.ResetToPending();
+                    fileSync.Update(currentFile);
+                    await PublishAndClearAsync(currentFile);
+                    _ui.PublishTaskFileCompleted(taskId, currentFile.Id, currentFile.Status);
                 }
             }
 
-            task.Status = CollectTaskStatus.Paused;
-            taskLoop.Update(task);
+            task.Pause(DateTime.Now);
+            //taskSync.Update(task);
+            taskSync.UpdateStateOnly(task);
+            await PublishAndClearAsync(task);
+
             _controls.TryRemove(taskId, out _);
-            PublishStatusIfChanged(taskId, task.Status, task.IsEmergency);
-            _lastPublishedStatus.TryRemove(taskId, out _);
             _logger.LogInformation("采集任务 {TaskId} 已暂停", taskId);
             return;
         }
 
-        // 中断/取消：当前文件异常，未开始文件取消
+        // ---- 终态分支 ----
         var interrupted = control.FinalStatus == CollectTaskStatus.Interrupted;
         var hasUnfinished = files.Any(f =>
-            f.Status is CollectFileStatus.Pending or CollectFileStatus.Copying or CollectFileStatus.Verifying);
+            f.Status is CollectFileStatus.Pending
+                or CollectFileStatus.Copying
+                or CollectFileStatus.Verifying);
+
+        var toUpdate = new List<CollectFile>();
         foreach (var file in files.Where(f =>
-                     f.Status is CollectFileStatus.Pending or CollectFileStatus.Copying or CollectFileStatus.Verifying))
+            f.Status is CollectFileStatus.Pending
+                or CollectFileStatus.Copying
+                or CollectFileStatus.Verifying))
         {
-            file.Status = interrupted ? CollectFileStatus.Abnormal : CollectFileStatus.Canceled;
-            file.ErrorMessage = interrupted ? "设备断开，采集中断" : "任务已取消";
-            fileLoop.Update(file);
-            _eventService.PublishTaskFileCompleted(taskId, file.Id, file.Status);
+            if (interrupted) file.Interrupt("设备断开，采集中断", DateTime.Now);
+            else file.Cancel("任务已取消", DateTime.Now);
+            toUpdate.Add(file);
         }
 
-        var terminalByRequest = control.FinalStatus is CollectTaskStatus.Interrupted or CollectTaskStatus.Canceled;
-        // 到期/取消时若文件已全部完成，保持 Completed，避免误报中断
-        task.Status = terminalByRequest && hasUnfinished ? control.FinalStatus : CollectTaskStatus.Completed;
-        task.CompletedAt = DateTime.Now;
-        if (task.Status == CollectTaskStatus.Completed && control.FinalStatus != CollectTaskStatus.Canceled)
+        if (toUpdate.Count > 0)
         {
-            var sourceFiles = files.Where(f => f.Status == CollectFileStatus.Completed);
-            TryErase(task, sourceFiles);
+            fileSync.UpdateRange(toUpdate);
+            foreach (var f in toUpdate)
+            {
+                await PublishAndClearAsync(f);
+                _ui.PublishTaskFileCompleted(taskId, f.Id, f.Status);
+            }
         }
 
-        taskLoop.Update(task);
+        // 状态判定
+        var terminalByRequest = control.FinalStatus is CollectTaskStatus.Interrupted
+                                                   or CollectTaskStatus.Canceled;
+
+        if (terminalByRequest && hasUnfinished)
+        {
+            if (interrupted) task.Interrupt("设备断开", DateTime.Now);
+            else task.Cancel("任务已取消", DateTime.Now);
+        }
+        else
+        {
+            // 已全部完成（或正常收尾）
+            task.Complete(DateTime.Now);
+
+            if (control.FinalStatus != CollectTaskStatus.Canceled)
+            {
+                var completed = files.Where(f => f.Status == CollectFileStatus.Completed);
+                TryErase(task, completed);
+            }
+        }
+
+        taskSync.Update(task);
+        await PublishAndClearAsync(task);
+        _ui.PublishTaskStatus(taskId, task.Status, task.IsEmergency);
+
         _controls.TryRemove(taskId, out _);
-        PublishStatusIfChanged(taskId, task.Status, task.IsEmergency);
-        _lastPublishedStatus.TryRemove(taskId, out _);
-        _logger.LogInformation("采集任务 {TaskId} 结束：{Status}（文件 {Total}/{Collected}）",
-            task.TaskNo, task.Status, task.TotalFiles, task.CollectedFiles);
 
+        _logger.LogInformation(
+            "采集任务 {TaskNo} 结束：{Status}（文件 {Total}/{Collected}）",
+            task.TaskNo, task.Status, task.TotalFiles, task.CollectedFiles);
     }
 
     private void TryErase(CollectTask task, IEnumerable<CollectFile> files)
     {
-        if (!_options.EraseAfterComplete)
-        {
-            return;
-        }
-        if (files.Count() <= 0)
-        {
-            return;
-        }
+        if (!_options.EraseAfterComplete) return;
+        var list = files.ToList();
+        if (list.Count == 0) return;
 
-        var sourceFiles = files.Select(f => new SourceFileInfo(f.RelativePath, f.FileName, f.Size, f.OriginalModifiedAt ?? DateTime.Now));
+        var sourceFiles = list.Select(f => new SourceFileInfo(
+            f.RelativePath, f.FileName, f.Size,
+            f.OriginalModifiedAt ?? DateTime.Now));
 
         try
         {
@@ -745,23 +715,54 @@ public sealed class CollectTaskService : ICollectTaskService
                 RootPath: task.SourceRoot);
             _sources.GetFor(device.Protocol)
                 .EraseAsync(device, sourceFiles, CancellationToken.None)
-                .GetAwaiter()
-                .GetResult();
-            task.ErrorMessage = task.ErrorMessage is null ? "已擦除记录仪已采集文件" : task.ErrorMessage + "；已擦除记录仪已采集文件";
+                .GetAwaiter().GetResult();
+
+            task.AppendErrorMessage("已擦除记录仪已采集文件");
         }
         catch (Exception ex)
         {
-            // 擦除失败：重试交给 P1 报警，不阻塞任务
-            task.ErrorMessage = task.ErrorMessage is null ? $"擦除失败：{ex.Message}" : task.ErrorMessage + $"；擦除失败：{ex.Message}";
+            task.AppendErrorMessage($"擦除失败：{ex.Message}");
         }
     }
 
-    private async Task<CollectTask> RequireTaskAsync(long taskId) =>
-        await _tasks.GetByIdAsync(taskId) ?? throw new InvalidOperationException($"任务 {taskId} 不存在");
+    // =========================================================
+    // 内部：事件发布
+    // =========================================================
+
+    private async Task PublishFilesAsync(IEnumerable<CollectFile> files, CancellationToken ct = default)
+    {
+        var all = new List<IDomainEvent>();
+        foreach (var f in files)
+        {
+            if (f.DomainEvents.Count > 0)
+            {
+                all.AddRange(f.DomainEvents);
+                f.ClearDomainEvents();
+            }
+        }
+        if (all.Count > 0)
+            await _eventBus.PublishRangeAsync(all, ct);
+    }
+
+    private async Task PublishAndClearAsync(CollectTask task, CancellationToken ct = default)
+    {
+        if (task.DomainEvents.Count == 0) return;
+        var events = task.DomainEvents.ToList();
+        task.ClearDomainEvents();
+        await _eventBus.PublishRangeAsync(events, ct);
+    }
+
+    private async Task PublishAndClearAsync(CollectFile file, CancellationToken ct = default)
+    {
+        if (file.DomainEvents.Count == 0) return;
+        var events = file.DomainEvents.ToList();
+        file.ClearDomainEvents();
+        await _eventBus.PublishRangeAsync(events, ct);
+    }
 
     private static CollectTaskDto ToDto(CollectTask t) => new(
-        t.Id, t.TaskNo, t.RecorderName, t.RecorderSerial, t.Protocol, t.OperatorUserId, t.DeptId,
-        t.Status, t.IsAuto,
+        t.Id, t.TaskNo, t.RecorderName, t.RecorderSerial, t.Protocol,
+        t.OperatorUserId, t.DeptId, t.Status, t.IsAuto,
         t.TotalFiles, t.CollectedFiles, t.SkippedFiles, t.FailedFiles,
         t.TotalBytes, t.CollectedBytes, t.SpeedBytesPerSecond, t.IsEmergency,
         t.SyncStatus, t.UploadedFiles, t.UploadedBytes, t.UploadError,
@@ -769,5 +770,6 @@ public sealed class CollectTaskService : ICollectTaskService
 
     private static CollectFileDto ToDto(CollectFile f) => new(
         f.Id, f.TaskId, f.FileName, f.Extension, f.Size,
-        f.Status, f.Progress, f.SpeedBytesPerSecond, f.ErrorMessage, f.CollectedAt, f.RemotePath, f.UploadError);
+        f.Status, f.Progress, f.SpeedBytesPerSecond,
+        f.ErrorMessage, f.CollectedAt, f.RemotePath, f.UploadError);
 }

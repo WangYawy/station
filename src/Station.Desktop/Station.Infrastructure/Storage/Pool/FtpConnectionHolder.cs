@@ -1,7 +1,7 @@
 using System.Net;
 using FluentFTP;
 using Microsoft.Extensions.Logging;
-using Station.Application.Storage;
+using Station.Application.Storages;
 
 namespace Station.Infrastructure.Storage.Pool;
 

@@ -4,12 +4,12 @@ using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Station.Application.Collecting;
-using Station.Application.DeviceDetection;
+using Station.Application.Collecting.Dtos;
+using Station.Application.Notifications;
 using Station.Application.OperationAccess;
 using Station.Application.Session;
 using Station.Application.Settings;
-using Station.Application.UsbPortCard;
-using Station.Application.UsbPortCard.Events;
+using Station.Application.UsbPortCards;
 using Station.Contracts;
 using Station.Desktop.Views;
 
@@ -21,8 +21,8 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
     private readonly ICollectTaskService _collectService;
     private readonly IOperationAccessService _operationAccess;
     private readonly IUsbPortCardService _cardService;
-    private readonly IUsbPortCardEventService _eventService;
-    private readonly IUsbPortCardEventService _fileEvents;   // 明细窗口转发用
+    private readonly IUiNotificationService _eventService;
+    private readonly IUiNotificationService _fileEvents;   // 明细窗口转发用
     private readonly WindowModeOptions _options;
     private readonly CollectOptions _collectOptions;         // 新增
 
@@ -52,7 +52,7 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
         ICollectTaskService collectService,
         IOperationAccessService operationAccess,
         IUsbPortCardService cardService,
-        IUsbPortCardEventService eventService,
+        IUiNotificationService eventService,
         WindowModeOptions options,
         CollectOptions collectOptions)
     {
@@ -311,7 +311,7 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
     private void OnSessionChanged()
     {
         CanOperate = _sessions.IsAuthenticated &&
-                     _operationAccess.HasPermission(_sessions.Current, "collect");
+                     _operationAccess.HasPermission(_sessions.Current!, "collect");
     }
 
     public void Dispose()

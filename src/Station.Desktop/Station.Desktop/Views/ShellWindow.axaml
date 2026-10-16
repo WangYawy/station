@@ -4,7 +4,7 @@
         x:DataType="vm:ShellViewModel"
         xmlns:vm="clr-namespace:Station.Desktop.ViewModels"
         xmlns:views="clr-namespace:Station.Desktop.Views"
-        xmlns:alerts="using:Station.Application.Alerts"
+        xmlns:alerts="using:Station.Application.Alerts.Dtos"
         Width="1280" Height="820"
         MinWidth="1024" MinHeight="680"
         WindowStartupLocation="CenterScreen"

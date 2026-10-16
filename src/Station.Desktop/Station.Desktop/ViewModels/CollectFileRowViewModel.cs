@@ -1,6 +1,7 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using Station.Application.Collecting;
-using Station.Domain.Enums;
+using Station.Application.Collecting.Dtos;
+using Station.Domain.Collecting;
 
 namespace Station.Desktop.ViewModels;
 
@@ -16,7 +17,7 @@ public partial class CollectFileRowViewModel : ObservableObject
 
     public CollectFileRowViewModel(CollectFileDto dto)
     {
-        FileId = dto.FileId;
+        FileId = dto.Id;
         FileName = dto.FileName;
         SizeText = FormatSize(dto.Size);
         ApplyStatus(dto.Status);

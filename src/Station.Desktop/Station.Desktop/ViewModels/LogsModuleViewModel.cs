@@ -1,7 +1,8 @@
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using Station.Application.Audit;
+using Station.Application.Auditing;
+using Station.Application.Auditing.Dtos;
 
 namespace Station.Desktop.ViewModels;
 
@@ -18,6 +19,7 @@ public sealed record TimeRangePreset(string Key, string DisplayName);
 public partial class LogsModuleViewModel : ObservableObject, IDisposable
 {
     private readonly IAuditLogService _audit;
+    private readonly IAuditLogQueryService _auditQuery;
 
     [ObservableProperty] private ObservableCollection<AuditLogDto> _logs = [];
     [ObservableProperty] private string _message = string.Empty;
@@ -45,9 +47,10 @@ public partial class LogsModuleViewModel : ObservableObject, IDisposable
 
     public PaginationViewModel Pager { get; }
 
-    public LogsModuleViewModel(IAuditLogService audit)
+    public LogsModuleViewModel(IAuditLogService audit, IAuditLogQueryService auditQuery)
     {
         _audit = audit;
+        _auditQuery = auditQuery;
 
         // 时间预设
         TimeRangePresets.Add(new("today", "今天"));
@@ -178,7 +181,7 @@ public partial class LogsModuleViewModel : ObservableObject, IDisposable
 
         try
         {
-            var result = await _audit.SearchAsync(
+            var result = await _auditQuery.SearchAsync(
                 from: from,
                 to: to,
                 operationType: SelectedType?.Code,

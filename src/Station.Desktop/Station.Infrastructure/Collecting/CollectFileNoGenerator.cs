@@ -2,17 +2,16 @@ using Microsoft.Extensions.Logging;
 using Station.Application.Collecting;
 using Station.Data.Repositories;
 using Station.Data.SqlSugar.Extensions;
-using Station.Domain.Entities;
 
 namespace Station.Infrastructure.Collecting;
 public sealed class CollectFileNoGenerator : ICollectFileNoGenerator
 {
-    private readonly IRepository<CollectFile> _files;
+    private readonly ICollectFileQueryService _fileQuery;
     private readonly ILogger<CollectFileNoGenerator> _logger;
 
-    public CollectFileNoGenerator(IRepository<CollectFile> files, ILogger<CollectFileNoGenerator> logger)
+    public CollectFileNoGenerator(ICollectFileQueryService fileQuery, ILogger<CollectFileNoGenerator> logger)
     {
-        _files = files;
+        _fileQuery = fileQuery;
         _logger = logger;
     }
 
@@ -22,11 +21,7 @@ public sealed class CollectFileNoGenerator : ICollectFileNoGenerator
             throw new ArgumentException("TaskNo 不能为空。", nameof(taskNo));
 
         // 查询该任务下已有最大文件编号，用于中断恢复
-        var maxFileNo = await _files.AsQueryable()
-            .Where(x => x.TaskNo == taskNo)
-            .OrderByDescending(x => x.FileNo)
-            .Select(x => x.FileNo)
-            .FirstAsync(ct)
+        var maxFileNo = await _fileQuery.GetMaxFileNoByTaskIdAsync(taskNo)
             .ConfigureAwait(false);
 
         var startSeq = 0;

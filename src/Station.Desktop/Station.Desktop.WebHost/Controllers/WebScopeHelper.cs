@@ -1,8 +1,8 @@
 using System.Security.Claims;
 using Station.Application.Authorization;
 using Station.Application.Authentication;
-using Station.Domain.Enums;
 using AuthService = Station.Application.Authorization.IAuthorizationService;
+using Station.Domain.Roles;
 
 namespace Station.Desktop.WebHost.Controllers;
 

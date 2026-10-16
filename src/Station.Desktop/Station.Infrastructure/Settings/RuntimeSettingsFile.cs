@@ -1,7 +1,7 @@
 using Station.Infrastructure;
 using Station.Application.Settings;
 
-namespace Station.Desktop.Infrastructure.Settings;
+namespace Station.Infrastructure.Settings;
 
 /// <summary>
 /// 运行时设置文件：<c>appsettings.runtime.json</c>，与应用同目录，配置加载顺序在 appsettings.json 之后。

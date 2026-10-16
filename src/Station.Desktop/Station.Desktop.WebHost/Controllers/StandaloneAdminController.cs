@@ -1,21 +1,20 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Station.Application.Audit;
+using Station.Application.Auditing;
 using Station.Application.Alerts;
 using Station.Application.Authorization;
 using Station.Application.Recorders;
 using Station.Application.Users;
 using Station.Contracts;
-using Station.Domain.Entities;
 using AuthService = Station.Application.Authorization.IAuthorizationService;
 using Station.Domain.Collecting;
-using Station.Domain.Accounts;
 using Station.Application.Departments;
 using Station.Application.Departments.Commands;
 using Station.Application.Users.Commands;
 using Station.Application.Roles;
 using Station.Application.Roles.Commands;
 using Station.Application.Accounts;
+using Station.Domain.Auditing;
 
 namespace Station.Desktop.WebHost.Controllers;
 
@@ -37,6 +36,7 @@ public class StandaloneAdminController : ControllerBase
     private readonly IAccountQueryService _accountQuery;
 
     private readonly IRecorderService _recorders;
+    private readonly IRecorderQueryService _recorderQuery;
     private readonly IAlertService _alerts;
     private readonly ICollectSourceProvider _sourceProvider;
 
@@ -54,6 +54,7 @@ public class StandaloneAdminController : ControllerBase
         IAccountService accounts,
         IAccountQueryService accountQuery,
         IRecorderService recorders,
+        IRecorderQueryService recorderQuery,
         IAlertService alerts,
         ICollectSourceProvider sourceProvider,
         IAuditLogService audit,
@@ -69,6 +70,7 @@ public class StandaloneAdminController : ControllerBase
         _accounts = accounts;
         _accountQuery = accountQuery;
         _recorders = recorders;
+        _recorderQuery = recorderQuery;
         _alerts = alerts;
         _sourceProvider = sourceProvider;
         _audit = audit;
@@ -276,7 +278,7 @@ public class StandaloneAdminController : ControllerBase
             return StatusCode(403, new { message = "无记录仪查看权限" });
         }
 
-        return Ok(ApiOk(await _recorders.GetRecordersAsync()));
+        return Ok(ApiOk(await _recorderQuery.GetListAsync()));
     }
 
     /// <summary>写入绑定：更新台账绑定并写入已连接记录仪根目录 ini（UMS=可移动磁盘根，模拟源=模拟目录）。</summary>
@@ -288,7 +290,7 @@ public class StandaloneAdminController : ControllerBase
             return StatusCode(403, new { message = "无记录仪管理权限" });
         }
 
-        var recorder = (await _recorders.GetRecordersAsync()).FirstOrDefault(r => r.Id == recorderId);
+        var recorder = (await _recorderQuery.GetListAsync()).FirstOrDefault(r => r.Id == recorderId);
         if (recorder is null)
         {
             return NotFound(new { message = "记录仪不存在" });

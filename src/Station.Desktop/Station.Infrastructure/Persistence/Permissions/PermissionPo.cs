@@ -21,7 +21,10 @@ public sealed class PermissionPo
     public bool IsActive { get; set; }
 
     public DateTime CreatedAt { get; set; }
+    [SugarColumn(IsNullable = true)]
     public long? CreatedBy { get; set; }
+    [SugarColumn(IsNullable = true)]
     public DateTime? UpdatedAt { get; set; }
+    [SugarColumn(IsNullable = true)]
     public long? UpdatedBy { get; set; }
 }

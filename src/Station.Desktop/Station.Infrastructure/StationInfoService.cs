@@ -1,21 +1,19 @@
 
 using Microsoft.Extensions.Logging;
 using Station.Application;
-using Station.Data.Repositories;
-using Station.Data.SqlSugar.Extensions;
-using Station.Domain.Entities;
+using Station.Domain.Stations;
 
 namespace Station.Infrastructure;
 
 public class StationInfoService : IStationInfoService
 {
-    private readonly IRepository<StationInfo> _repo;
+    private readonly IStationInfoRepository _repo;
     private readonly ILogger<StationInfoService> _logger;
     private readonly SemaphoreSlim _writeLock = new(1, 1);
 
     private volatile StationInfoDto? _current;
 
-    public StationInfoService(IRepository<StationInfo> repo, ILogger<StationInfoService> logger)
+    public StationInfoService(IStationInfoRepository repo, ILogger<StationInfoService> logger)
     {
         _repo = repo;
         _logger = logger;
@@ -35,10 +33,7 @@ public class StationInfoService : IStationInfoService
         await _writeLock.WaitAsync(ct).ConfigureAwait(false);
         try
         {
-            var entity = await _repo.AsQueryable()
-                .OrderByDescending(x => x.UpdatedAt)
-                .FirstAsync()
-                .ConfigureAwait(false);
+            var entity = await _repo.GetAsync(ct);
             if (entity is null)
             {
                 throw new InvalidOperationException("采集站信息尚未初始化");
@@ -61,16 +56,13 @@ public class StationInfoService : IStationInfoService
         await _writeLock.WaitAsync(ct).ConfigureAwait(false);
         try
         {
-            var existing = await _repo.AsQueryable()
-                .Where(x => x.StationUid == info.StationUid)
-                .FirstAsync()
-                .ConfigureAwait(false);
+            var existing = await _repo.GetAsync(ct);
 
             if (existing is null)
             {
                 var newEntity = MapToEntity(info);
                 newEntity.UpdatedAt = DateTime.UtcNow;
-                await _repo.InsertAsync(newEntity).ConfigureAwait(false);
+                await _repo.UpsertAsync(newEntity).ConfigureAwait(false);
                 snapshot = MapToSnapshot(newEntity);
             }
             else
@@ -81,7 +73,7 @@ public class StationInfoService : IStationInfoService
                 merged.PlatformVersion = existing.PlatformVersion;  // 本地保存不递增平台版本
                 merged.UpdatedAt = DateTime.UtcNow;
 
-                await _repo.UpdateAsync(merged)
+                await _repo.UpsertAsync(merged)
                     .ConfigureAwait(false);
 
                 snapshot = MapToSnapshot(merged);
@@ -107,7 +99,7 @@ public class StationInfoService : IStationInfoService
         await _writeLock.WaitAsync(ct).ConfigureAwait(false);
         try
         {
-            var existing = await _repo.FirstAsync(null!, ct)
+            var existing = await _repo.GetAsync(ct)
                 .ConfigureAwait(false);
 
             if (existing is not null && platformVersion <= existing.PlatformVersion)
@@ -124,7 +116,7 @@ public class StationInfoService : IStationInfoService
                 newEntity.PlatformVersion = platformVersion;
                 newEntity.UpdatedAt = DateTime.UtcNow;
 
-                await _repo.InsertAsync(newEntity).ConfigureAwait(false);
+                await _repo.UpsertAsync(newEntity).ConfigureAwait(false);
 
                 snapshot = MapToSnapshot(newEntity);
                 changed = true;
@@ -138,7 +130,7 @@ public class StationInfoService : IStationInfoService
                 merged.PlatformVersion = platformVersion;
                 merged.UpdatedAt = DateTime.UtcNow;
 
-                await _repo.UpdateAsync(merged)
+                await _repo.UpsertAsync(merged)
                     .ConfigureAwait(false);
 
                 snapshot = MapToSnapshot(merged);

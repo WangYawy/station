@@ -1,5 +1,4 @@
 using Station.Domain.Departments;
-using Station.Domain.Enums;
 using Station.Domain.Roles;
 using Station.Domain.Users;
 

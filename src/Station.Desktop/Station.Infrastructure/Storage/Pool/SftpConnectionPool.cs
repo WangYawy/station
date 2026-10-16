@@ -1,7 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.ObjectPool;
 using Renci.SshNet;
-using Station.Application.Storage;
+using Station.Application.Storages;
 
 namespace Station.Infrastructure.Storage.Pool;
 

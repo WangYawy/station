@@ -1,9 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Station.Application.Collecting;
-using Station.Domain.Entities;
-using Station.Data.Repositories;
-using Station.Crypto;
 using System.Text.RegularExpressions;
+using Station.Domain.Collecting;
 
 namespace Station.Desktop.WebHost.Controllers;
 
@@ -15,13 +13,13 @@ namespace Station.Desktop.WebHost.Controllers;
 [Route("api/v1/files")]
 public class FileStreamController : ControllerBase
 {
-    private readonly IRepository<CollectFile> _files;
-    private readonly IRepository<CollectTask> _tasks;
+    private readonly ICollectFileRepository _files;
+    private readonly ICollectTaskRepository _tasks;
     private readonly CollectOptions _collectOptions;
 
     public FileStreamController(
-        IRepository<CollectFile> files,
-        IRepository<CollectTask> tasks,
+        ICollectFileRepository files,
+        ICollectTaskRepository tasks,
         CollectOptions collectOptions)
     {
         _files = files;
@@ -32,7 +30,7 @@ public class FileStreamController : ControllerBase
     [HttpGet("{fileNo}/stream")]
     public async Task<IActionResult> Stream(string fileNo)
     {
-        var file = await _files.FirstAsync(f => f.FileNo == fileNo);
+        var file = await _files.GetByFileNoAsync(fileNo);
         if (file is null)
         {
             return NotFound(new { message = "文件不存在" });

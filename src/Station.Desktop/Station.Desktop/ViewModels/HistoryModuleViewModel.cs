@@ -1,7 +1,7 @@
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Station.Application.Collecting;
-using Station.Domain.Enums;
+using Station.Domain.Collecting;
 
 namespace Station.Desktop.ViewModels;
 

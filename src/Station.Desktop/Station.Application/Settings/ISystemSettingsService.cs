@@ -1,4 +1,4 @@
-using Station.Application.Storage;
+using Station.Application.Storages;
 
 namespace Station.Application.Settings;
 

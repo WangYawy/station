@@ -5,7 +5,7 @@ using Microsoft.Extensions.Logging;
 using SqlSugar;
 using Station.Application.Security;
 using Station.Crypto;
-using Station.Domain.Entities;
+using Station.Infrastructure.Persistence.Cryptography;
 using Station.Infrastructure.Settings;
 
 namespace Station.Infrastructure.Security;
@@ -50,7 +50,7 @@ public sealed class CryptoPolicyService : ICryptoPolicyService
         if (_cache.TryGetValue(key, out CryptoPolicySnapshot? cached) && cached is not null)
             return cached;
 
-        var entity = await _db.Queryable<SysCryptoPolicy>()
+        var entity = await _db.Queryable<SysCryptoPolicyPo>()
             .Where(p => p.UsageCode == usageCode && p.Enabled)
             .FirstAsync(ct).ConfigureAwait(false);
 
@@ -66,7 +66,7 @@ public sealed class CryptoPolicyService : ICryptoPolicyService
 
     public async Task<IReadOnlyList<CryptoPolicySnapshot>> GetAllAsync(CancellationToken ct = default)
     {
-        var list = await _db.Queryable<SysCryptoPolicy>()
+        var list = await _db.Queryable<SysCryptoPolicyPo>()
             .Where(p => p.Enabled)
             .ToListAsync(ct).ConfigureAwait(false);
 
@@ -94,7 +94,7 @@ public sealed class CryptoPolicyService : ICryptoPolicyService
         if (string.IsNullOrWhiteSpace(update.Algorithm))
             throw new ArgumentException("算法不能为空", nameof(update));
 
-        var existing = await _db.Queryable<SysCryptoPolicy>()
+        var existing = await _db.Queryable<SysCryptoPolicyPo>()
             .Where(p => p.UsageCode == usageCode)
             .FirstAsync(ct).ConfigureAwait(false);
 
@@ -102,7 +102,7 @@ public sealed class CryptoPolicyService : ICryptoPolicyService
 
         if (existing is null)
         {
-            await _db.Insertable(new SysCryptoPolicy
+            await _db.Insertable(new SysCryptoPolicyPo
             {
                 UsageCode = usageCode,
                 Algorithm = update.Algorithm,
@@ -242,7 +242,7 @@ public sealed class CryptoPolicyService : ICryptoPolicyService
     // 内部
     // =========================================================
 
-    private static CryptoPolicySnapshot ToSnapshot(SysCryptoPolicy e) =>
+    private static CryptoPolicySnapshot ToSnapshot(SysCryptoPolicyPo e) =>
         new(e.UsageCode, e.Algorithm, e.SecondaryAlgorithm,
             e.AllowLegacy, ParseLegacy(e.LegacyAlgorithmsJson, e.UsageCode),
             e.Enabled, e.Source, e.UpdatedAt, e.UpdatedBy);

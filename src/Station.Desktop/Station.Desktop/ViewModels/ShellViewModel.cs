@@ -9,20 +9,20 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.DependencyInjection;
 using Station.Application.Alerts;
-using Station.Application.Audit;
+using Station.Application.Alerts.Dtos;
+using Station.Application.Auditing;
 using Station.Application.Authentication;
 using Station.Application.Collecting;
-using Station.Application.DeviceDetection;
 using Station.Application.Licensing;
 using Station.Application.Monitoring;
+using Station.Application.Notifications;
 using Station.Application.OperationAccess;
 using Station.Application.Recorders;
 using Station.Application.Security;
 using Station.Application.Session;
 using Station.Application.Settings;
 using Station.Application.Uploading;
-using Station.Application.UsbPortCard;
-using Station.Application.UsbPortCard.Events;
+using Station.Application.UsbPortCards;
 using Station.Contracts;
 using Station.Desktop.Services;
 
@@ -164,7 +164,7 @@ public partial class ShellViewModel : ObservableObject, IDisposable
                 _collectService,
                 _operationAccess,
                 _services.GetRequiredService<IUsbPortCardService>(),
-                _services.GetRequiredService<IUsbPortCardEventService>(),
+                _services.GetRequiredService<IUiNotificationService>(),
                 _services.GetRequiredService<WindowModeOptions>(),
                 _services.GetRequiredService<CollectOptions>());
             CurrentModule = _workbenchViewModel;
@@ -204,7 +204,7 @@ public partial class ShellViewModel : ObservableObject, IDisposable
         if (overrideTitle is null && moduleKey == "logs")
         {
             _logsViewModel ??= new LogsModuleViewModel(
-                _services.GetRequiredService<IAuditLogService>());
+                _services.GetRequiredService<IAuditLogService>(), _services.GetRequiredService<IAuditLogQueryService>());
             CurrentModule = _logsViewModel;
             return;
         }
@@ -420,8 +420,10 @@ public partial class ShellViewModel : ObservableObject, IDisposable
         {
             LicenseStatus.Activated =>
                 ($"正式版·剩余{check.DaysLeft}天", new SolidColorBrush(Color.Parse("#14532d"))),
-            LicenseStatus.Locked =>
+            LicenseStatus.Expired =>
                 ("授权已到期", new SolidColorBrush(Color.Parse("#7f1d1d"))),
+            LicenseStatus.Deactivated =>
+                (check.Message, new SolidColorBrush(Color.Parse("#92400e"))),
             _ =>
                 ($"试用·剩余{check.DaysLeft}天", new SolidColorBrush(Color.Parse("#92400e")))
         };

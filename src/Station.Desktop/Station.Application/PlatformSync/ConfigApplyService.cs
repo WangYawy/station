@@ -1,20 +1,18 @@
 using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using Station.Application.Audit;
+using Station.Application.Auditing;
 using Station.Application.Collecting;
 using Station.Contracts;
 using Station.Contracts.Sync;
 using Station.Data.IdGeneration;
-using Station.Data.Repositories;
 using Station.Domain.Accounts;
+using Station.Domain.Auditing;
 using Station.Domain.Departments;
-using Station.Domain.Entities;
-using Station.Domain.Enums;
 using Station.Domain.Permissions;
+using Station.Domain.Recorders;
 using Station.Domain.Roles;
 using Station.Domain.Users;
-using static System.Formats.Asn1.AsnWriter;
 
 namespace Station.Application.PlatformSync;
 
@@ -442,63 +440,63 @@ public sealed class ConfigApplyService : IConfigApplyService
     {
         var rows = DeserializeRows<RecorderSyncRow>(change.PayloadJson);
         using var scope = NewScope();
-        var recorderRepo = scope.ServiceProvider.GetRequiredService<ILoopRepository<Recorder>>();
+
+        var recorderRepo = scope.ServiceProvider.GetRequiredService<IRecorderSyncRepository>();
         var userRepo = scope.ServiceProvider.GetRequiredService<IUserSyncRepository>();
         var deptRepo = scope.ServiceProvider.GetRequiredService<IDeptSyncRepository>();
-        var existing = await recorderRepo.GetListAsync();
-        var idBySerial = existing.ToDictionary(r => r.SerialNumber, r => r.Id, StringComparer.OrdinalIgnoreCase);
+
+        var existing = recorderRepo.GetList();
+        var bySerial = existing.ToDictionary(r => r.SerialNumber, r => r, StringComparer.OrdinalIgnoreCase);
+
         var userNoToId = (await userRepo.GetListAsync())
             .ToDictionary(u => u.UserNo, u => u.Id, StringComparer.OrdinalIgnoreCase);
         var deptIdByCode = (await deptRepo.GetListAsync())
             .ToDictionary(d => d.Code, d => d.Id, StringComparer.OrdinalIgnoreCase);
-        var touched = new List<Recorder>();
+
+        var now = DateTime.Now;
+        var toAdd = new List<Recorder>();
+        var toUpdate = new List<Recorder>();
 
         foreach (var row in rows)
         {
-            var boundUserId = row.BoundUserNo is { } userNo && userNoToId.TryGetValue(userNo, out var uid)
-                ? uid
-                : (long?)null;
-            var deptId = row.DeptCode is { } deptCode && deptIdByCode.TryGetValue(deptCode, out var did)
-                ? did
-                : (long?)null;
-            if (idBySerial.TryGetValue(row.SerialNumber, out var id))
+            var boundUserId = row.BoundUserNo is { } un && userNoToId.TryGetValue(un, out var uid)
+                ? uid : (long?)null;
+            var deptId = row.DeptCode is { } dc && deptIdByCode.TryGetValue(dc, out var did)
+                ? did : (long?)null;
+
+            if (bySerial.TryGetValue(row.SerialNumber, out var existingRecorder))
             {
-                var recorder = existing.First(r => r.Id == id);
-                recorder.Model = row.Model;
-                recorder.Protocol = (ProtocolType)row.Protocol;
-                recorder.BoundUserId = boundUserId;
-                recorder.DeptId = deptId;
-                recorder.IsAuthorized = row.IsAuthorized;
-                recorder.IsActive = row.IsActive;
-                touched.Add(recorder);
+                existingRecorder.ChangeModel(row.Model, now);
+                existingRecorder.ChangeProtocol((ProtocolType)row.Protocol, now);
+                existingRecorder.BindTo(boundUserId, deptId, now);
+                if (row.IsAuthorized) existingRecorder.Authorize(now);
+                else existingRecorder.RevokeAuthorization(now);
+                if (row.IsActive) existingRecorder.Activate(now);
+                else existingRecorder.Deactivate(now);
+                toUpdate.Add(existingRecorder);
             }
             else
             {
-                await recorderRepo.InsertAsync(new Recorder
-                {
-                    Id = _idGenerator.NewId(),
-                    SerialNumber = row.SerialNumber,
-                    Model = row.Model,
-                    Protocol = (ProtocolType)row.Protocol,
-                    BoundUserId = boundUserId,
-                    DeptId = deptId,
-                    IsAuthorized = row.IsAuthorized,
-                    IsActive = row.IsActive
-                });
+                var created = Recorder.Create(
+                    _idGenerator.NewId(), row.SerialNumber, row.SerialNumber, row.SerialNumber, row.Model,
+                    (ProtocolType)row.Protocol, row.IsAuthorized, now);
+                created.BindTo(boundUserId, deptId, now);
+                if (!row.IsActive) created.Deactivate(now);
+                bySerial[row.SerialNumber] = created;
+                toAdd.Add(created);
             }
         }
 
+        // 快照缺失 → 停用
         var seen = rows.Select(r => r.SerialNumber).ToHashSet(StringComparer.OrdinalIgnoreCase);
-        foreach (var recorder in existing.Where(r => !seen.Contains(r.SerialNumber) && r.IsActive))
+        foreach (var r in existing.Where(r => !seen.Contains(r.SerialNumber) && r.IsActive))
         {
-            recorder.IsActive = false;
-            touched.Add(recorder);
+            r.Deactivate(now);
+            toUpdate.Add(r);
         }
 
-        if (touched.Count > 0)
-        {
-            await recorderRepo.UpdateRangeAsync(touched);
-        }
+        foreach (var r in toAdd) recorderRepo.Insert(r);
+        if (toUpdate.Count > 0) recorderRepo.UpdateRange(toUpdate);
 
         return $"记录仪白名单快照已应用：{rows.Count} 条";
     }

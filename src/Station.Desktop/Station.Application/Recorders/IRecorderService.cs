@@ -1,21 +1,28 @@
+using Station.Application.Recorders.Commands;
+using Station.Application.Users;
+using Station.Contracts;
+
 namespace Station.Application.Recorders;
 
-/// <summary>记录仪台账与绑定管理。</summary>
+/// <summary>
+/// 记录仪应用服务（写侧）。
+/// 读侧请使用 <c>IRecorderQueryService</c>。
+/// </summary>
 public interface IRecorderService
 {
-    Task<IReadOnlyList<RecorderDto>> GetRecordersAsync();
+    /// <summary>登记记录仪，返回新 Id。</summary>
+    Task<long> RegisterAsync(
+        string serialNumber, string code, string name, string model, ProtocolType protocol, bool isAuthorized,
+        CancellationToken ct = default);
 
-    Task<RecorderDto> RegisterAsync(
-        string serialNumber,
-        string model,
-        Station.Contracts.ProtocolType protocol,
-        bool isAuthorized);
+    /// <summary>更新记录仪基本信息、绑定、授权、启用状态。</summary>
+    Task<OpResult> UpdateAsync(UpdateRecorderCommand command, CancellationToken ct = default);
 
-    Task<RecorderDto> UpdateAsync(RecorderDto dto);
+    /// <summary>绑定记录仪到用户/部门，并写入 station_bind.ini。</summary>
+    Task WriteBindingAsync(
+        string serialNumber, long? userId, long? deptId,
+        string recorderRootPath, CancellationToken ct = default);
 
-    /// <summary>写绑定：更新台账绑定并写入记录仪根目录 ini（含 SM3 签名）。</summary>
-    Task WriteBindingAsync(string serialNumber, long? userId, long? deptId, string recorderRootPath, CancellationToken ct = default);
-
-    /// <summary>解除绑定：清台账绑定并删除 ini。</summary>
-    Task UnbindAsync(string serialNumber, string recorderRootPath);
+    /// <summary>解绑：清除台账绑定 + 删除 station_bind.ini。</summary>
+    Task UnbindAsync(string serialNumber, string recorderRootPath, CancellationToken ct = default);
 }

@@ -2,7 +2,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Serilog;
 using Station.Application;
-using Station.Desktop.Infrastructure.Settings;
+using Station.Infrastructure.Settings;
 using Station.Desktop.WebHost;
 using Station.Infrastructure;
 

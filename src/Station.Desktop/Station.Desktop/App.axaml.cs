@@ -7,7 +7,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Station.Application.Diagnostics;
 using Station.Application.Settings;
-using Station.Application.Storage;
+using Station.Application.Storages;
 using Station.Desktop.Bootstrapper;
 using Station.Desktop.Views;
 

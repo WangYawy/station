@@ -1,47 +1,6 @@
-using Station.Contracts;
-using Station.Domain.Enums;
+using Station.Domain.Collecting;
 
 namespace Station.Application.Collecting;
-
-public sealed record CollectTaskDto(
-    long TaskId,
-    string TaskNo,
-    string RecorderName,
-    string? RecorderSerial,
-    Station.Contracts.ProtocolType Protocol,
-    long? OperatorUserId,
-    long? DeptId,
-    CollectTaskStatus Status,
-    bool IsAuto,
-    int TotalFiles,
-    int CollectedFiles,
-    int SkippedFiles,
-    int FailedFiles,
-    long TotalBytes,
-    long CollectedBytes,
-    double SpeedBytesPerSecond,
-    bool IsEmergency,
-    UploadStatus SyncStatus,
-    int UploadedFiles,
-    long UploadedBytes,
-    string? UploadError,
-    DateTime? StartedAt,
-    DateTime? CompletedAt,
-    string? ErrorMessage);
-
-public sealed record CollectFileDto(
-    long FileId,
-    long TaskId,
-    string FileName,
-    string Extension,
-    long Size,
-    CollectFileStatus Status,
-    double Progress,
-    double SpeedBytesPerSecond,
-    string? ErrorMessage,
-    DateTime? CollectedAt,
-    string? RemotePath,
-    string? UploadError);
 
 public static class CollectTaskStatusText
 {

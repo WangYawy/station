@@ -1,5 +1,4 @@
 using System.Text.Json;
-using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using Station.Application.Collecting;
 using Station.Contracts;
@@ -7,7 +6,7 @@ using Station.Contracts.Commands;
 using Station.Data.Abstractions;
 using Station.Data.IdGeneration;
 using Station.Data.Repositories;
-using Station.Domain.Entities;
+using Station.Domain.Recorders;
 using Station.Domain.Users;
 
 namespace Station.Application.PlatformSync;
@@ -24,7 +23,7 @@ public sealed class CommandExecutor : ICommandExecutor
     private readonly ILogger<CommandExecutor> _logger;
     private readonly IDatabaseHealthService _dbHealthService;
     private readonly IUserSyncRepository _users;
-    private readonly ILoopRepository<Recorder> _recorders;
+    private readonly IRecorderSyncRepository _recorders;
 
     public CommandExecutor(
         ICollectControl collectControl,
@@ -32,7 +31,7 @@ public sealed class CommandExecutor : ICommandExecutor
         IIdGenerator idGenerator,
         IDatabaseHealthService dbHealthService,
         IUserSyncRepository users,
-        ILoopRepository<Recorder> recorders,
+        IRecorderSyncRepository recorders,
         ILogger<CommandExecutor> logger)
     {
         _collectControl = collectControl;
@@ -148,28 +147,25 @@ public sealed class CommandExecutor : ICommandExecutor
                 return $"用户 {payload.UserNo} 未同步到本机，绑定未生效";
             }
 
-            var recorder = _recorders.First(r => r.SerialNumber == payload.RecorderSerial);
+            var recorder = _recorders.GetBySerial(payload.RecorderSerial);
             if (recorder is null)
             {
-                recorder = new Recorder
-                {
-                    Id = _idGenerator.NewId(),
-                    SerialNumber = payload.RecorderSerial,
-                    Model = payload.Model ?? string.Empty,
-                    Protocol = payload.Protocol is { } protocol ? (ProtocolType)protocol : ProtocolType.Ums,
-                    BoundUserId = user.Id,
-                    DeptId = payload.DeptId ?? user.DeptId,
-                    IsAuthorized = true,
-                    IsActive = true
-                };
+                recorder = Recorder.Create(
+                    _idGenerator.NewId(), payload.RecorderSerial, payload.RecorderSerial, payload.RecorderSerial,
+                    payload.Model ?? string.Empty,
+                    payload.Protocol is { } p ? (ProtocolType)p : ProtocolType.Ums,
+                    isAuthorized: true, now: DateTime.Now);
+
+                recorder.BindTo(user.Id, payload.DeptId ?? user.DeptId, DateTime.Now);
                 _recorders.Insert(recorder);
             }
             else
             {
-                recorder.Model = payload.Model ?? recorder.Model;
-                recorder.BoundUserId = user.Id;
-                recorder.DeptId = payload.DeptId ?? user.DeptId;
-                recorder.IsAuthorized = true;
+                var now = DateTime.Now;
+                if (!string.IsNullOrWhiteSpace(payload.Model))
+                    recorder.ChangeModel(payload.Model, now);
+                recorder.BindTo(user.Id, payload.DeptId ?? user.DeptId, now);
+                recorder.Authorize(now);
                 _recorders.Update(recorder);
             }
 

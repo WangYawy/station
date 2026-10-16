@@ -1,4 +1,4 @@
-using Station.Domain.Enums;
+using Station.Domain.Roles;
 
 namespace Station.Domain.Authorization;
 

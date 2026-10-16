@@ -8,5 +8,5 @@ public interface ISyncOutboxService
     /// <summary>消费待上报（补报），返回成功条数。</summary>
     Task<int> DrainAsync(int maxItems = 50);
 
-    Task<int> CountPendingAsync();
+    int CountPendingAsync();
 }

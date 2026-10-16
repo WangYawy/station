@@ -1,3 +1,8 @@
 
 INSERT INTO "station_info" VALUES ('552A114E9225464CB110CB26A29BC021', '', 'ST001', '采集站', 'RN-T1-001', '', '', 20, '', '', '', '', datetime('now', 'localtime'));
 
+INSERT INTO "station_user" VALUES (202610140000000001, 'test', '测试', 1, 1, '2026-10-14 09:58:03.5902695', NULL, NULL, NULL);
+INSERT INTO "station_account" VALUES (368578171089588225, 'test', 'sm3$10000$qNc+vkNnqV1gM9AKVEnrGQ==$+xaRCrjZuGNrv/YybVgwo6JGeuIMMou4Pql/LCm8R9Y=', 202610140000000001, 1, 0, NULL, '2026-10-14 09:58:03.5902695', NULL, NULL, NULL, 0, NULL, NULL);
+
+INSERT INTO "station_recorder" VALUES (1, 'dev1', 'JW7137A', 0, 202610140000000001, 1, 1, 1);
+

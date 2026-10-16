@@ -1,160 +1,106 @@
+using Station.Application.Departments;
+using Station.Application.Recorders.Commands;
+using Station.Application.Users;
 using Station.Contracts;
-using Station.Domain.Entities;
-using Station.Data.Repositories;
-using Station.Data.IdGeneration;
 using Station.Crypto;
-using Station.Domain.Users;
-using Station.Domain.Departments;
+using Station.Data.IdGeneration;
+using Station.Domain.Recorders;
 
 namespace Station.Application.Recorders;
 
-/// <summary>
-/// 记录仪台账服务：注册、更新、绑定/解绑。
-/// 
-/// 【绑定流程】
-///   调用 RecorderBindingFile.WriteAsync 时，内部会：
-///     1) 读 CryptoUsage.RecorderBinding 策略（默认 HMAC-SM3）；
-///     2) 从 IBindingSecretProvider 取密钥（主密钥 HKDF 派生）；
-///     3) 计算 MAC；
-///     4) 写入 station_bind.ini。
-///   调用方不需要手动算签名。
-/// </summary>
 public sealed class RecorderService : IRecorderService
 {
-    private readonly IRepository<Recorder> _recorders;
-    private readonly IUserRepository _users;
-    private readonly IDeptRepository _depts;
+    private readonly IRecorderRepository _recorders;
+    private readonly IUserQueryService _userQuery;
+    private readonly IDeptQueryService _deptQuery;
     private readonly RecorderBindingFile _bindingFile;
     private readonly IIdGenerator _idGenerator;
 
     public RecorderService(
-        IRepository<Recorder> recorders,
-        IUserRepository users,
-        IDeptRepository depts,
+        IRecorderRepository recorders,
+        IUserQueryService userQuery,
+        IDeptQueryService deptQuery,
         RecorderBindingFile bindingFile,
         IIdGenerator idGenerator)
     {
         _recorders = recorders;
-        _users = users;
-        _depts = depts;
+        _userQuery = userQuery;
+        _deptQuery = deptQuery;
         _bindingFile = bindingFile;
         _idGenerator = idGenerator;
     }
 
-    /// <summary>
-    /// 台账查询
-    /// </summary>
-    public async Task<IReadOnlyList<RecorderDto>> GetRecordersAsync()
-    {
-        var list = await _recorders.GetListAsync(r => r.IsActive);
-        return list.OrderBy(r => r.SerialNumber).Select(ToDto).ToList();
-    }
+    // 删除 GetRecordersAsync —— 读侧走 QueryService
 
-    /// <summary>
-    /// 注册
-    /// </summary>
-    public async Task<RecorderDto> RegisterAsync(
-        string serialNumber,
-        string model,
-        ProtocolType protocol,
-        bool isAuthorized)
+    public async Task<long> RegisterAsync(
+        string serialNumber, string code, string name, string model, ProtocolType protocol,
+        bool isAuthorized, CancellationToken ct = default)
     {
-        if (await _recorders.IsAnyAsync(r => r.SerialNumber == serialNumber))
-        {
+        if (await _recorders.ExistsSerialAsync(serialNumber, ct))
             throw new InvalidOperationException($"记录仪 {serialNumber} 已存在");
-        }
 
-        var recorder = new Recorder
-        {
-            Id = _idGenerator.NewId(),
-            SerialNumber = serialNumber,
-            Model = model,
-            Protocol = protocol,
-            IsAuthorized = isAuthorized,
-            IsActive = true
-        };
-        await _recorders.InsertAsync(recorder);
-        return ToDto(recorder);
+        var recorder = Recorder.Create(
+            _idGenerator.NewId(), serialNumber, code, name, model, protocol,
+            isAuthorized, DateTime.Now);
+
+        await _recorders.AddAsync(recorder, ct);
+        return recorder.Id;
     }
 
-    /// <summary>
-    /// 更新
-    /// </summary>
-    /// <param name="dto"></param>
-    /// <returns></returns>
-    /// <exception cref="InvalidOperationException"></exception>
-    public async Task<RecorderDto> UpdateAsync(RecorderDto dto)
+    public async Task<OpResult> UpdateAsync(
+        UpdateRecorderCommand command, CancellationToken ct = default)
     {
-        var recorder = await _recorders.GetByIdAsync(dto.Id!.Value)
-                       ?? throw new InvalidOperationException("记录仪不存在");
-        recorder.SerialNumber = dto.SerialNumber;
-        recorder.Model = dto.Model;
-        recorder.Protocol = dto.Protocol;
-        recorder.BoundUserId = dto.BoundUserId;
-        recorder.DeptId = dto.DeptId;
-        recorder.IsAuthorized = dto.IsAuthorized;
-        recorder.IsActive = dto.IsActive;
-        await _recorders.UpdateAsync(recorder);
-        return ToDto(recorder);
+        var recorder = await _recorders.GetByIdAsync(command.Id, ct);
+        if (recorder is null) return new OpResult(false, "记录仪不存在");
+
+        var now = DateTime.Now;
+        recorder.ChangeModel(command.Model, now);
+        recorder.ChangeProtocol(command.Protocol, now);
+
+        if (recorder.BoundUserId != command.BoundUserId || recorder.DeptId != command.DeptId)
+            recorder.BindTo(command.BoundUserId, command.DeptId, now);
+
+        if (command.IsAuthorized) recorder.Authorize(now);
+        else recorder.RevokeAuthorization(now);
+
+        if (command.IsActive) recorder.Activate(now);
+        else recorder.Deactivate(now);
+
+        await _recorders.UpdateAsync(recorder, ct);
+        return new OpResult(true);
     }
 
-    /// <summary>
-    /// 绑定记录仪到用户/部门，并写入根目录的 station_bind.ini。
-    /// </summary>
     public async Task WriteBindingAsync(
-        string serialNumber,
-        long? userId,
-        long? deptId,
-        string recorderRootPath,
-        CancellationToken ct = default)
+        string serialNumber, long? userId, long? deptId,
+        string recorderRootPath, CancellationToken ct = default)
     {
-        // 1) 更新台账
-        var recorder = await _recorders.FirstAsync(r => r.SerialNumber == serialNumber)
-                       ?? throw new InvalidOperationException($"记录仪 {serialNumber} 不在台账");
+        var recorder = await _recorders.GetBySerialAsync(serialNumber, ct)
+            ?? throw new InvalidOperationException($"记录仪 {serialNumber} 不在台账");
 
-        recorder.BoundUserId = userId;
-        recorder.DeptId = deptId;
-        await _recorders.UpdateAsync(recorder);
+        recorder.BindTo(userId, deptId, DateTime.Now);
+        await _recorders.UpdateAsync(recorder, ct);
 
-        // 2) 组装绑定信息
-        var user = userId is null ? null : await _users.GetByIdAsync(userId.Value);
-        var dept = deptId is null ? null : await _depts.GetByIdAsync(deptId.Value);
-        var boundAt = DateTime.Now;
+        var user = userId is null ? null : await _userQuery.GetByIdAsync(userId.Value, ct);
+        var dept = deptId is null ? null : await _deptQuery.GetByIdAsync(deptId.Value, ct);
 
         var binding = new BindingInfo(
-            recorder.SerialNumber,
-            recorder.Model,
-            user?.UserNo ?? string.Empty,
-            user?.Name ?? string.Empty,
-            dept?.Code ?? string.Empty,
-            dept?.Name ?? string.Empty,
-            boundAt,
-            Signature: string.Empty);   // Write 时由 WriteAsync 内部算并写入文件
+            recorder.SerialNumber, recorder.Model,
+            user?.UserNo ?? string.Empty, user?.Name ?? string.Empty,
+            dept?.Code ?? string.Empty, dept?.Name ?? string.Empty,
+            DateTime.Now, Signature: string.Empty);
 
-        // 3) 写文件（内部自动算 MAC）
         await _bindingFile.WriteAsync(recorderRootPath, binding, ct);
     }
 
-    /// <summary>
-    ///  解绑：删除 station_bind.ini
-    /// </summary>
-    /// <param name="serialNumber"></param>
-    /// <param name="recorderRootPath"></param>
-    /// <returns></returns>
-    public async Task UnbindAsync(string serialNumber, string recorderRootPath)
+    public async Task UnbindAsync(
+        string serialNumber, string recorderRootPath, CancellationToken ct = default)
     {
-        var recorder = await _recorders.FirstAsync(r => r.SerialNumber == serialNumber);
+        var recorder = await _recorders.GetBySerialAsync(serialNumber, ct);
         if (recorder is not null)
         {
-            recorder.BoundUserId = null;
-            recorder.DeptId = null;
-            await _recorders.UpdateAsync(recorder);
+            recorder.Unbind(DateTime.Now);
+            await _recorders.UpdateAsync(recorder, ct);
         }
-
         _bindingFile.Delete(recorderRootPath);
     }
-
-    private static RecorderDto ToDto(Recorder r) => new(
-        r.Id, r.SerialNumber, r.Model, r.Protocol,
-        r.BoundUserId, r.DeptId, r.IsAuthorized, r.IsActive);
 }

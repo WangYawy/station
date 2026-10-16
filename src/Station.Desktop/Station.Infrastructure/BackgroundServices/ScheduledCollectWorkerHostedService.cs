@@ -6,7 +6,7 @@ using Station.Contracts;
 using Microsoft.Extensions.Logging;
 using Station.Domain.Collecting;
 
-namespace Station.Desktop.Infrastructure;
+namespace Station.Infrastructure;
 
 /// <summary>后台定时采集：每日指定时间自动开始采集（需记录仪已连接/模拟源可用）。</summary>
 public sealed class ScheduledCollectWorkerHostedService : BackgroundService

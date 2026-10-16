@@ -28,12 +28,17 @@ public sealed class AccountPo : ISoftDelete
 
     // 审计
     public DateTime CreatedAt { get; set; }
+    [SugarColumn(IsNullable = true)]
     public long? CreatedBy { get; set; }
+    [SugarColumn(IsNullable = true)]
     public DateTime? UpdatedAt { get; set; }
+    [SugarColumn(IsNullable = true)]
     public long? UpdatedBy { get; set; }
 
     // 软删除
     public bool IsDeleted { get; set; }
+    [SugarColumn(IsNullable = true)]
     public DateTime? DeletedAt { get; set; }
+    [SugarColumn(IsNullable = true)]
     public long? DeletedBy { get; set; }
 }

@@ -7,13 +7,13 @@ namespace Station.Application.Uploading;
 public interface IUploadService
 {
     /// <summary>处理指定任务的全部待上传文件，返回处理后结果摘要。</summary>
-    Task<UploadSummary> ProcessTaskAsync(long taskId);
+    Task<UploadSummary> ProcessTaskAsync(long taskId, CancellationToken ct = default);
 
     /// <summary>重试任务中已失败的上传文件。</summary>
-    Task<int> RetryFailedFilesAsync(long taskId);
+    Task<int> RetryFailedFilesAsync(long taskId, CancellationToken ct = default);
 
     /// <summary>待上传文件数（工作台统计）。</summary>
-    Task<int> CountPendingUploadsAsync();
+    Task<int> CountPendingUploadsAsync(CancellationToken ct = default);
 }
 
 public sealed record UploadSummary(long TaskId, int Uploaded, int Failed, int Pending, bool CircuitOpen);

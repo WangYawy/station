@@ -1,9 +1,9 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using Station.Application.Collecting;
-using Station.Application.UsbPortCard;
+using Station.Application.Collecting.Dtos;
+using Station.Application.UsbPortCards;
 using Station.Contracts;
-using Station.Domain.Enums;
+using Station.Domain.Collecting;
 
 namespace Station.Desktop.ViewModels;
 

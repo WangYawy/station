@@ -1,12 +1,12 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
-using Station.Application.Audit;
-using Station.Domain.Entities;
 using Microsoft.Extensions.Logging;
 using Station.Data.Backup;
+using Station.Domain.Auditing;
+using Station.Application.Auditing;
 
-namespace Station.Desktop.Infrastructure;
+namespace Station.Infrastructure;
 
 /// <summary>本地数据库每日自动备份（默认 03:00，保留 7 份），备份动作留审计。</summary>
 public sealed class LocalBackupWorkerHostedService : BackgroundService

@@ -1,12 +1,12 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
-using Station.Application.Audit;
-using Station.Application.Collecting;
-using Station.Domain.Entities;
 using Microsoft.Extensions.Logging;
+using Station.Application.Auditing;
+using Station.Application.Collecting;
+using Station.Domain.Auditing;
 
-namespace Station.Desktop.Infrastructure;
+namespace Station.Infrastructure;
 
 /// <summary>本地加密缓存每日清理（默认 04:00，保留天数可配），清理动作留审计。</summary>
 public sealed class CacheCleanupWorkerHostedService : BackgroundService

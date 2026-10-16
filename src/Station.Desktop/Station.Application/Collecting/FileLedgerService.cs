@@ -4,13 +4,13 @@ using Microsoft.Extensions.Options;
 using Station.Application.PlatformSync;
 using Station.Application.Security;
 using Station.Contracts.Reporting;
-using Station.Domain.Entities;
-using Station.Domain.Enums;
 using Station.Data.Repositories;
 using TaskStatus = Station.Contracts.TaskStatus;
 using Station.Data.IdGeneration;
 using Station.Domain.Users;
 using Station.Domain.Departments;
+using Station.Domain.Collecting;
+using Station.Domain.UploadedFiles;
 
 namespace Station.Application.Collecting;
 
@@ -56,8 +56,8 @@ public sealed class FileLedgerService : IFileLedgerService
     {
         using var scope = _scopeFactory.CreateScope();
         // 2. 从作用域解析需要的泛型 LoopClient（它们共享同一个 ISqlSugarClient）
-        var taskLoop = scope.ServiceProvider.GetRequiredService<ILoopRepository<CollectTask>>();
-        var fileLoop = scope.ServiceProvider.GetRequiredService<ILoopRepository<CollectFile>>();
+        var taskLoop = scope.ServiceProvider.GetRequiredService<ICollectTaskSyncRepository>();
+        var fileLoop = scope.ServiceProvider.GetRequiredService<ICollectFileSyncRepository>();
 
         var task = taskLoop.GetById(taskId);
         if (task is null || task.Status != CollectTaskStatus.Completed || task.LedgeredAt is not null)
@@ -65,7 +65,7 @@ public sealed class FileLedgerService : IFileLedgerService
             return 0;
         }
 
-        var files = fileLoop.GetList(f => f.TaskId == taskId && f.Status == CollectFileStatus.Completed)
+        var files = fileLoop.GetByTaskId(taskId).Where(f => f.Status == CollectFileStatus.Completed)
             .OrderBy(f => f.Id)
             .ToList();
 
@@ -122,7 +122,7 @@ public sealed class FileLedgerService : IFileLedgerService
             }
         }
 
-        task.LedgeredAt = DateTime.Now;
+        //task.LedgeredAt = DateTime.Now;
         taskLoop.Update(task);
         return files.Count;
     }

@@ -1,16 +1,16 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Station.Application.Audit;
+using Station.Application.Auditing;
 using Station.Application.Recorders;
 using Station.Application.Users;
 using Station.Domain.Authorization;
-using Station.Domain.Entities;
 using AuthService = Station.Application.Authorization.IAuthorizationService;
 using Station.Domain.Users;
 using Station.Domain.Roles;
 using Station.Application.Departments;
 using Station.Application.Departments.Commands;
 using Station.Application.Users.Commands;
+using Station.Domain.Auditing;
 
 namespace Station.Desktop.WebHost.Controllers;
 
@@ -23,6 +23,7 @@ public class ImportsController : ControllerBase
     private readonly IUserService _users;
     private readonly IUserQueryService _userQuery;
     private readonly IRecorderService _recorders;
+    private readonly IRecorderQueryService _recorderQuery;
     private readonly IDeptService _depts;
     private readonly IDeptQueryService _deptQuery;
     private readonly IUserRepository _userRepo;
@@ -34,6 +35,7 @@ public class ImportsController : ControllerBase
         IUserService users,
         IUserQueryService userQuery,
         IRecorderService recorders,
+        IRecorderQueryService recorderQuery,
         IDeptService depts,
         IDeptQueryService deptQuery,
         IUserRepository userRepo,
@@ -44,6 +46,7 @@ public class ImportsController : ControllerBase
         _users = users;
         _userQuery = userQuery;
         _recorders = recorders;
+        _recorderQuery = recorderQuery;
         _depts = depts;
         _deptQuery = deptQuery;
         _userRepo = userRepo;
@@ -274,7 +277,7 @@ public class ImportsController : ControllerBase
             var serial = Get(row, header, "序列号");
             var userNo = Get(row, header, "用户工号");
             var deptCode = Get(row, header, "部门编码");
-            var recorder = (await _recorders.GetRecordersAsync()).FirstOrDefault(r => r.SerialNumber == serial);
+            var recorder = (await _recorderQuery.GetListAsync()).FirstOrDefault(r => r.SerialNumber == serial);
             if (recorder is null)
             {
                 errors.Add(new ImportErrorWeb(i + 1, $"记录仪 {serial} 不在台账"));
@@ -301,7 +304,16 @@ public class ImportsController : ControllerBase
                 deptId = dept.Id;
             }
 
-            await _recorders.UpdateAsync(recorder with { BoundUserId = user.Id, DeptId = deptId });
+            await _recorders.UpdateAsync(new Application.Recorders.Commands.UpdateRecorderCommand
+            {
+                Id = recorder.Id,
+                Model = recorder.Model,
+                Protocol = recorder.Protocol,
+                IsActive = recorder.IsActive,
+                IsAuthorized = recorder.IsAuthorized,
+                DeptId = deptId,
+                BoundUserId = recorder.BoundUserId
+            });
             success++;
         }
 

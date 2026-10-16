@@ -1,4 +1,5 @@
-using Station.Domain.Entities;
+using Station.Domain.Settings;
+using Station.Infrastructure.Persistence.Settings;
 
 namespace Station.Infrastructure.Settings;
 

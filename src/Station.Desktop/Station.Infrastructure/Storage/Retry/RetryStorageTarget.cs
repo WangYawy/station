@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Polly;
-using Station.Application.Storage;
+using Station.Application.Storages;
 
 namespace Station.Infrastructure.Storage.Retry;
 

@@ -1,8 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Station.Application.Security;
-using Station.Domain.Entities;
-using Station.Data.Repositories;
-using Station.Data.SqlSugar.Extensions;
+using Station.Domain.Settings;
 
 namespace Station.Infrastructure.Settings;
 
@@ -22,12 +20,12 @@ namespace Station.Infrastructure.Settings;
 /// </summary>
 public sealed class SettingStore : ISettingStore
 {
-    private readonly IRepository<SysSetting> _settings;
+    private readonly ISysSettingRepository _settings;
     private readonly ICryptoPolicyService _policy;
     private readonly ILogger<SettingStore> _logger;
 
     public SettingStore(
-        IRepository<SysSetting> settings,
+        ISysSettingRepository settings,
         ICryptoPolicyService policy,
         ILogger<SettingStore> logger)
     {
@@ -41,9 +39,7 @@ public sealed class SettingStore : ISettingStore
     /// </summary>
     public async Task<string?> GetRawAsync(string group, string key, CancellationToken ct = default)
     {
-        var entity = await _settings.AsQueryable()
-            .Where(s => s.GroupKey == group && s.SubKey == key)
-            .FirstAsync(ct).ConfigureAwait(false);
+        var entity = (await _settings.GetAsync(group, key, ct));
 
         if (entity is null) return null;
 
@@ -74,13 +70,11 @@ public sealed class SettingStore : ISettingStore
         }
 
         // ---- 落库（存在则更新，不存在则插入） ----
-        var existing = await _settings.AsQueryable()
-            .Where(s => s.GroupKey == group && s.SubKey == key)
-            .FirstAsync(ct).ConfigureAwait(false);
+        var existing = await _settings.GetAsync(group, key, ct).ConfigureAwait(false);
 
         if (existing is null)
         {
-            await _settings.InsertAsync(new SysSetting
+            await _settings.UpsertAsync(new SysSetting
             {
                 GroupKey = group,
                 SubKey = key,
@@ -101,7 +95,7 @@ public sealed class SettingStore : ISettingStore
             existing.UpdatedAt = DateTime.UtcNow;
             existing.UpdatedBy = operatorAccount;
 
-            await _settings.UpdateAsync(existing).ConfigureAwait(false);
+            await _settings.UpsertAsync(existing).ConfigureAwait(false);
         }
     }
 
@@ -135,9 +129,7 @@ public sealed class SettingStore : ISettingStore
     public async Task<Dictionary<string, string?>> GetGroupAsync(
         string group, CancellationToken ct = default)
     {
-        var list = await _settings.AsQueryable()
-            .Where(s => s.GroupKey == group)
-            .ToListAsync(ct).ConfigureAwait(false);
+        var list = await _settings.GetByGroupAsync(group, ct).ConfigureAwait(false);
 
         var result = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
 
@@ -166,6 +158,6 @@ public sealed class SettingStore : ISettingStore
     /// 返回的实体带密文原值（不自动解密），供备份/迁移工具使用。
     /// 如需明文，请自行按字段调用 TryUnprotectSecretAsync。
     /// </remarks>
-    public Task<List<SysSetting>> GetAllAsync(CancellationToken ct = default) =>
-        _settings.GetListAsync(ct: ct);
+    public async Task<List<SysSetting>> GetAllAsync(CancellationToken ct = default) =>
+      (await _settings.GetAllAsync(ct: ct)).ToList();
 }

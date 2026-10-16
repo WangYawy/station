@@ -1,18 +1,19 @@
 using Microsoft.Extensions.Logging;
+using Station.Application.Alerts.Dtos;
+using Station.Application.Alerts;
 using Station.Application.PlatformSync;
 using Station.Application.Security;
 using Station.Contracts;
 using Station.Contracts.Alerts;
 using Station.Data.IdGeneration;
-using Station.Data.Paging;
-using Station.Data.Repositories;
-using Station.Domain.Entities;
+using Station.Domain.Alerts;
 
 namespace Station.Application.Alerts;
 
 public sealed class AlertService : IAlertService
 {
-    private readonly IRepository<Alert> _alerts;
+    private readonly IAlertRepository _alerts;
+    private readonly IAlertQueryService _alertQuery;
     private readonly IIdGenerator _idGenerator;
     private readonly ISyncOutboxService _outbox;
     private readonly ReportingOptions _reportingOptions;
@@ -21,7 +22,8 @@ public sealed class AlertService : IAlertService
     private readonly ILicenseCryptoService _licenseCrypto;
 
     public AlertService(
-        IRepository<Alert> alerts,
+        IAlertRepository alerts,
+        IAlertQueryService alertQuery,
         IIdGenerator idGenerator,
         ISyncOutboxService outbox,
         ReportingOptions reportingOptions,
@@ -30,6 +32,7 @@ public sealed class AlertService : IAlertService
         ILogger<AlertService> logger)
     {
         _alerts = alerts;
+        _alertQuery = alertQuery;
         _idGenerator = idGenerator;
         _outbox = outbox;
         _reportingOptions = reportingOptions;
@@ -38,14 +41,20 @@ public sealed class AlertService : IAlertService
         _licenseCrypto = licenseCrypto;
     }
 
-    public async Task WriteAsync(Alert alert)
+    /// <summary>报警产生入口。参数使用原始字段，避免外部构造聚合。</summary>
+    public async Task WriteAsync(
+        AlertType type, AlertLevel level, string title,
+        string? detail = null, string? source = null, long? deptId = null)
     {
-        alert.Id = _idGenerator.NewId();
-        alert.CreatedAt = DateTime.Now;
-        await _alerts.InsertAsync(alert);
-        _logger.LogInformation("报警写入 {Type}/{Level}：{Title}（来源 {Source}）", alert.Type, alert.Level, alert.Title, alert.Source);
+        var alert = Alert.Create(
+            _idGenerator.NewId(), type, level, title,
+            detail, source, deptId, DateTime.Now);
 
-        // 报警自动上报平台（SM2 签名；平台未连接时进入 Outbox 断网补报）
+        await _alerts.AddAsync(alert);
+        _logger.LogInformation("报警写入 {Type}/{Level}：{Title}（来源 {Source}）",
+            alert.Type, alert.Level, alert.Title, alert.Source);
+
+        // 上报平台
         if (_stationContext.StationId is { } stationId)
         {
             var report = new AlertReport
@@ -59,6 +68,7 @@ public sealed class AlertService : IAlertService
                 OccurredAt = alert.CreatedAt,
                 Signature = null
             };
+
             if (!string.IsNullOrWhiteSpace(_reportingOptions.PrivateKeyFile))
             {
                 var canonical = AlertReportSignature.Canonical(report);
@@ -67,44 +77,42 @@ public sealed class AlertService : IAlertService
                     report = report with { Signature = signature };
             }
 
-            await _outbox.EnqueueAsync("alert", System.Text.Json.JsonSerializer.Serialize(report));
+            await _outbox.EnqueueAsync("alert",
+                System.Text.Json.JsonSerializer.Serialize(report));
         }
     }
 
     public async Task<IReadOnlyList<AlertDto>> GetAlertsAsync(
-        AlertLevel? level,
-        AlertStatus? status,
-        int count)
+        AlertLevel? level, AlertStatus? status, int count)
     {
-        var query = new PageQuery<Alert>
-        {
-            PageIndex = 1,
-            PageSize = count,
-            Predicate = a =>
-                (level == null || a.Level == level) &&
-                (status == null || a.Status == status),
-            CountTotal = false
-        };
-        var page = await _alerts.ToPageAsync(query, orderBy: a => a.CreatedAt, descending: true);
-        return page.Items.Select(ToDto).ToList();
+        var page = await _alertQuery.PageAsync(level, status, count);
+        return page.Items;
     }
 
-    public async Task<int> CountPendingAsync() =>
-        await _alerts.CountAsync(a => a.Status == AlertStatus.Pending);
+    public Task<int> CountPendingAsync() => _alertQuery.CountPendingAsync();
 
     public async Task<bool> SetStatusAsync(long alertId, AlertStatus status)
     {
         var alert = await _alerts.GetByIdAsync(alertId);
-        if (alert is null)
+        if (alert is null) return false;
+
+        var now = DateTime.Now;
+        switch (status)
         {
-            return false;
+            case AlertStatus.Processed:
+                alert.StartProcessing(now);
+                break;
+            case AlertStatus.Confirmed:
+                alert.MarkHandled(now);
+                break;
+            case AlertStatus.Closed:
+                alert.Dismiss(now);
+                break;
+            default:
+                return false;
         }
 
-        alert.Status = status;
         await _alerts.UpdateAsync(alert);
         return true;
     }
-
-    private static AlertDto ToDto(Alert a) => new(
-        a.Id, a.Type, a.Level, a.Status, a.Title, a.Detail, a.Source, a.CreatedAt);
 }

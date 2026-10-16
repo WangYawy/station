@@ -1,11 +1,11 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using Station.Application.Audit;
+using Station.Application.Auditing;
 using Station.Application.Authentication.Commands;
 using Station.Application.Authorization;
 using Station.Application.Security;
 using Station.Domain.Accounts;
-using Station.Domain.Entities;
+using Station.Domain.Auditing;
 
 namespace Station.Application.Authentication;
 
