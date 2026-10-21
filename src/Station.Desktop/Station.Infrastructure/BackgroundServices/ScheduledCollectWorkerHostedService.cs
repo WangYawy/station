@@ -54,7 +54,7 @@ public sealed class ScheduledCollectWorkerHostedService : BackgroundService
             try
             {
                 await collect.CreateTaskAsync(
-                    new Application.Recorders.BoundDevice(new Device.Detection.DetectedDevice("SCHEDULED", "定时采集", "SCHEDULED", protocol, ""), null, null, null, null, null),
+                    new Application.Recorders.BoundDevice(new Device.Detection.DetectedDevice("SCHEDULED", "定时采集", "SCHEDULED", protocol, ""), null, null, null, null, null,null),
                     isAuto: true);
             }
             catch

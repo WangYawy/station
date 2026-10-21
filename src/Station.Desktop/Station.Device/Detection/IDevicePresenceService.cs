@@ -14,4 +14,7 @@ public interface IDevicePresenceService
     /// 内部重新发一次 DeviceConnectedEvent，由 Application 层重新走识别。
     /// </summary>
     Task RecheckAsync(string deviceKey, CancellationToken ct = default);
+
+    /// <summary>由宿主在 UI 准备就绪后调用，开始轮询。</summary>
+    void BeginPolling();
 }

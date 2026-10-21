@@ -32,8 +32,14 @@ public sealed class LinuxMtpFileSystem : IDeviceFileSystem
 
     public string GetRecorderRoot(DetectedDevice device) => device.Root;
 
-    public Task<IReadOnlyList<SourceFileInfo>> ScanAsync(DetectedDevice device, CancellationToken ct)
-        => Task.Run<IReadOnlyList<SourceFileInfo>>(() => ScanCore(device, ct), ct);
+    public Task<IReadOnlyList<SourceFileInfo>> ScanAsync(
+        DetectedDevice device,
+        IReadOnlyCollection<string>? extensions = null,
+        IReadOnlyCollection<string>? includePathPrefixes = null,
+        IReadOnlyCollection<string>? excludePathPrefixes = null,
+        CancellationToken ct = default)
+        => Task.Run<IReadOnlyList<SourceFileInfo>>(
+         () => ScanCore(device, extensions, includePathPrefixes, excludePathPrefixes, ct), ct);
 
     public Task CopyAsync(
         DetectedDevice device, SourceFileInfo file, string destinationPath,
@@ -106,9 +112,57 @@ public sealed class LinuxMtpFileSystem : IDeviceFileSystem
         }
     }
 
+    public (long? AvailableBytes, long? TotalBytes) GetDeviceSpace(DetectedDevice device)
+    {
+        if (!OperatingSystem.IsLinux()) return (null, null);
+
+        try
+        {
+            using var session = OpenSession(device.Root);
+
+            // session 构造时已调用 LIBMTP_Get_Storage(node, 0)，
+            // storage 链表已填充在 MtpDevice.storage 上
+            var deviceInfo = Marshal.PtrToStructure<LibMtpInterop.MtpDevice>(session.Device);
+
+            long total = 0, free = 0;
+            for (var s = deviceInfo.Storage; s != IntPtr.Zero; s = NextStorage(s))
+            {
+                try
+                {
+                    var storage = Marshal.PtrToStructure<LibMtpInterop.MtpStorage>(s);
+                    total += (long)storage.MaxCapacity;
+                    free += (long)storage.FreeSpaceInBytes;
+                }
+                catch
+                {
+                    // 单个存储不可读，跳过
+                }
+            }
+
+            if (total <= 0) return (null, null);
+            return (free, total);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Linux MTP 读取设备空间失败：{Root}", device.Root);
+            return (null, null);
+        }
+    }
+
+    private static IntPtr NextStorage(IntPtr current)
+    {
+        var storage = Marshal.PtrToStructure<LibMtpInterop.MtpStorage>(current);
+        return storage.Next;
+    }
+
     // ---------- 核心实现 ----------
 
-    private IReadOnlyList<SourceFileInfo> ScanCore(DetectedDevice device, CancellationToken ct)
+    private IReadOnlyList<SourceFileInfo> ScanCore(
+        DetectedDevice device,
+        IReadOnlyCollection<string>? extensions,
+        IReadOnlyCollection<string>? includePathPrefixes,
+        IReadOnlyCollection<string>? excludePathPrefixes,
+        CancellationToken ct)
     {
         using var session = OpenSession(device.Root);
         ClearCacheForDevice(session.DeviceKey);
@@ -117,7 +171,8 @@ public sealed class LinuxMtpFileSystem : IDeviceFileSystem
         var stack = new Stack<string>();
         if (!string.IsNullOrWhiteSpace(session.StorageName)) stack.Push(session.StorageName);
 
-        Walk(session, LibMtpInterop.FilesAndFoldersRoot, stack, files, ct, matchedAncestor: false);
+        Walk(session, LibMtpInterop.FilesAndFoldersRoot, stack, files, ct,
+            extensions, includePathPrefixes, excludePathPrefixes);
 
         if (stack.Count > 0) stack.Pop();
         return files;
@@ -183,6 +238,7 @@ public sealed class LinuxMtpFileSystem : IDeviceFileSystem
         return deleted;
     }
 
+
     // ---------- 内部工具 ----------
 
     private MtpSession OpenSession(string recorderRoot)
@@ -241,9 +297,14 @@ public sealed class LinuxMtpFileSystem : IDeviceFileSystem
 
     private void Walk(
         MtpSession session, uint parentId, Stack<string> pathStack,
-        List<SourceFileInfo> files, CancellationToken ct, bool matchedAncestor)
+        List<SourceFileInfo> files, CancellationToken ct,
+        IReadOnlyCollection<string>? extensions,
+        IReadOnlyCollection<string>? includePathPrefixes,
+        IReadOnlyCollection<string>? excludePathPrefixes)
     {
-        var list = LibMtpInterop.LIBMTP_Get_Files_And_Folders(session.Device, session.StorageId, parentId);
+        var list = LibMtpInterop.LIBMTP_Get_Files_And_Folders(
+            session.Device, session.StorageId, parentId);
+
         var nodes = new List<IntPtr>();
         try
         {
@@ -254,24 +315,29 @@ public sealed class LinuxMtpFileSystem : IDeviceFileSystem
 
                 var file = Marshal.PtrToStructure<LibMtpInterop.MtpFile>(node);
                 var name = Marshal.PtrToStringUTF8(file.FileName) ?? string.Empty;
+                if (string.IsNullOrWhiteSpace(name)) continue;
 
                 if (file.FileType == (int)LibMtpInterop.FileType.Folder)
                 {
-                    if (string.IsNullOrWhiteSpace(name)) continue;
-
-                    // 简化：全部文件夹都进（不再按文件夹关键词过滤）
-                    var nowMatched = matchedAncestor || true;
-
                     pathStack.Push(name);
-                    Walk(session, file.ItemId, pathStack, files, ct, nowMatched);
+
+                    // 目录剪枝：当前完整相对路径（含 storage 名）是否值得下钻
+                    var childRel = string.Join("/", pathStack.Reverse());
+                    if (ScanFilter.ShouldDescend(childRel, includePathPrefixes))
+                    {
+                        Walk(session, file.ItemId, pathStack, files, ct,
+                            extensions, includePathPrefixes, excludePathPrefixes);
+                    }
+
                     pathStack.Pop();
                     continue;
                 }
 
-                if (!matchedAncestor) continue;
-                if (string.IsNullOrWhiteSpace(name)) continue;
-
                 var relativePath = BuildPath(pathStack, name);
+
+                if (!ScanFilter.IsPathAllowed(relativePath, includePathPrefixes, excludePathPrefixes)) continue;
+                if (!ScanFilter.IsExtensionAllowed(name, extensions)) continue;
+
                 files.Add(new SourceFileInfo(
                     RelativePath: relativePath,
                     FileName: name,

@@ -27,13 +27,14 @@ public sealed class DevicePresenceService : IDevicePresenceService, IHostedServi
     private readonly IDeviceIdentityResolver _identity;
     private readonly IDeviceEventSink _events;
     private readonly ILogger<DevicePresenceService> _logger;
-    private readonly int _settlePolls;
+    private readonly int _settlePolls; // 稳定判断次数
 
-    private readonly ConcurrentDictionary<string, int> _stable = new(StringComparer.Ordinal);
+    private readonly ConcurrentDictionary<string, int> _stable = new(StringComparer.Ordinal); 
     private readonly ConcurrentDictionary<string, DetectedDevice> _connected = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<string, string?> _portCache = new(StringComparer.Ordinal);
 
     private Timer? _timer;
+    private bool _pollingStarted;
     private bool _disposed;
 
     public DevicePresenceService(
@@ -65,9 +66,19 @@ public sealed class DevicePresenceService : IDevicePresenceService, IHostedServi
 
     public Task StartAsync(CancellationToken cancellationToken)
     {
+        return Task.CompletedTask;
+    }
+
+    /// <summary>由宿主（App）在合适时机触发：WorkbenchViewModel 已订阅事件后再启动轮询。</summary>
+    public void BeginPolling()
+    {
+        if (_pollingStarted) return;
+        _pollingStarted = true;
+
         _timer = new Timer(_ => Check(), null,
             TimeSpan.Zero, TimeSpan.FromSeconds(_options.PollIntervalSeconds));
-        return Task.CompletedTask;
+
+        _logger.LogInformation("设备轮询已启动（间隔 {Interval}s）", _options.PollIntervalSeconds);
     }
 
     public Task StopAsync(CancellationToken cancellationToken)
@@ -123,7 +134,7 @@ public sealed class DevicePresenceService : IDevicePresenceService, IHostedServi
                                      d.Protocol == ProtocolType.Mtp ? 1 : 2)
                        .First();
 
-            selected = EnrichDevice(selected);
+            selected = EnrichDevice(selected); // 添加物理端口标识并身份归一处理
             current.Add(selected);
         }
 
@@ -154,7 +165,11 @@ public sealed class DevicePresenceService : IDevicePresenceService, IHostedServi
     }
 
     // ---------- 内部 ----------
-
+    /// <summary>
+    /// 扩展补充设备物理端口标识信息
+    /// </summary>
+    /// <param name="device"></param>
+    /// <returns></returns>
     private DetectedDevice EnrichDevice(DetectedDevice device)
     {
         string? portId = null;

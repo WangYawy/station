@@ -2,49 +2,90 @@ using Station.Domain.Collecting;
 
 namespace Station.Infrastructure.Persistence.Collecting;
 
-internal static class CollectTaskMapper
+/// <summary>CollectTask ⇄ CollectTaskPo 双向映射。</summary>
+public static class CollectTaskMapper
 {
     public static CollectTask ToDomain(CollectTaskPo po)
-        => CollectTask.Restore(
-            po.Id, po.TaskNo,
-            po.RecorderName, po.RecorderSerial, po.Protocol, po.SourceRoot,
-            po.OperatorUserId, po.DeptId,
-            po.Status, po.IsAuto, po.IsEmergency,
-            po.TotalFiles, po.CollectedFiles, po.SkippedFiles, po.FailedFiles,
-            po.TotalBytes, po.CollectedBytes, po.SpeedBytesPerSecond,
-            po.StartedAt, po.CompletedAt, po.ErrorMessage,
-            po.SyncStatus, po.UploadedFiles, po.UploadedBytes, po.UploadError,
-            po.LedgeredAt, po.CreatedAt);
+    {
+        var deviceRef = BuildDeviceRef(po);
 
-    public static CollectTaskPo ToPo(CollectTask t)
-        => new()
+        return CollectTask.Restore(
+            id: po.Id,
+            taskNo: po.TaskNo,
+            recorderId: po.RecorderId,
+            recorderCode: po.RecorderCode,
+            device: deviceRef,
+            operatorUserId: po.OperatorUserId,
+            deptId: po.DeptId,
+            status: po.Status,
+            isAuto: po.IsAuto,
+            isEmergency: po.IsEmergency,
+            totalFiles: po.TotalFiles,
+            collectedFiles: po.CollectedFiles,
+            skippedFiles: po.SkippedFiles,
+            failedFiles: po.FailedFiles,
+            totalBytes: po.TotalBytes,
+            collectedBytes: po.CollectedBytes,
+            speedBytesPerSecond: po.SpeedBytesPerSecond,
+            syncStatus: po.SyncStatus,
+            uploadedFiles: po.UploadedFiles,
+            uploadedBytes: po.UploadedBytes,
+            uploadError: po.UploadError,
+            ledgeredAt: po.LedgeredAt,
+            startedAt: po.StartedAt,
+            completedAt: po.CompletedAt,
+            errorMessage: po.ErrorMessage,
+            createdAt: po.CreatedAt);
+    }
+
+    public static CollectTaskPo ToPo(CollectTask entity)
+    {
+        return new CollectTaskPo
         {
-            Id = t.Id,
-            TaskNo = t.TaskNo,
-            RecorderName = t.RecorderName,
-            RecorderSerial = t.RecorderSerial,
-            Protocol = t.Protocol,
-            SourceRoot = t.SourceRoot,
-            OperatorUserId = t.OperatorUserId,
-            DeptId = t.DeptId,
-            Status = t.Status,
-            IsAuto = t.IsAuto,
-            IsEmergency = t.IsEmergency,
-            TotalFiles = t.TotalFiles,
-            CollectedFiles = t.CollectedFiles,
-            SkippedFiles = t.SkippedFiles,
-            FailedFiles = t.FailedFiles,
-            TotalBytes = t.TotalBytes,
-            CollectedBytes = t.CollectedBytes,
-            SpeedBytesPerSecond = t.SpeedBytesPerSecond,
-            StartedAt = t.StartedAt,
-            CompletedAt = t.CompletedAt,
-            ErrorMessage = t.ErrorMessage,
-            SyncStatus = t.SyncStatus,
-            UploadedFiles = t.UploadedFiles,
-            UploadedBytes = t.UploadedBytes,
-            UploadError = t.UploadError,
-            LedgeredAt = t.LedgeredAt,
-            CreatedAt = t.CreatedAt
+            Id = entity.Id,
+            TaskNo = entity.TaskNo,
+            DeviceKey = entity.Device.Key,
+            RecorderId = entity.RecorderId,
+            RecorderCode = entity.RecorderCode,
+            RecorderName = entity.Device.Name,
+            RecorderSerial = entity.Device.Serial,
+            Protocol = entity.Device.Protocol,
+            SourceRoot = entity.Device.Root,
+            PhysicalPortId = entity.Device.PhysicalPortId,
+            OperatorUserId = entity.OperatorUserId,
+            DeptId = entity.DeptId,
+            Status = entity.Status,
+            IsAuto = entity.IsAuto,
+            IsEmergency = entity.IsEmergency,
+            TotalFiles = entity.TotalFiles,
+            CollectedFiles = entity.CollectedFiles,
+            SkippedFiles = entity.SkippedFiles,
+            FailedFiles = entity.FailedFiles,
+            TotalBytes = entity.TotalBytes,
+            CollectedBytes = entity.CollectedBytes,
+            SpeedBytesPerSecond = entity.SpeedBytesPerSecond,
+            SyncStatus = entity.SyncStatus,
+            UploadedFiles = entity.UploadedFiles,
+            UploadedBytes = entity.UploadedBytes,
+            UploadError = entity.UploadError,
+            LedgeredAt = entity.LedgeredAt,
+            StartedAt = entity.StartedAt,
+            CompletedAt = entity.CompletedAt,
+            ErrorMessage = entity.ErrorMessage,
+            CreatedAt = entity.CreatedAt
         };
+    }
+
+    // ========== 内部：从 Po 拼 DeviceRef（含历史数据兜底） ==========
+
+    private static DeviceRef BuildDeviceRef(CollectTaskPo po)
+    {
+        return DeviceRef.Create(
+            key: po.DeviceKey!,
+            physicalPortId: po.PhysicalPortId,
+            serial: po.RecorderSerial,
+            root: string.IsNullOrWhiteSpace(po.SourceRoot) ? "unknown" : po.SourceRoot!,
+            name: string.IsNullOrWhiteSpace(po.RecorderName) ? "unknown" : po.RecorderName,
+            protocol: po.Protocol);
+    }
 }

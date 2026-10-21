@@ -112,7 +112,7 @@ public sealed class UploadService : IUploadService
 
             var remoteDir = _renderer.Render(
                 _storageConfig.DirectoryTemplate, _storageConfig.StationNo,
-                task.CreatedAt, task.RecorderName, task.OperatorUserId, task.DeptId,
+                task.CreatedAt, task.Device.Name, task.OperatorUserId, task.DeptId,
                 Path.GetExtension(file.FileName).TrimStart('.').ToLowerInvariant())
                 + "/" + file.FileName;
 

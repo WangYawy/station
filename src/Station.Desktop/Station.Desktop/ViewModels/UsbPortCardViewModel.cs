@@ -45,9 +45,6 @@ public partial class UsbPortCardViewModel : ObservableObject, IDisposable
     /// <summary>0-based 槽位索引，卡片稳定身份。</summary>
     public int SlotIndex { get; }
 
-    /// <summary>端口显示号（1-based，即 "#01" 里的 1）。</summary>
-    public int PortNumber { get; }
-
     [ObservableProperty] private string _portText;
 
     [ObservableProperty] private string? _deviceKey;
@@ -315,22 +312,34 @@ public partial class UsbPortCardViewModel : ObservableObject, IDisposable
         _offlineClearTimer.Stop();
         DeviceKey = key;
         DeviceText = name;
-        MetaText = $"{ProtocolText(protocol)} · 等待采集";
+        MetaText = $"{ProtocolText(protocol)}"; //  · 等待采集
         ApplyLinkState(DeviceLinkState.Verifying);
         ClearHint();
+        ApplyStatusStyle(CollectTaskStatus.Waiting); // 任务状态-待开始
+        //SetDeviceSpace();
         Opacity = 1;
     }
 
-    public void SetBound()
+    public void SetBound(string? userName = null, string? deptName = null)
     {
         ApplyLinkState(DeviceLinkState.Bound);
         ClearHint();
+
+        // 操作人：用户 / 部门
+        if (!string.IsNullOrWhiteSpace(userName))
+        {
+            OperatorText = string.IsNullOrWhiteSpace(deptName)
+                ? userName
+                : $"{userName} / {deptName}";
+            HasOperator = true;
+        }
     }
 
     public void SetRejected(string reason)
     {
         ApplyLinkState(DeviceLinkState.Rejected);
         SetHint(reason, "#b91c1c");
+        NotifyCommands();
     }
 
     public void SetWarning(string message) => SetHint(message, "#b45309");
@@ -385,7 +394,7 @@ public partial class UsbPortCardViewModel : ObservableObject, IDisposable
         DeviceKey = null;
         ApplyLinkState(DeviceLinkState.Offline);
         DeviceText = "-- 等待设备连接";
-        MetaText = "--";
+        MetaText = "";
         Opacity = 0.55;
         ApplyTaskIdle();
         SetDeviceSpace(null, null);
@@ -405,7 +414,7 @@ public partial class UsbPortCardViewModel : ObservableObject, IDisposable
     }
 
     #endregion
-   
+
     #region 内部
 
     private void ApplyTaskData(
@@ -481,6 +490,10 @@ public partial class UsbPortCardViewModel : ObservableObject, IDisposable
         NotifyCommands();
     }
 
+    /// <summary>
+    /// 应用采集状态样式
+    /// </summary>
+    /// <param name="status"></param>
     private void ApplyStatusStyle(CollectTaskStatus status)
     {
         if (TaskStatus == status) return;
@@ -499,7 +512,10 @@ public partial class UsbPortCardViewModel : ObservableObject, IDisposable
 
         TaskStatus = status;
     }
-
+    /// <summary>
+    /// 应用设备连接状态样式
+    /// </summary>
+    /// <param name="state"></param>
     private void ApplyLinkState(DeviceLinkState state)
     {
         var p = UiStateMap.For(state);

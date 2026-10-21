@@ -4,7 +4,6 @@ using Microsoft.Extensions.Options;
 using Station.Application.Collecting;
 using Station.Application.Notifications;
 using Station.Application.Recorders;
-using Station.Application.Settings;
 using Station.Device.Detection;
 using Station.Device.Events;
 
@@ -12,12 +11,15 @@ namespace Station.Application.DeviceIntegration;
 
 /// <summary>
 /// 设备事件出口：Application 层唯一的物理 → 业务粘合点。
-/// 
-/// 【职责】
-///   1. 收到 DeviceConnected：转发 UI + 异步触发识别流程。
-///   2. 识别通过：调 IUiNotificationService 发 Bound 事件 + 按配置自动建采集任务。
-///   3. 识别拒绝：调 IUiNotificationService 发 Rejected 事件。
-///   4. 收到 DeviceDisconnected：中断该设备进行中的采集任务 + 转发 UI。
+///
+/// 【识别后的处理分支（混合续采策略）】
+///   Matched 且找到可续采任务（同端口 Paused/Interrupted/Failed）
+///     → 不建新任务
+///     → AutoResumeInterruptedOnReconnect = true 时自动 ResumeAsync
+///     → 否则卡片显示"已中断/已暂停"，等用户点"重试"
+///   Matched 且无可续采任务
+///     → AutoCollectOnConnect = true 时 CreateTaskAsync（建新任务）
+///     → 否则卡片显示"已连接"，等用户手动开始
 /// </summary>
 public sealed class ApplicationDeviceEventSink : IDeviceEventSink
 {
@@ -40,39 +42,30 @@ public sealed class ApplicationDeviceEventSink : IDeviceEventSink
         _logger = logger;
     }
 
-    // =========================================================
-    // IDeviceEventSink
-    // =========================================================
-
+    // ========== IDeviceEventSink ==========
     public void PublishConnected(DeviceConnectedEvent e)
     {
-        // 1. UI 瞬间响应"识别中"
         _ui.PublishDeviceConnected(e);
-
-        // 2. 异步识别（不阻塞探测线程）
         _ = Task.Run(() => IdentifyAsync(e));
     }
 
     public void PublishDisconnected(DeviceDisconnectedEvent e)
     {
-        // 1. 异步中断进行中的任务
         _ = Task.Run(() => OnDisconnectedAsync(e));
-
-        // 2. UI 立即离线
         _ui.PublishDeviceDisconnected(e);
     }
 
-    // =========================================================
-    // 识别流程
-    // =========================================================
+    // ========== 识别 ==========
 
     private async Task IdentifyAsync(DeviceConnectedEvent e)
     {
         try
         {
             using var scope = _scopeFactory.CreateScope();
-            var identification = scope.ServiceProvider.GetRequiredService<IRecorderIdentificationService>();
-            var collect = scope.ServiceProvider.GetRequiredService<ICollectTaskService>();
+            var identification = scope.ServiceProvider
+                .GetRequiredService<IRecorderIdentificationService>();
+            var collect = scope.ServiceProvider
+                .GetRequiredService<ICollectTaskService>();
 
             var device = new DetectedDevice(
                 Key: e.DeviceKey,
@@ -105,15 +98,47 @@ public sealed class ApplicationDeviceEventSink : IDeviceEventSink
         var userId = result.Device.UserId;
         var deptId = result.Device.DeptId;
 
+        // 1. 发 Bound 事件（业务态）
         if (userId.HasValue && deptId.HasValue)
         {
             _ui.PublishDeviceBound(new DeviceBoundEvent(
-                device.Key, userId.Value, deptId.Value, device.PhysicalPortId, NextVersion()));
+                device.Key, userId.Value, deptId.Value, device.PhysicalPortId,
+                result.Device.UserName, result.Device.DeptName, NextVersion()));
 
-            _logger.LogInformation("设备识别通过 {Device}：用户 {User} / 部门 {Dept}",
+            _logger.LogInformation(
+                "设备识别通过 {Device}：用户 {User} / 部门 {Dept}",
                 device.Name, userId.Value, deptId.Value);
         }
 
+        // 2. 查可续采任务
+        var resumeable = await collect.FindResumeableTaskAsync(device.PhysicalPortId);
+
+        if (resumeable is not null)
+        {
+            _logger.LogInformation(
+                "设备 {Device} 接入：发现可续采任务 {TaskNo}（{Status}）",
+                device.Name, resumeable.TaskNo, resumeable.Status);
+
+            if (_collectOptions.AutoResumeInterruptedOnReconnect)
+            {
+                try
+                {
+                    await collect.ResumeAsync(resumeable.TaskId);
+                    _logger.LogInformation(
+                        "自动续采任务 {TaskNo}", resumeable.TaskNo);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex,
+                        "自动续采失败 {TaskNo}，等待用户手动重试", resumeable.TaskNo);
+                }
+            }
+
+            // 无论是否自动续采，都不建新任务
+            return;
+        }
+
+        // 3. 无可续采任务：走正常自动采集
         if (_collectOptions.AutoCollectOnConnect)
         {
             await collect.CreateTaskAsync(result.Device, isAuto: true);
@@ -130,9 +155,7 @@ public sealed class ApplicationDeviceEventSink : IDeviceEventSink
             device.Name, result.Status, reason);
     }
 
-    // =========================================================
-    // 断开处理
-    // =========================================================
+    // ========== 断开 ==========
 
     private async Task OnDisconnectedAsync(DeviceDisconnectedEvent e)
     {

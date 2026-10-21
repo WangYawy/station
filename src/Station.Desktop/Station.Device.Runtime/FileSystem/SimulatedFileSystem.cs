@@ -26,7 +26,12 @@ public sealed class SimulatedFileSystem : IDeviceFileSystem
 
     public string GetRecorderRoot(DetectedDevice device) => device.Root;
 
-    public Task<IReadOnlyList<SourceFileInfo>> ScanAsync(DetectedDevice device, CancellationToken ct)
+    public Task<IReadOnlyList<SourceFileInfo>> ScanAsync(
+        DetectedDevice device,
+        IReadOnlyCollection<string>? extensions = null,
+        IReadOnlyCollection<string>? includePathPrefixes = null,
+        IReadOnlyCollection<string>? excludePathPrefixes = null,
+        CancellationToken ct = default)
     {
         if (!Directory.Exists(device.Root))
             return Task.FromResult<IReadOnlyList<SourceFileInfo>>(Array.Empty<SourceFileInfo>());
@@ -37,6 +42,10 @@ public sealed class SimulatedFileSystem : IDeviceFileSystem
             ct.ThrowIfCancellationRequested();
             var info = new FileInfo(path);
             var rel = Path.GetRelativePath(device.Root, path).Replace('\\', '/');
+
+            if (!ScanFilter.IsPathAllowed(rel, includePathPrefixes, excludePathPrefixes)) continue;
+            if (!ScanFilter.IsExtensionAllowed(info.Name, extensions)) continue;
+
             list.Add(new SourceFileInfo(rel, info.Name, info.Length, info.LastWriteTime));
         }
         return Task.FromResult<IReadOnlyList<SourceFileInfo>>(list);
@@ -109,5 +118,24 @@ public sealed class SimulatedFileSystem : IDeviceFileSystem
     {
         var p = Path.Combine(device.Root, relativePath);
         if (File.Exists(p)) File.Delete(p);
+    }
+
+
+    public (long? AvailableBytes, long? TotalBytes) GetDeviceSpace(DetectedDevice device)
+    {
+        try
+        {
+            // 找到挂载点向上溯源
+            var root = Path.GetPathRoot(device.Root);
+            if (string.IsNullOrEmpty(root)) return (null, null);
+
+            var drive = new DriveInfo(root);
+            if (!drive.IsReady) return (null, null);
+
+            var available = drive.AvailableFreeSpace;
+            var total = drive.TotalSize;
+            return total > 0 ? (available, total) : (null, null);
+        }
+        catch { return (null, null); }
     }
 }

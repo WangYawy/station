@@ -78,25 +78,31 @@
           TextTrimming="CharacterEllipsis"
           Margin="0,1,0,1"/>-->
         </Grid>
-        <!-- 行2：操作人 -->
-        <TextBlock Grid.Row="2" Classes="card-operator"
-                   Text="{Binding OperatorText}"
-                   IsVisible="{Binding HasOperator}"
-                   TextTrimming="CharacterEllipsis"
-                   Margin="0,0,0,2"/>
 
-        <!-- 行3：设备空间 + 扫描/已上传（HasTask 控制显示） -->
-        <Grid Grid.Row="3" ColumnDefinitions="*,Auto"
-              IsVisible="{Binding HasTask}" Margin="0,0,0,2">
+        <!-- 行2：设备空间 + 扫描/已上传（HasTask 控制显示） -->
+        <Grid Grid.Row="2" ColumnDefinitions="*,Auto"
+              Margin="0,0,0,2">
           <TextBlock Classes="card-meta"
                      Text="{Binding DeviceSpaceText}"
                      IsVisible="{Binding HasDeviceSpace}"
                      TextTrimming="CharacterEllipsis"
                      VerticalAlignment="Center"/>
-          <TextBlock Grid.Column="1" Classes="card-meta"
+          <TextBlock Grid.Column="1" Classes="card-meta" IsVisible="{Binding HasTask}"
                      Text="{Binding StorageText}"
                      TextTrimming="CharacterEllipsis"
                      VerticalAlignment="Center"/>
+        </Grid>
+        <!-- 行3：操作人 -->
+        <Grid Grid.Row="3" ColumnDefinitions="*,Auto"
+              Margin="0,0,0,2">
+          <TextBlock Grid.Column="0" Classes="card-meta"
+                     Text="用户/部门："
+                     VerticalAlignment="Center" />
+          <TextBlock Grid.Column="1" Classes="card-operator"
+                     Text="{Binding OperatorText}"
+                     IsVisible="{Binding HasOperator}"
+                     TextTrimming="CharacterEllipsis"
+                     VerticalAlignment="Center" />
         </Grid>
         <!-- 行4 提示（拒绝原因 / 授权提示 / 警告），非空时显示 -->
         <StackPanel Grid.Row="4" Spacing="2">

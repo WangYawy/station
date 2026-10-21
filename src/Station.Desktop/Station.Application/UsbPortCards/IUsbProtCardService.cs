@@ -13,6 +13,9 @@ public interface IUsbPortCardService
 
     /// <summary>发现模式数据源（设置页用）。</summary>
     Task<IReadOnlyList<UsbPortDiscoveryItemDto>> GetDiscoveryListAsync(CancellationToken ct = default);
+
+    /// <summary>设备断开时清除磁盘空间缓存（避免显示旧数据）。</summary>
+    void EvictSpaceCache(string deviceKey);
 }
 
 /// <summary>发现模式单条记录。</summary>

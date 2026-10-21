@@ -1,8 +1,10 @@
+using System.Collections.Concurrent;
 using Microsoft.Extensions.Logging;
 using Station.Application.Collecting;
 using Station.Application.Collecting.Dtos;
 using Station.Contracts;
 using Station.Device.Detection;
+using Station.Device.FileSystem;
 using Station.Domain.Collecting;
 
 namespace Station.Application.UsbPortCards;
@@ -13,13 +15,16 @@ namespace Station.Application.UsbPortCards;
 /// 【职责】
 ///   1. 拉取 Device 层在线设备 + CollectTaskService 活跃任务；
 ///   2. 通过 ISlotRouter 把设备/任务路由到固定槽位；
-///   3. 组装成固定 Capacity 个 UsbPortCardDto，供 UI 层快照刷新。
+///   3. 组装成固定 Capacity 个 UsbPortCardDto，供 UI 层快照刷新；
+///   4. 设备磁盘空间按协议从 IDeviceFileSystem.GetDeviceSpace 读取（15 秒缓存）。
 /// 
 /// 【关键约定】
-///   - 返回的列表长度 == ISlotRouter.Capacity（30）；
+///   - 返回的列表长度 == ISlotRouter.Capacity（默认 30）；
 ///   - 未分配设备 / 任务的槽位返回空 DTO（SlotIndex 有值，其他为 null/0）；
-///   - 快照不带 Bound / Rejected：这些由 UI 事件流驱动；
-///   - Version 从 ICollectTaskService.GetUiVersion 拉取，与事件同源。
+///   - 快照 LinkState 只携带物理态（Offline / Verifying）；
+///     Bound / Rejected 由 UI 层从业务事件获得，快照不覆盖业务态；
+///   - Version 从 ICollectTaskService.GetUiVersion 拉取，与事件同源；
+///   - 设备断开时调用 EvictSpaceCache(deviceKey) 主动清空间缓存。
 /// </summary>
 public sealed class UsbPortCardService : IUsbPortCardService
 {
@@ -28,7 +33,18 @@ public sealed class UsbPortCardService : IUsbPortCardService
     private readonly ICollectFileQueryService _fileQuery;
     private readonly ISlotRouter _slotRouter;
     private readonly IUsbPortMapService _portMap;
+    private readonly IDeviceFileSystemProvider _fileSystems;
     private readonly ILogger<UsbPortCardService> _logger;
+
+    /// <summary>
+    /// 设备空间缓存：DeviceKey → 空间快照。
+    /// MTP 空间查询较慢（WPD COM / libmtp 链表遍历），缓存 15 秒避免 5 秒心跳每次重查。
+    /// </summary>
+    private readonly ConcurrentDictionary<string, SpaceSnapshot> _spaceCache = new(StringComparer.Ordinal);
+    private static readonly TimeSpan SpaceCacheTtl = TimeSpan.FromSeconds(15);
+
+    private readonly record struct SpaceSnapshot(
+        long? Available, long? Total, DateTime CachedAt);
 
     public UsbPortCardService(
         IDevicePresenceService devicePresence,
@@ -36,6 +52,7 @@ public sealed class UsbPortCardService : IUsbPortCardService
         ICollectFileQueryService fileQuery,
         ISlotRouter slotRouter,
         IUsbPortMapService portMap,
+        IDeviceFileSystemProvider fileSystems,
         ILogger<UsbPortCardService> logger)
     {
         _devicePresence = devicePresence;
@@ -43,16 +60,14 @@ public sealed class UsbPortCardService : IUsbPortCardService
         _fileQuery = fileQuery;
         _slotRouter = slotRouter;
         _portMap = portMap;
+        _fileSystems = fileSystems;
         _logger = logger;
     }
 
-    // =========================================================
-    // 快照
-    // =========================================================
+    // ========== 快照 ==========
 
     /// <inheritdoc />
-    public async Task<IReadOnlyList<UsbPortCardDto>> GetCurrentSnapshotAsync(
-        CancellationToken ct = default)
+    public async Task<IReadOnlyList<UsbPortCardDto>> GetCurrentSnapshotAsync(CancellationToken ct = default)
     {
         var capacity = Math.Max(_slotRouter.Capacity, 1);
         var map = _portMap.GetMapping();
@@ -81,8 +96,10 @@ public sealed class UsbPortCardService : IUsbPortCardService
                     device.Key, device.PhysicalPortId);
                 continue;
             }
-
+           
             var displayNo = ResolveDisplayPortNo(device.PhysicalPortId, map);
+            var (availBytes, totalBytes) = ResolveDeviceSpace(device);
+
             slots[slot.Value] = slots[slot.Value] with
             {
                 DeviceKey = device.Key,
@@ -93,6 +110,8 @@ public sealed class UsbPortCardService : IUsbPortCardService
                 PhysicalPortId = device.PhysicalPortId,
                 DisplayPortNo = displayNo,
 
+                DeviceAvailableBytes = availBytes,
+                DeviceTotalBytes = totalBytes
             };
         }
 
@@ -102,15 +121,30 @@ public sealed class UsbPortCardService : IUsbPortCardService
         {
             ct.ThrowIfCancellationRequested();
 
+            // ---- 3.1 槽位定位：先查绑定，再按物理端口兜底 ----
             var slot = _slotRouter.ResolveSlotForTask(task.TaskId);
+            if (slot is null && !string.IsNullOrEmpty(task.PhysicalPortId))
+            {
+                // 兜底：从任务快照的 PhysicalPortId 反推 DeviceKey 再查槽位
+                var deviceKey = "PORT:" + task.PhysicalPortId.Trim().ToUpperInvariant();
+                slot = _slotRouter.ResolveSlotForDevice(deviceKey);
+                if (slot is not null)
+                {
+                    _slotRouter.BindTask(task.TaskId, slot.Value);
+                    _logger.LogDebug(
+                        "任务 {TaskId} 按端口 {PortId} 兜底绑定到槽 {Slot}",
+                        task.TaskId, task.PhysicalPortId, slot.Value);
+                }
+            }
             if (slot is null || slot.Value < 0 || slot.Value >= capacity)
             {
-                // 任务未绑定槽位：等 UI 事件触发绑定后再快照
+                // 任务未绑定槽位且无法兜底：等 UI 事件触发绑定后再快照
+                _logger.LogDebug("任务 {TaskId} 未绑定槽位且兜底失败", task.TaskId);
                 continue;
             }
 
+            // ---- 3.2 填充任务字段 ----
             var current = slots[slot.Value];
-
             // 版本号：与事件流同源，避免旧快照覆盖新事件
             var version = _collectTaskService.GetUiVersion(task.TaskId);
 
@@ -134,18 +168,21 @@ public sealed class UsbPortCardService : IUsbPortCardService
                 DeviceName = current.DeviceName ?? task.RecorderName,
                 Protocol = current.Protocol ?? task.Protocol,
 
+                // 操作人
                 OperatorUserId = task.OperatorUserId,
                 OperatorName = task.OperatorUserName,
-                OperatorDeptName = task.OperatorDeptName
+                OperatorDeptName = task.OperatorDeptName,
+
+                // 端口（若快照中设备尚未对齐，用任务端口补）
+                PhysicalPortId = current.PhysicalPortId ?? task.PhysicalPortId
+
             };
         }
 
         return slots;
     }
 
-    // =========================================================
-    // 统计
-    // =========================================================
+    // ========== 统计 ========== 
 
     /// <inheritdoc />
     public async Task<(int FileCount, long TotalBytes)> GetTodayStatsAsync(
@@ -156,10 +193,7 @@ public sealed class UsbPortCardService : IUsbPortCardService
         return (files.Count, totalBytes);
     }
 
-    // =========================================================
-    // 发现模式（本轮只给骨架，具体面板另案）
-    // =========================================================
-
+    // ========== 发现模式（本轮只给骨架，具体面板另案） ============
     /// <inheritdoc />
     public Task<IReadOnlyList<UsbPortDiscoveryItemDto>> GetDiscoveryListAsync(
         CancellationToken ct = default)
@@ -167,10 +201,10 @@ public sealed class UsbPortCardService : IUsbPortCardService
         var map = _portMap.GetMapping();
         var connected = _devicePresence.GetConnectedDevices();
 
-        // 以"当前在线 + 已映射"合并生成发现列表
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var items = new List<UsbPortDiscoveryItemDto>();
 
+        // 已连接设备
         foreach (var device in connected)
         {
             var portId = device.PhysicalPortId;
@@ -216,14 +250,49 @@ public sealed class UsbPortCardService : IUsbPortCardService
         return Task.FromResult<IReadOnlyList<UsbPortDiscoveryItemDto>>(items);
     }
 
-    // =========================================================
-    // 内部
-    // =========================================================
+
+    /// <summary>设备断开时主动清除空间缓存（避免显示旧磁盘数据）。</summary>
+    public void EvictSpaceCache(string deviceKey)
+    {
+        if (string.IsNullOrEmpty(deviceKey)) return;
+        _spaceCache.TryRemove(deviceKey, out _);
+    }
+
+    // ==========  内部 ==========
 
     private static int ResolveDisplayPortNo(
         string? physicalPortId, IReadOnlyDictionary<string, int> map)
     {
         if (string.IsNullOrEmpty(physicalPortId)) return 0;
         return map.TryGetValue(physicalPortId, out var no) ? no : 0;
+    }
+
+    /// <summary>
+    /// 读取设备空间，带 15 秒缓存。
+    /// 缓存命中直接返回；过期或未命中时调 IDeviceFileSystem.GetDeviceSpace。
+    /// 失败也缓存（避免频繁重试慢速 MTP 设备）。
+    /// </summary>
+    private (long? Available, long? Total) ResolveDeviceSpace(DetectedDevice device)
+    {
+        if (_spaceCache.TryGetValue(device.Key, out var snap)
+            && DateTime.UtcNow - snap.CachedAt < SpaceCacheTtl)
+        {
+            return (snap.Available, snap.Total);
+        }
+
+        (long? Available, long? Total) result;
+        try
+        {
+            var fs = _fileSystems.GetFor(device.Protocol);
+            result = fs.GetDeviceSpace(device);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "读取设备空间失败：{DeviceKey}", device.Key);
+            result = (null, null);
+        }
+
+        _spaceCache[device.Key] = new SpaceSnapshot(result.Available, result.Total, DateTime.UtcNow);
+        return result;
     }
 }

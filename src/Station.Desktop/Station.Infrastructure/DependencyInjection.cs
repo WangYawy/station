@@ -266,7 +266,8 @@ public static class DependencyInjection
         {
             var stationInfo = sp.GetRequiredService<IStationInfoService>();
             var portMap = sp.GetRequiredService<IUsbPortMapService>();
-            var capacity = stationInfo.Current.UsbPortCount;
+            // var capacity = stationInfo.Current.UsbPortCount;
+            var capacity = 20;
             var mode = SlotMode.Pooled;
 
             return mode == SlotMode.Fixed

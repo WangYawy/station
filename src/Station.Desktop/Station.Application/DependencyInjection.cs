@@ -42,10 +42,10 @@ public static class DependencyInjection
         var collectSection = configuration.GetSection(CollectOptions.SectionName);
         var collectOptions = collectSection.Get<CollectOptions>() ?? new CollectOptions();
         // .NET 配置绑定对 List 是"追加"而非替换：存在配置项时按配置整体重建白名单，避免与默认值叠加
-        if (collectSection.GetSection(nameof(CollectOptions.FileExtensions)).Exists())
+        if (collectSection.GetSection(nameof(CollectOptions.ScanExtensions)).Exists())
         {
-            collectOptions.FileExtensions =
-                collectSection.GetSection(nameof(CollectOptions.FileExtensions)).Get<List<string>>() ?? [];
+            collectOptions.ScanExtensions =
+                collectSection.GetSection(nameof(CollectOptions.ScanExtensions)).Get<List<string>>() ?? [];
         }
 
         services.AddSingleton(collectOptions);
@@ -59,6 +59,7 @@ public static class DependencyInjection
         services.AddSingleton<RecorderBindingFile>();
         services.AddScoped<IRecorderService, RecorderService>(); // 记录仪绑定服务
         services.AddScoped<IRecorderIdentificationService, RecorderIdentificationService>(); // 记录仪绑定识别服务
+        services.AddSingleton<IStartupRepairService, StartupRepairService>();
         // 注册报警服务
         services.AddScoped<IAlertService, AlertService>();
         // 注册上传服务

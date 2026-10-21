@@ -5,11 +5,14 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Station.Application;
+using Station.Application.Collecting;
 using Station.Application.Diagnostics;
 using Station.Application.Settings;
 using Station.Application.Storages;
 using Station.Desktop.Bootstrapper;
 using Station.Desktop.Views;
+using Station.Device.Detection;
 
 namespace Station.Desktop;
 
@@ -54,6 +57,8 @@ public partial class App : Avalonia.Application
                 // ---- 3. 关停清理（同步，确保 Host 真的停掉）----
                 desktop.ShutdownRequested += async (_, _) =>
                 {
+                    // 暂停运行中采集任务
+                    await PauseAllCollectTask();
                     if (_host is not null)
                     {
                         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
@@ -89,15 +94,31 @@ public partial class App : Avalonia.Application
         {
             // TODO: 记录日志；可选择提示后继续运行，而不是直接崩
         }
+        finally
+        {
+            try
+            {
+                Services?.GetService<Station.Device.Detection.IDevicePresenceService>()
+                    ?.BeginPolling();
+            }
+            catch { /* 忽略 */ }
+        }
     }
 
     private async Task RunStartupFlowAsync(ShellWindow shell)
     {
-        // seed
+        // 1. 站点信息
+        var infoService = Services!.GetRequiredService<IStationInfoService>();
+        await infoService.RefreshAsync();
+
+        // 2. seed
         await Services!.GetRequiredService<IStorageConfigStore>().SeedIfEmptyAsync();
 
-        // 自检
-        var report = await Services.GetRequiredService<IStartupSelfCheckService>().RunAsync();
+        // 3. 启动修复：僵尸任务 → Interrupted（幂等）
+        await RepairCollectTask();
+
+        // 4. 自检
+        var report = await Services!.GetRequiredService<IStartupSelfCheckService>().RunAsync();
         if (report.IsHealthy) return;
 
         // 关键：走 ShellWindow 的模态通道（_modalDepth 保护 + owner 已可见）
@@ -107,6 +128,7 @@ public partial class App : Avalonia.Application
         if (!canContinue && ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
             desktop.Shutdown();     // 触发 Exit → StopHost()
     }
+
 
     private void StopHost()
     {
@@ -149,6 +171,50 @@ public partial class App : Avalonia.Application
             res["TouchTargetMinHeight"] = 32d;
             res["TouchScrollBarWidth"] = 8d;
             res["ShellCardMinHeight"] = options.MinCardHeight;
+        }
+    }
+
+    private static async Task PauseAllCollectTask()
+    {
+        try
+        {
+            if (Services is not null)
+            {
+                var collect = Services.GetService<ICollectTaskService>();
+                if (collect is not null)
+                {
+                    // 最多等 10 秒完成收尾
+                    await collect.PauseAllAsync(TimeSpan.FromSeconds(10));
+                }
+            }
+        }
+        catch
+        {
+            // 忽略关闭期异常
+        }
+    }
+
+    /// <summary>
+    /// 修复采集任务 僵尸任务 → Interrupted
+    /// </summary>
+    /// <returns></returns>
+    private static async Task RepairCollectTask()
+    {
+        try
+        {
+            var repair = Services!.GetService<IStartupRepairService>();
+            if (repair is not null)
+            {
+                var count = await repair.RepairAsync();
+                if (count > 0)
+                {
+                    // 可选：记录日志 / 提示用户
+                }
+            }
+        }
+        catch
+        {
+            // 修复失败不阻塞启动
         }
     }
 

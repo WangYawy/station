@@ -23,7 +23,12 @@ public sealed class UmsFileSystem : IDeviceFileSystem
 
     public string GetRecorderRoot(DetectedDevice device) => device.Root;
 
-    public Task<IReadOnlyList<SourceFileInfo>> ScanAsync(DetectedDevice device, CancellationToken ct)
+    public Task<IReadOnlyList<SourceFileInfo>> ScanAsync(
+        DetectedDevice device,
+        IReadOnlyCollection<string>? extensions = null,
+        IReadOnlyCollection<string>? includePathPrefixes = null,
+        IReadOnlyCollection<string>? excludePathPrefixes = null,
+        CancellationToken ct = default)
     {
         var root = device.Root;
         if (!Directory.Exists(root))
@@ -37,6 +42,10 @@ public sealed class UmsFileSystem : IDeviceFileSystem
             {
                 var info = new FileInfo(path);
                 var rel = Path.GetRelativePath(root, path).Replace('\\', '/');
+
+                if (!ScanFilter.IsPathAllowed(rel, includePathPrefixes, excludePathPrefixes)) continue;
+                if (!ScanFilter.IsExtensionAllowed(info.Name, extensions)) continue;
+
                 list.Add(new SourceFileInfo(
                     RelativePath: rel,
                     FileName: info.Name,
@@ -56,7 +65,7 @@ public sealed class UmsFileSystem : IDeviceFileSystem
         SourceFileInfo file,
         string destinationPath,
         Func<double, Task>? onProgress,
-        CancellationToken ct)
+        CancellationToken ct = default)
     {
         var sourcePath = Path.Combine(device.Root, file.RelativePath);
         var destDir = Path.GetDirectoryName(destinationPath);
@@ -89,7 +98,7 @@ public sealed class UmsFileSystem : IDeviceFileSystem
     public Task<int> EraseAsync(
         DetectedDevice device,
         IEnumerable<SourceFileInfo> files,
-        CancellationToken ct)
+        CancellationToken ct = default)
     {
         var count = 0;
         foreach (var f in files)
@@ -147,6 +156,30 @@ public sealed class UmsFileSystem : IDeviceFileSystem
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "删除文件失败：{File}", relativePath);
+        }
+    }
+
+    public (long? AvailableBytes, long? TotalBytes) GetDeviceSpace(DetectedDevice device)
+    {
+        if (string.IsNullOrWhiteSpace(device.Root)) return (null, null);
+
+        try
+        {
+            // .NET 8 的 DriveInfo 在 Windows 传 "E:\"，Linux 传 "/media/user/LABEL" 均可工作
+            var drive = new DriveInfo(device.Root);
+            if (!drive.IsReady) return (null, null);
+
+            // AvailableFreeSpace 是当前用户可用（考虑配额），FreeSpace 是磁盘剩余
+            var available = drive.AvailableFreeSpace;
+            var total = drive.TotalSize;
+
+            if (total <= 0) return (null, null);
+            return (available, total);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "UMS 读取设备空间失败：{Root}", device.Root);
+            return (null, null);
         }
     }
 }

@@ -10,7 +10,6 @@ using Station.Application.Security;
 using Station.Application.Storages;
 using Station.Crypto;
 using Station.Data.IdGeneration;
-using Station.Device.Detection;
 using Station.Device.FileSystem;
 using Station.Domain.Abstractions;
 using Station.Domain.Collecting;
@@ -28,13 +27,9 @@ public sealed class CollectTaskService : ICollectTaskService
         public long CurrentFileId;
     }
 
-    // 短连接（前台操作）
     private readonly ICollectTaskRepository _tasks;
     private readonly ICollectFileRepository _files;
-
-    // 读侧
     private readonly ICollectTaskQueryService _taskQuery;
-
     private readonly IIdGenerator _idGenerator;
     private readonly IDeviceFileSystemProvider _sources;
     private readonly CollectOptions _options;
@@ -51,13 +46,6 @@ public sealed class CollectTaskService : ICollectTaskService
 
     private readonly ConcurrentDictionary<long, TaskControl> _controls = new();
     private readonly ConcurrentDictionary<long, long> _uiVersions = new();
-
-    /// <summary>
-    /// 任务 → 物理端口标识的内存映射。
-    /// 由 CreateTaskAsync 写入；用于 UI 事件携带 PhysicalPortId，供卡片路由。
-    /// 进程重启后丢失，不影响功能（快照兜底会重建）。
-    /// </summary>
-    private readonly ConcurrentDictionary<long, string?> _taskPortMap = new();
 
     private readonly ILogger<CollectTaskService> _logger;
 
@@ -99,34 +87,49 @@ public sealed class CollectTaskService : ICollectTaskService
         _logger = logger;
     }
 
-    // =========================================================
-    // 创建 / 启动
-    // =========================================================
+    // ========== 创建 ==========
 
+    /// <inheritdoc />
     public async Task<CollectTaskDto> CreateTaskAsync(
         BoundDevice device, bool isAuto, CancellationToken ct = default)
     {
+        // 1. 生成主键 + 任务号
         var now = DateTime.Now;
         var id = _idGenerator.NewId();
-        var taskNo = await _taskNoGen.NextAsync(_station.Current.StationCode, device.Device.Serial!, now, ct);
+        var taskNo = await _taskNoGen.NextAsync(
+            _station.Current.StationCode, device.RecorderCode!, now, ct);
 
+        // 2. 构造 DeviceRef（不可变设备快照）
+        var deviceRef = DeviceRef.Create(
+            key: device.Device.Key,
+            physicalPortId: device.Device.PhysicalPortId,
+            serial: device.Device.Serial,
+            root: device.Device.Root,
+            name: device.Device.Name,
+            protocol: device.Device.Protocol);
+
+        // 3. 创建聚合根
         var task = CollectTask.Create(
             id, taskNo,
-            device.Device.Name, device.Device.Serial, device.Device.Protocol, device.Device.Root,
-            device.UserId, device.DeptId, isAuto, now);
+            recorderId: device.RecorderId ?? 0,
+            recorderCode: device.RecorderCode ?? string.Empty,
+            device: deviceRef,
+            userId: device.UserId,
+            deptId: device.DeptId,
+            isAuto: isAuto,
+            now: now);
 
-        // 记录物理端口映射（供 UI 事件携带）
-        _taskPortMap[id] = device.Device.PhysicalPortId;
-
+        // 4. 落库 + 发布领域事件 + 发 UI 状态事件
         await _tasks.AddAsync(task, ct);
         await PublishAndClearAsync(task, ct);
         PublishTaskStatusUi(task);
 
         _logger.LogInformation(
-            "采集任务创建 {TaskNo}：记录仪 {Recorder}（{Protocol}，{Mode}，Port={Port}）",
-            task.TaskNo, device.Device.Name, device.Device.Protocol,
-            isAuto ? "自动" : "手动", device.Device.PhysicalPortId ?? "-");
+            "采集任务创建 {TaskNo}：记录仪 {Recorder}（{Protocol}，{Mode}，Key={Key}，Port={Port}）",
+            task.TaskNo, deviceRef.Name, deviceRef.Protocol,
+            isAuto ? "自动" : "手动", deviceRef.Key, deviceRef.PhysicalPortId ?? "-");
 
+        // 5. 自动采集
         if (isAuto && _options.AutoCollectOnConnect)
         {
             return await StartAsync(task.Id, ct);
@@ -135,40 +138,55 @@ public sealed class CollectTaskService : ICollectTaskService
         return ToDto(task);
     }
 
+    // ========== 启动 / 续采 ==========
+
+    /// <inheritdoc />
     public async Task<CollectTaskDto> StartAsync(long taskId, CancellationToken ct = default)
     {
+        // 1. 前置校验：授权 + 采集开关
         if (!await _licenseService.IsValidNowAsync())
             throw new InvalidOperationException("授权不可用，无法采集");
 
         if (!_collectControl.CollectingEnabled)
             throw new InvalidOperationException($"采集已停止：{_collectControl.StoppedReason ?? "远程指令"}");
 
+        // 2. 加载任务 + 校验无活动控制块
         var task = await _tasks.GetByIdAsync(taskId, ct)
             ?? throw new InvalidOperationException($"任务 {taskId} 不存在");
 
         if (_controls.ContainsKey(taskId))
             throw new InvalidOperationException("任务正在运行中");
 
-        // ---- 1. 扫描阶段 ----
-        task.BeginScanning(DateTime.Now);
+        // 3. 记录原始状态（区分"新建"与"续采"）
+        var originalStatus = task.Status;
+
+        // 4. 状态切换：新建 / 续采均走 BeginScanning
+        if (originalStatus == CollectTaskStatus.Created
+            || originalStatus is CollectTaskStatus.Interrupted
+                                or CollectTaskStatus.Failed
+                                or CollectTaskStatus.Paused)
+        {
+            task.BeginScanning(DateTime.Now);
+        }
+        else
+        {
+            throw new InvalidOperationException(
+                $"任务状态 {originalStatus} 不允许启动/续采");
+        }
+
         await _tasks.UpdateAsync(task, ct);
         await PublishAndClearAsync(task, ct);
         PublishTaskStatusUi(task);
 
-        // ---- 2. 扫描设备文件 ----
-        var device = new DetectedDevice(
-            Key: task.RecorderSerial ?? task.Id.ToString(),
-            Name: task.RecorderName,
-            Serial: task.RecorderSerial,
-            Protocol: task.Protocol,
-            Root: task.SourceRoot!,
-            PhysicalPortId: _taskPortMap.TryGetValue(taskId, out var port) ? port : null);
+        // 5. 从聚合根统一构造 DetectedDevice（TaskDeviceFactory）
+        var device = TaskDeviceFactory.FromCollectTask(task);
 
+        // 6. 扫描设备文件
         var collectSource = _sources.GetFor(device.Protocol);
-        var sources = await collectSource.ScanAsync(device, ct);
+        var sources = await collectSource.ScanAsync(device, extensions: _options.ScanExtensions, _options.ScanIncludePaths, _options.ScanExtensions, ct: ct);
         var accepted = sources.OrderBy(f => f.FileName, StringComparer.OrdinalIgnoreCase).ToList();
 
-        // ---- 3. 已采集指纹（合并 N+1） ----
+        // 7. 查已采集指纹（按 fingerprint 跳过已完成文件）
         HashSet<string> completedFingerprints;
         if (_options.SkipCollected && accepted.Count > 0)
         {
@@ -184,10 +202,12 @@ public sealed class CollectTaskService : ICollectTaskService
             completedFingerprints = new HashSet<string>(StringComparer.Ordinal);
         }
 
-        // ---- 4. 批量构造聚合 ----
+        // 8. 批量构造 CollectFile（只对新文件）
         using var fileCtx = await _fileNoGen.CreateContextAsync(task.TaskNo, ct);
         var toInsert = new List<CollectFile>(accepted.Count);
         var skipped = 0;
+        var newPendingCount = 0;
+        long newPendingBytes = 0;
 
         foreach (var source in accepted)
         {
@@ -202,25 +222,39 @@ public sealed class CollectTaskService : ICollectTaskService
                 source.ModifiedAt, already, DateTime.Now);
 
             toInsert.Add(file);
+
+            if (!already)
+            {
+                newPendingCount++;
+                newPendingBytes += source.Size;
+            }
         }
 
         if (toInsert.Count > 0)
             await _files.AddRangeAsync(toInsert, ct);
 
         _logger.LogInformation(
-            "设备 {Recorder} 任务 {TaskNo} 扫描完成：{Total} 个文件（跳过 {Skipped}）",
-            task.RecorderSerial, task.TaskNo, accepted.Count, skipped);
+            "设备 {Recorder} 任务 {TaskNo} 扫描完成：{Total} 个文件（跳过 {Skipped}，新增 {New}）",
+            task.Device.Serial, task.TaskNo, accepted.Count, skipped, newPendingCount);
 
-        // ---- 5. 进入采集状态 ----
-        task.BeginCollecting(
-            accepted.Count, skipped,
-            accepted.Sum(f => f.Size), DateTime.Now);
+        // 9. 状态机：新建 vs 续采
+        if (originalStatus == CollectTaskStatus.Created)
+        {
+            task.BeginCollecting(
+                accepted.Count, skipped,
+                accepted.Sum(f => f.Size), DateTime.Now);
+        }
+        else
+        {
+            // 续采：累加统计（保留历史 Completed）
+            task.ResumeCollecting(newPendingCount, newPendingBytes, DateTime.Now);
+        }
 
         await _tasks.UpdateAsync(task, ct);
         await PublishAndClearAsync(task, ct);
         PublishTaskStatusUi(task);
 
-        // ---- 6. 后台采集线程 ----
+        // 10. 启动 LongRunning 后台采集线程
         var control = new TaskControl();
         _controls[taskId] = control;
 
@@ -237,12 +271,12 @@ public sealed class CollectTaskService : ICollectTaskService
         return ToDto(task);
     }
 
-    // =========================================================
-    // 暂停 / 恢复 / 取消 / 中断
-    // =========================================================
+    // ========== 暂停 / 恢复 / 取消 / 中断 / 紧急 ==========
 
+    /// <inheritdoc />
     public Task PauseAsync(long taskId, CancellationToken ct = default)
     {
+        // 1. 有活动控制块：设置暂停信号 + 触发取消
         if (_controls.TryGetValue(taskId, out var control))
         {
             control.PauseRequested = true;
@@ -252,19 +286,23 @@ public sealed class CollectTaskService : ICollectTaskService
         return Task.CompletedTask;
     }
 
+    /// <inheritdoc />
     public async Task ResumeAsync(long taskId, CancellationToken ct = default)
     {
+        // 1. 加载任务 + 校验无运行中控制块
         var task = await _tasks.GetByIdAsync(taskId, ct)
             ?? throw new InvalidOperationException($"任务 {taskId} 不存在");
 
         if (_controls.ContainsKey(taskId))
             throw new InvalidOperationException("任务正在运行中");
 
+        // 2. 状态切换 Paused → Collecting
         task.Resume(DateTime.Now);
         await _tasks.UpdateAsync(task, ct);
         await PublishAndClearAsync(task, ct);
         PublishTaskStatusUi(task);
 
+        // 3. 重启后台采集线程
         var control = new TaskControl();
         _controls[taskId] = control;
 
@@ -281,18 +319,23 @@ public sealed class CollectTaskService : ICollectTaskService
         _logger.LogInformation("采集任务 {TaskId} 恢复", taskId);
     }
 
+    /// <inheritdoc />
     public Task CancelAsync(long taskId, CancellationToken ct = default)
         => SetFinalAsync(taskId, CollectTaskStatus.Canceled, null, ct);
 
+    /// <inheritdoc />
     public Task InterruptAsync(long taskId, string reason, CancellationToken ct = default)
         => SetFinalAsync(taskId, CollectTaskStatus.Interrupted, reason, ct);
 
+    /// <inheritdoc />
     public async Task<bool> SetEmergencyAsync(
         long taskId, bool isEmergency, CancellationToken ct = default)
     {
+        // 1. 加载任务
         var task = await _tasks.GetByIdAsync(taskId, ct)
             ?? throw new InvalidOperationException($"任务 {taskId} 不存在");
 
+        // 2. 设为紧急时校验上限
         if (isEmergency && !task.IsEmergency)
         {
             var current = await _tasks.CountActiveEmergencyAsync(ct);
@@ -300,6 +343,7 @@ public sealed class CollectTaskService : ICollectTaskService
                 return false;
         }
 
+        // 3. 更新紧急标记 + 持久化 + 事件
         task.MarkEmergency(isEmergency, DateTime.Now);
         await _tasks.UpdateAsync(task, ct);
         await PublishAndClearAsync(task, ct);
@@ -309,21 +353,56 @@ public sealed class CollectTaskService : ICollectTaskService
         return true;
     }
 
+    // ========== 批量控制（优雅关闭） ==========
+
+    /// <inheritdoc />
+    public async Task PauseAllAsync(TimeSpan timeout, CancellationToken ct = default)
+    {
+        // 1. 快照当前运行中的 taskId 列表
+        var ids = _controls.Keys.ToList();
+        if (ids.Count == 0) return;
+
+        _logger.LogInformation("批量暂停：{Count} 个运行中任务", ids.Count);
+
+        // 2. 逐个发送暂停信号（不阻塞等待）
+        foreach (var id in ids)
+        {
+            try { await PauseAsync(id, ct); }
+            catch (Exception ex) { _logger.LogWarning(ex, "暂停 {TaskId} 失败", id); }
+        }
+
+        // 3. 轮询等待 _controls 清空（FinalizeAsync 完成后会移除控制块）
+        var deadline = DateTime.UtcNow + timeout;
+        while (_controls.Count > 0 && DateTime.UtcNow < deadline && !ct.IsCancellationRequested)
+        {
+            await Task.Delay(100, ct);
+        }
+
+        if (_controls.Count > 0)
+            _logger.LogWarning("批量暂停超时：{Remain} 个任务未完成收尾", _controls.Count);
+        else
+            _logger.LogInformation("批量暂停完成");
+    }
+
     // =========================================================
-    // 读（走 QueryService）
+    // 读
     // =========================================================
 
+    /// <inheritdoc />
     public Task<CollectTaskDto?> GetTaskAsync(long taskId, CancellationToken ct = default)
         => _taskQuery.GetByIdAsync(taskId, ct);
 
+    /// <inheritdoc />
     public async Task<IReadOnlyList<CollectTaskDto>> GetTasksAsync(
         int count, CancellationToken ct = default)
         => await _taskQuery.GetRecentAsync(count, ct);
 
+    /// <inheritdoc />
     public async Task<IReadOnlyList<CollectTaskDto>> GetActiveTasksAsync(
         CancellationToken ct = default)
         => await _taskQuery.GetActiveAsync(ct);
 
+    /// <inheritdoc />
     public async Task<IReadOnlyList<CollectFileDto>> GetTaskFilesAsync(
         long taskId, CancellationToken ct = default)
     {
@@ -331,7 +410,28 @@ public sealed class CollectTaskService : ICollectTaskService
         return files.OrderBy(f => f.Id).Select(ToDto).ToList();
     }
 
-    /// <summary>获取任务的 UI 版本号（用于快照与事件的版本仲裁）。</summary>
+    /// <inheritdoc />
+    public async Task<CollectTaskDto?> FindResumeableTaskAsync(
+        string? physicalPortId, CancellationToken ct = default)
+    {
+        // 1. physicalPortId 为空直接返回（降级场景无法判定）
+        if (string.IsNullOrEmpty(physicalPortId)) return null;
+
+        // 2. 取最近 100 个任务（覆盖绝大多数场景）
+        var recent = await _taskQuery.GetRecentAsync(100, ct);
+
+        // 3. 过滤：同端口 + Paused / Interrupted / Failed
+        var normalized = physicalPortId.Trim().ToUpperInvariant();
+        return recent.FirstOrDefault(t =>
+            !string.IsNullOrEmpty(t.PhysicalPortId)
+            && string.Equals(t.PhysicalPortId.Trim().ToUpperInvariant(), normalized,
+                StringComparison.OrdinalIgnoreCase)
+            && t.Status is CollectTaskStatus.Paused
+                        or CollectTaskStatus.Interrupted
+                        or CollectTaskStatus.Failed);
+    }
+
+    /// <inheritdoc />
     public long GetUiVersion(long taskId)
         => _uiVersions.TryGetValue(taskId, out var v) ? v : 0;
 
@@ -339,10 +439,22 @@ public sealed class CollectTaskService : ICollectTaskService
     // 内部：收尾
     // =========================================================
 
+    /// <summary>
+    /// 统一终态处理入口（Cancel / Interrupt / Fail）。
+    /// 
+    /// 【有活动控制块】
+    ///   - 设置 FinalStatus，触发 Cts.Cancel
+    ///   - 由后台线程 FinalizeAsync 完成实际落库
+    /// 
+    /// 【无活动控制块】
+    ///   - 直接对空闲任务执行终态
+    ///   - 更新未完成文件状态（Interrupt / Cancel）
+    /// </summary>
     private async Task SetFinalAsync(
         long taskId, CollectTaskStatus finalStatus, string? reason,
         CancellationToken ct = default)
     {
+        // 1. 有活动控制块：设置信号后交给 FinalizeAsync
         if (_controls.TryGetValue(taskId, out var control))
         {
             control.FinalStatus = finalStatus;
@@ -362,7 +474,7 @@ public sealed class CollectTaskService : ICollectTaskService
             return;
         }
 
-        // 无活动控制块：直接对空闲任务执行终态
+        // 2. 无活动控制块：直接终态
         var idle = await _tasks.GetByIdAsync(taskId, ct);
         if (idle is null) return;
 
@@ -384,6 +496,7 @@ public sealed class CollectTaskService : ICollectTaskService
         await PublishAndClearAsync(idle, ct);
         PublishTaskStatusUi(idle);
 
+        // 3. 更新未完成文件状态
         var pending = await _files.GetPendingByTaskIdAsync(taskId, ct);
         if (pending.Count > 0)
         {
@@ -400,11 +513,22 @@ public sealed class CollectTaskService : ICollectTaskService
     }
 
     // =========================================================
-    // 内部：后台采集主循环（长连接）
+    // 内部：后台采集主循环
     // =========================================================
 
+    /// <summary>
+    /// 后台采集主线程（长连接）。
+    /// 
+    /// 【步骤】
+    ///   1. 独立 Scope 获取长连接仓储
+    ///   2. 统一构造 DetectedDevice
+    ///   3. 逐个 Pending 文件：BeginCopy → CopyAsync → Verify → Digest → Sign → Encrypt → CompleteCollecting
+    ///   4. 每完成一个文件：AddCollectedFile + 发 UI 事件
+    ///   5. 收尾：FinalizeAsync
+    /// </summary>
     private async Task RunCollectAsync(long taskId, TaskControl control)
     {
+        // 1. 独立 Scope（长连接仓储）
         using var scope = _scopeFactory.CreateScope();
         var taskSync = scope.ServiceProvider.GetRequiredService<ICollectTaskSyncRepository>();
         var fileSync = scope.ServiceProvider.GetRequiredService<ICollectFileSyncRepository>();
@@ -413,17 +537,13 @@ public sealed class CollectTaskService : ICollectTaskService
         try
         {
             var ct = control.Cts.Token;
+
+            // 2. 加载任务 + 构造 DetectedDevice
             task = taskSync.GetById(taskId);
             if (task is null) return;
 
-            var portId = _taskPortMap.TryGetValue(taskId, out var p) ? p : null;
-            var device = new DetectedDevice(
-                Key: task.RecorderSerial ?? taskId.ToString(),
-                Name: task.RecorderName,
-                Serial: task.RecorderSerial,
-                Protocol: task.Protocol,
-                Root: task.SourceRoot!,
-                PhysicalPortId: portId);
+            var device = TaskDeviceFactory.FromCollectTask(task);
+            var portId = device.PhysicalPortId;
 
             var source = _sources.GetFor(device.Protocol);
             var pendingFiles = fileSync.GetPendingByTaskId(taskId);
@@ -432,11 +552,13 @@ public sealed class CollectTaskService : ICollectTaskService
             long speedLastBytes = 0;
             var cursor = 0;
 
+            // 3. 逐文件处理
             while (!ct.IsCancellationRequested && cursor < pendingFiles.Count)
             {
                 var file = pendingFiles[cursor++];
                 control.CurrentFileId = file.Id;
 
+                // 3.1 标记复制中
                 file.BeginCopy(DateTime.Now);
                 fileSync.Update(file);
                 await PublishAndClearAsync(file);
@@ -444,6 +566,7 @@ public sealed class CollectTaskService : ICollectTaskService
                 var baseCompletedBytes = task.CollectedBytes;
                 var destination = Path.Combine(_options.CacheDirectory, task.TaskNo, file.RelativePath!);
 
+                // 3.2 复制（带进度回调）
                 await source.CopyAsync(
                     device,
                     new SourceFileInfo(file.RelativePath!, file.FileName, file.Size,
@@ -453,8 +576,10 @@ public sealed class CollectTaskService : ICollectTaskService
                     {
                         try
                         {
+                            // 聚合内 10% 节流
                             var crossed = file.ReportCopyProgress(progress);
 
+                            // 速度采样
                             var totalDoneBytes = baseCompletedBytes + (long)(file.Size * progress);
                             var nowUtc = DateTime.UtcNow;
                             if (speedLastTime != DateTime.MinValue)
@@ -470,15 +595,16 @@ public sealed class CollectTaskService : ICollectTaskService
                             speedLastTime = nowUtc;
                             speedLastBytes = totalDoneBytes;
 
+                            // UI 进度事件
                             var overall = task.TotalBytes > 0
                                 ? Math.Clamp((double)totalDoneBytes / task.TotalBytes, 0, 1)
                                 : 0;
 
-                            // ★ UI 进度携带 PhysicalPortId
                             _ui.PublishTaskProgress(
                                 taskId, overall * 100, task.SpeedBytesPerSecond,
                                 portId, GetUiVersion(taskId));
 
+                            // 跨档时落库
                             if (crossed)
                             {
                                 try { fileSync.Update(file); }
@@ -493,7 +619,7 @@ public sealed class CollectTaskService : ICollectTaskService
                     },
                     ct);
 
-                // 校验大小
+                // 3.3 校验大小
                 file.BeginVerify();
                 fileSync.Update(file);
 
@@ -501,7 +627,7 @@ public sealed class CollectTaskService : ICollectTaskService
                 if (copied != file.Size)
                     throw new IOException($"文件大小校验失败：期望 {file.Size}，实际 {copied}");
 
-                // 摘要 + 签名 + 加密
+                // 3.4 摘要 + 签名 + 加密
                 string? digest = null, digestAlgo = null, signature = null, signAlgo = null;
                 var encryptedSize = 0L;
                 var localEncrypted = false;
@@ -556,12 +682,14 @@ public sealed class CollectTaskService : ICollectTaskService
                     }
                 }
 
+                // 3.5 完成采集
                 file.CompleteCollecting(digest, digestAlgo, signature, signAlgo,
                     localEncrypted, encryptedSize, DateTime.Now);
                 fileSync.Update(file);
                 await PublishAndClearAsync(file);
                 _ui.PublishTaskFileCompleted(taskId, file.Id, file.Status);
 
+                // 3.6 累加任务统计
                 task.AddCollectedFile(file.Size, DateTime.Now);
                 await PublishAndClearAsync(task);
 
@@ -572,7 +700,7 @@ public sealed class CollectTaskService : ICollectTaskService
         catch (Exception ex)
         {
             _logger.LogError(ex, "采集任务 {TaskId} 执行异常（记录仪 {Recorder}）",
-                taskId, task?.RecorderName);
+                taskId, task?.Device.Name);
 
             if (task is not null)
             {
@@ -596,6 +724,7 @@ public sealed class CollectTaskService : ICollectTaskService
             }
         }
 
+        // 4. 收尾
         try
         {
             await FinalizeAsync(taskId, control);
@@ -619,6 +748,19 @@ public sealed class CollectTaskService : ICollectTaskService
         }
     }
 
+    /// <summary>
+    /// 收尾：处理暂停 / 终态分支。
+    /// 
+    /// 【暂停分支】
+    ///   - 当前文件 ResetToPending
+    ///   - task.Pause
+    ///   - UpdateStateOnly
+    /// 
+    /// 【终态分支】
+    ///   - 未完成文件 Interrupt / Cancel
+    ///   - 任务 Interrupt / Cancel / Complete
+    ///   - TryErase（若配置 EraseAfterComplete）
+    /// </summary>
     private async Task FinalizeAsync(long taskId, TaskControl control)
     {
         using var scope = _scopeFactory.CreateScope();
@@ -722,6 +864,7 @@ public sealed class CollectTaskService : ICollectTaskService
             task.TaskNo, task.Status, task.TotalFiles, task.CollectedFiles);
     }
 
+    /// <summary>尝试擦除记录仪上的已采集文件（EraseAfterComplete=true 时）。</summary>
     private void TryErase(CollectTask task, IEnumerable<CollectFile> files)
     {
         if (!_options.EraseAfterComplete) return;
@@ -734,14 +877,7 @@ public sealed class CollectTaskService : ICollectTaskService
 
         try
         {
-            var portId = _taskPortMap.TryGetValue(task.Id, out var p) ? p : null;
-            var device = new DetectedDevice(
-                Key: task.RecorderSerial ?? task.Id.ToString(),
-                Name: task.RecorderName,
-                Serial: task.RecorderSerial,
-                Protocol: task.Protocol,
-                Root: task.SourceRoot!,
-                PhysicalPortId: portId);
+            var device = TaskDeviceFactory.FromCollectTask(task);
 
             _sources.GetFor(device.Protocol)
                 .EraseAsync(device, sourceFiles, CancellationToken.None)
@@ -759,13 +895,11 @@ public sealed class CollectTaskService : ICollectTaskService
     // 内部：事件发布
     // =========================================================
 
-    /// <summary>发 UI 状态事件，携带 PhysicalPortId + UiVersion。</summary>
     private void PublishTaskStatusUi(CollectTask task)
     {
-        var portId = _taskPortMap.TryGetValue(task.Id, out var p) ? p : null;
         _ui.PublishTaskStatus(
             task.Id, task.Status, task.IsEmergency,
-            portId, NextUiVersion(task.Id));
+            task.Device.PhysicalPortId, NextUiVersion(task.Id));
     }
 
     private async Task PublishFilesAsync(IEnumerable<CollectFile> files, CancellationToken ct = default)
@@ -800,12 +934,13 @@ public sealed class CollectTaskService : ICollectTaskService
     }
 
     private static CollectTaskDto ToDto(CollectTask t) => new(
-        t.Id, t.TaskNo, t.RecorderName, t.RecorderSerial, t.Protocol,
-        t.OperatorUserId, "占位", "占位", t.DeptId, "占位", t.Status, t.IsAuto,
-        t.TotalFiles, t.CollectedFiles, t.SkippedFiles, t.FailedFiles,
-        t.TotalBytes, t.CollectedBytes, t.SpeedBytesPerSecond, t.IsEmergency,
-        t.SyncStatus, t.UploadedFiles, t.UploadedBytes, t.UploadError,
-        t.StartedAt, t.CompletedAt, t.ErrorMessage);
+       t.Id, t.TaskNo, t.Device.Key, t.RecorderId, t.RecorderCode,
+       t.Device.Name, t.Device.Serial, t.Device.Protocol, t.Device.PhysicalPortId,
+       t.OperatorUserId, "占位", "占位", t.DeptId, "占位", t.Status, t.IsAuto,
+       t.TotalFiles, t.CollectedFiles, t.SkippedFiles, t.FailedFiles,
+       t.TotalBytes, t.CollectedBytes, t.SpeedBytesPerSecond, t.IsEmergency,
+       t.SyncStatus, t.UploadedFiles, t.UploadedBytes, t.UploadError,
+       t.StartedAt, t.CompletedAt, t.ErrorMessage, t.CreatedAt);
 
     private static CollectFileDto ToDto(CollectFile f) => new(
         f.Id, f.TaskId, f.FileName, f.Extension, f.Size,

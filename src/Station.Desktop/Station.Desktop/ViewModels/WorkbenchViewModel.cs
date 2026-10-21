@@ -215,6 +215,8 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
         {
             var card = FindCardByDeviceKey(e.DeviceKey);
             card?.SetDeviceOffline();
+
+            _cardService.EvictSpaceCache(e.DeviceKey);
         }, DispatcherPriority.Normal);
     }
 
@@ -223,7 +225,7 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
         Dispatcher.UIThread.Post(() =>
         {
             var card = FindCardByDeviceKey(e.DeviceKey);
-            card?.SetBound();
+            card?.SetBound(e.UserName, e.DeptName);
         }, DispatcherPriority.Normal);
     }
 

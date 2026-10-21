@@ -96,7 +96,7 @@ public sealed class SystemSettingsService : ISystemSettingsService
                 _collect.AutoCollectOnConnect,
                 _collect.EraseAfterComplete,
                 _collect.SkipCollected,
-                _collect.FileExtensions.Any(e => AncillaryExtensions.Contains(e, StringComparer.OrdinalIgnoreCase))),
+                _collect.ScanExtensions.Any(e => AncillaryExtensions.Contains(e, StringComparer.OrdinalIgnoreCase))),
             new WorkbenchSettingsDto(
                 _workbench.Rows,
                 _workbench.Columns,
@@ -266,7 +266,7 @@ public sealed class SystemSettingsService : ISystemSettingsService
         if (values.TryGetValue("collectAncillaryFiles", out var ancillary))
         {
             var enabled = ParseBool(ancillary, true);
-            _collect.FileExtensions = enabled
+            _collect.ScanExtensions = enabled
                 ? VideoExtensions.Concat(AncillaryExtensions).ToList()
                 : VideoExtensions.ToList();
         }
@@ -338,7 +338,7 @@ public sealed class SystemSettingsService : ISystemSettingsService
             _collect.AutoCollectOnConnect,
             _collect.EraseAfterComplete,
             _collect.SkipCollected,
-            _collect.FileExtensions,
+            _collect.ScanExtensions,
             _collect.MaxEmergencyTasks,
             _collect.CacheRetentionDays,
             _collect.CacheCleanupHour,

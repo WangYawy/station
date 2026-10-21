@@ -15,10 +15,12 @@ public sealed class RecorderQueryService : IRecorderQueryService
     public async Task<RecorderListItemDto?> GetByIdAsync(long id, CancellationToken ct = default)
         => await _db.Queryable<RecorderPo>()
             .Where(x => x.Id == id)
-            .Select(x => new RecorderListItemDto
+            .Select(x => new RecorderListItemDto()
             {
                 Id = x.Id,
                 SerialNumber = x.SerialNumber,
+                Code = x.Code,
+                Name = x.Name,
                 Model = x.Model,
                 Protocol = x.Protocol,
                 BoundUserId = x.BoundUserId,
@@ -32,10 +34,12 @@ public sealed class RecorderQueryService : IRecorderQueryService
     public async Task<RecorderListItemDto?> GetBySerialAsync(string serialNumber, CancellationToken ct = default)
         => await _db.Queryable<RecorderPo>()
             .Where(x => x.SerialNumber == serialNumber)
-            .Select(x => new RecorderListItemDto
+            .Select(x => new RecorderListItemDto()
             {
                 Id = x.Id,
                 SerialNumber = x.SerialNumber,
+                Code = x.Code,
+                Name = x.Name,
                 Model = x.Model,
                 Protocol = x.Protocol,
                 BoundUserId = x.BoundUserId,
@@ -49,10 +53,12 @@ public sealed class RecorderQueryService : IRecorderQueryService
     public async Task<RecorderListItemDto?> GetByCodeAsync(string code, CancellationToken ct = default)
         => await _db.Queryable<RecorderPo>()
             .Where(x => x.Code == code)
-            .Select(x => new RecorderListItemDto
+            .Select(x => new RecorderListItemDto()
             {
                 Id = x.Id,
                 SerialNumber = x.SerialNumber,
+                Code = x.Code,
+                Name = x.Name,
                 Model = x.Model,
                 Protocol = x.Protocol,
                 BoundUserId = x.BoundUserId,
@@ -66,10 +72,12 @@ public sealed class RecorderQueryService : IRecorderQueryService
     public async Task<RecorderListItemDto?> GetByNameAsync(string name, CancellationToken ct = default)
         => await _db.Queryable<RecorderPo>()
             .Where(x => x.Name == name)
-            .Select(x => new RecorderListItemDto
+            .Select(x => new RecorderListItemDto()
             {
                 Id = x.Id,
                 SerialNumber = x.SerialNumber,
+                Code = x.Code,
+                Name = x.Name,
                 Model = x.Model,
                 Protocol = x.Protocol,
                 BoundUserId = x.BoundUserId,
@@ -88,10 +96,12 @@ public sealed class RecorderQueryService : IRecorderQueryService
 
         var list = await q
             .OrderBy(x => x.SerialNumber, OrderByType.Asc)
-            .Select(x => new RecorderListItemDto
+            .Select(x => new RecorderListItemDto()
             {
                 Id = x.Id,
                 SerialNumber = x.SerialNumber,
+                Code = x.Code,
+                Name = x.Name,
                 Model = x.Model,
                 Protocol = x.Protocol,
                 BoundUserId = x.BoundUserId,

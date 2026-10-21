@@ -11,6 +11,8 @@ public sealed record DeviceBoundEvent(
     long UserId,
     long DeptId,
     string? PhysicalPortId,
+    string? UserName,
+    string? DeptName,
     long Version = 0);
 
 /// <summary>设备识别拒绝（业务事件）。</summary>

@@ -44,6 +44,12 @@ public sealed class CollectOptions
     public int CacheCleanupHour { get; set; } = 4;
 
     public int CacheCleanupMinute { get; set; } = 0;
+    /// <summary>
+    /// 设备接入时是否自动续采（Paused / Interrupted / Failed）任务。
+    /// false（默认）：不自动续采，卡片显示"已中断/已暂停"等用户点"重试"；
+    /// true：自动 ResumeAsync 续采。
+    /// </summary>
+    public bool AutoResumeInterruptedOnReconnect { get; set; } = false;
 
     /// <summary>记录仪接入后是否自动开始采集（需求：默认自动）。</summary>
     public bool AutoCollectOnConnect { get; set; } = true;
@@ -70,20 +76,25 @@ public sealed class CollectOptions
     public int ChunkBytes { get; set; } = 1024 * 1024;
 
     /// <summary>
-    /// 只扫描名称匹配这些关键字的文件夹（null/空=扫描全部）。
-    /// 例：["DCIM"] → 只在名为 DCIM 的文件夹及其子目录下收集文件。
-    /// 例：["DCIM","记录"] → DCIM 或 记录 文件夹下都扫。
+    /// 扫描文件扩展名白名单（含点，如 ".mp4" / ".jpg"）。空集合 = 不过滤。
     /// </summary>
-    public List<string>? ScanFolderFilter { get; set; }
-
-    /// <summary>采集文件扩展名白名单。</summary>
-    public List<string> FileExtensions { get; set; } =
+    public List<string> ScanExtensions { get; set; } =
     [
         ".mp4", ".avi", ".flv", ".mov",
         ".wav", ".mp3", ".aac",
         ".jpg", ".bmp", ".jpeg", ".png",
         ".log"
     ];
+   
+    /// <summary>
+    /// 只扫描这些相对路径前缀下的文件（如 "DCIM" / "RECORD/2024"）。空集合 = 不限。
+    /// </summary>
+    public List<string> ScanIncludePaths { get; set; } = [];
+
+    /// <summary>
+    /// 排除这些相对路径前缀下的文件（优先级高于 Include）。空集合 = 不排除。
+    /// </summary>
+    public List<string> ScanExcludePaths { get; set; } = [];
 
 
     /// <summary>模拟源每分块耗时（毫秒），用于演示可见进度与可靠的暂停/中断测试。</summary>

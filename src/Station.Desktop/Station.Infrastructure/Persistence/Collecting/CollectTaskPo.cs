@@ -15,16 +15,23 @@ public sealed class CollectTaskPo
     [SugarColumn(Length = 128)]
     public string TaskNo { get; set; } = string.Empty;
 
+    /// <summary>设备路由标识</summary>
+    [SugarColumn(IsNullable = true, Length = 128)]
+    public string? DeviceKey { get; set; }
+    public long RecorderId { get; set; }
+    [SugarColumn(Length = 64)]
+    public string RecorderCode { get; set; } = string.Empty;
     [SugarColumn(Length = 64)]
     public string RecorderName { get; set; } = string.Empty;
 
     [SugarColumn(IsNullable = true, Length = 64)]
     public string? RecorderSerial { get; set; }
-
     public ProtocolType Protocol { get; set; }
 
-    [SugarColumn(IsNullable = true, Length = 512)]
+    [SugarColumn(IsNullable = true, Length = 256)]
     public string? SourceRoot { get; set; }
+    [SugarColumn(IsNullable = true, Length = 128)]
+    public string? PhysicalPortId { get; set; }
 
     [SugarColumn(IsNullable = true)]
     public long? OperatorUserId { get; set; }

@@ -7,35 +7,39 @@ namespace Station.Domain.Collecting;
 public enum CollectTaskStatus
 {
     /// <summary>
+    /// 等待采集
+    /// </summary>
+    Waiting = 0,
+    /// <summary>
     /// 已生成采集任务
     /// </summary>
-    Created = 0,
+    Created = 1,
     /// <summary>
     /// 扫描文件中
     /// </summary>
-    Scanning = 1,
+    Scanning = 2,
     /// <summary>
     /// 采集文件中
     /// </summary>
-    Collecting = 2,
+    Collecting = 3,
     /// <summary>
     /// 已暂停
     /// </summary>
-    Paused = 3,
+    Paused = 4,
     /// <summary>
     /// 采集完成
     /// </summary>
-    Completed = 4,
+    Completed = 5,
     /// <summary>
     /// 中断，断线/拔出
     /// </summary>
-    Interrupted = 5,
+    Interrupted = 6,
     /// <summary>
     /// 采集失败
     /// </summary>
-    Failed = 6,
+    Failed = 7,
     /// <summary>
     /// 已取消
     /// </summary>
-    Canceled = 7
+    Canceled = 8
 }

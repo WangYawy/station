@@ -1,3 +1,4 @@
+using Station.Application.Recorders.Dtos;
 using Station.Domain.Recorders;
 
 namespace Station.Infrastructure.Persistence.Recorders;
@@ -30,5 +31,21 @@ internal static class RecorderMapper
             IsDeleted = r.IsDeleted,
             DeletedAt = r.DeletedAt,
             DeletedBy = r.DeletedBy,
+        };
+
+    public static RecorderListItemDto ToItemDto(RecorderPo po)
+        => new()
+        {
+            Id = po.Id,
+            SerialNumber = po.SerialNumber,
+            Code = po.Code,
+            Name = po.Name,
+            Model = po.Model,
+            Protocol = po.Protocol,
+            BoundUserId = po.BoundUserId,
+            DeptId = po.DeptId,
+            IsAuthorized = po.IsAuthorized,
+            IsActive = po.IsActive,
+            CreatedAt = po.CreatedAt
         };
 }

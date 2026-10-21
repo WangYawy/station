@@ -60,7 +60,7 @@ public sealed class FileLedgerService : IFileLedgerService
         var fileLoop = scope.ServiceProvider.GetRequiredService<ICollectFileSyncRepository>();
 
         var task = taskLoop.GetById(taskId);
-        if (task is null || task.Status != CollectTaskStatus.Completed || task.LedgeredAt is not null)
+        if (task is null || task.Status != CollectTaskStatus.Completed) // || task.LedgeredAt is not null
         {
             return 0;
         }
@@ -115,7 +115,7 @@ public sealed class FileLedgerService : IFileLedgerService
                     OriginalTime = file.OriginalModifiedAt,
                     UserNo = user?.UserNo,
                     DeptCode = dept?.Code,
-                    RecorderSerial = task.RecorderSerial ?? task.RecorderName,
+                    RecorderSerial = task.Device.Serial,
                     StorageLocation = file.RemotePath
                 };
                 await _outbox.EnqueueAsync("file-metadata", JsonSerializer.Serialize(report, _json));

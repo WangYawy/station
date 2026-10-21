@@ -48,8 +48,8 @@ public sealed class RecorderIdentificationService : IRecorderIdentificationServi
     {
         // 占位 BoundDevice（识别过程中的中间态，无业务归属）
         BoundDevice MakeBound(long? userId = null, long? deptId = null,
-                              long? recorderId = null, string? userNo = null, string? deptCode = null)
-            => new(device, userId, deptId, recorderId, userNo, deptCode);
+                              long? recorderId = null, string? userNo = null, string? deptCode = null, string? recorderCode = null, string? userName = null, string? deptName = null)
+            => new(device, userId, deptId, recorderId, userNo, deptCode, recorderCode, userName, deptName);
 
         // ---- 第 0 层：总开关 ----
         if (!_options.EnableBinding)
@@ -89,7 +89,7 @@ public sealed class RecorderIdentificationService : IRecorderIdentificationServi
 
         // ---- 第 3 层：台账校验 ----
         ct.ThrowIfCancellationRequested();
-        var recorderDto = await _recorderQuery.GetBySerialAsync(binding.DeviceSerial, ct);
+        var recorderDto = await _recorderQuery.GetByCodeAsync(binding.DeviceSerial, ct);
         if (recorderDto is null)
             return RecorderIdentifyResult.RecorderMissing(MakeBound(), binding, "记录仪不在台账");
         if (!recorderDto.IsActive)
@@ -100,15 +100,15 @@ public sealed class RecorderIdentificationService : IRecorderIdentificationServi
         var boundDeptId = recorderDto.DeptId;
 
         // 台账与绑定文件的一致性（序列号）
-        if (!string.Equals(recorderDto.SerialNumber, binding.DeviceSerial, StringComparison.OrdinalIgnoreCase))
+        if (!string.Equals(recorderDto.Code, binding.DeviceSerial, StringComparison.OrdinalIgnoreCase))
             return RecorderIdentifyResult.Mismatch(
-                MakeBound(boundUserId, boundDeptId, recorderDto.Id, binding.UserNo, binding.DeptCode),
+                MakeBound(boundUserId, boundDeptId, recorderDto.Id, binding.UserNo, binding.DeptCode, recorderDto.Code, binding.UserName, binding.DeptName),
                 binding, "绑定信息与台账不一致");
 
         // ---- 第 4 层：用户/部门校验 ----
         if (!_options.EnableBindingValidation)
             return RecorderIdentifyResult.Matched(
-                MakeBound(boundUserId, boundDeptId, recorderDto.Id, binding.UserNo, binding.DeptCode),
+                MakeBound(boundUserId, boundDeptId, recorderDto.Id, binding.UserNo, binding.DeptCode, recorderDto.Code, binding.UserName, binding.DeptName),
                 binding, recorderDto);
 
         ct.ThrowIfCancellationRequested();
@@ -118,11 +118,11 @@ public sealed class RecorderIdentificationService : IRecorderIdentificationServi
             var userDto = await _userQuery.GetByUserNoAsync(binding.UserNo, ct);
             if (userDto is null)
                 return RecorderIdentifyResult.UserInactive(
-                    MakeBound(boundUserId, boundDeptId, recorderDto.Id, binding.UserNo, binding.DeptCode),
+                    MakeBound(boundUserId, boundDeptId, recorderDto.Id, binding.UserNo, binding.DeptCode, recorderDto.Code, binding.UserName, binding.DeptName),
                     binding, "绑定用户不在册");
             if (!userDto.IsActive)
                 return RecorderIdentifyResult.UserInactive(
-                    MakeBound(boundUserId, boundDeptId, recorderDto.Id, binding.UserNo, binding.DeptCode),
+                    MakeBound(boundUserId, boundDeptId, recorderDto.Id, binding.UserNo, binding.DeptCode, recorderDto.Code, binding.UserName, binding.DeptName),
                     binding, "绑定用户已禁用");
 
             boundUserId = userDto.Id;
@@ -133,11 +133,11 @@ public sealed class RecorderIdentificationService : IRecorderIdentificationServi
             var deptDto = await _deptQuery.GetByCodeAsync(binding.DeptCode, ct);
             if (deptDto is null)
                 return RecorderIdentifyResult.DeptInactive(
-                    MakeBound(boundUserId, boundDeptId, recorderDto.Id, binding.UserNo, binding.DeptCode),
+                    MakeBound(boundUserId, boundDeptId, recorderDto.Id, binding.UserNo, binding.DeptCode, recorderDto.Code, binding.UserName, binding.DeptName),
                     binding, "绑定部门不在册");
             if (!deptDto.IsActive)
                 return RecorderIdentifyResult.DeptInactive(
-                    MakeBound(boundUserId, boundDeptId, recorderDto.Id, binding.UserNo, binding.DeptCode),
+                    MakeBound(boundUserId, boundDeptId, recorderDto.Id, binding.UserNo, binding.DeptCode, recorderDto.Code, binding.UserName, binding.DeptName),
                     binding, "绑定部门已禁用");
 
             boundDeptId = deptDto.Id;
@@ -145,7 +145,7 @@ public sealed class RecorderIdentificationService : IRecorderIdentificationServi
 
         // ---- 全部通过 ----
         return RecorderIdentifyResult.Matched(
-            MakeBound(boundUserId, boundDeptId, recorderDto.Id, binding.UserNo, binding.DeptCode),
+            MakeBound(boundUserId, boundDeptId, recorderDto.Id, binding.UserNo, binding.DeptCode, recorderDto.Code, binding.UserName, binding.DeptName),
             binding, recorderDto);
     }
 }

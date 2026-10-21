@@ -1,10 +1,6 @@
 using Station.Application.Recorders.Dtos;
 using Station.Crypto;
 using Station.Device.Detection;
-using Station.Domain.Collecting;
-using Station.Domain.Departments;
-using Station.Domain.Recorders;
-using Station.Domain.Users;
 
 namespace Station.Application.Recorders;
 
@@ -19,7 +15,10 @@ public sealed record BoundDevice(
     long? DeptId,
     long? RecorderId,
     string? UserNo,
-    string? DeptCode);
+    string? DeptCode,
+    string? RecorderCode,
+    string? UserName = null,
+    string? DeptName = null);
 
 /// <summary>
 /// 记录仪识别结果。

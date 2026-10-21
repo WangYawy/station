@@ -24,7 +24,8 @@ public static class UiStateMap
         CollectTaskStatus.Completed => new("已完成", "#dcfce7", "#15803d", false, false, false, false, false),
         CollectTaskStatus.Canceled => new("已取消", "#e2e8f0", "#475569", false, false, false, false, false),
         CollectTaskStatus.Interrupted => new("已中断", "#fef3c7", "#92400e", false, false, false, false, false),
-        CollectTaskStatus.Created => new("待开始", "#f1f5f9", "#64748b", false, false, false, false, false),
+        CollectTaskStatus.Created => new("准备中", "#f1f5f9", "#64748b", false, false, false, false, false),
+        CollectTaskStatus.Waiting => new("待开始", "#f1f5f9", "#64748b", false, false, false, false, false),
         _ => new("--", "#f1f5f9", "#94a3b8", false, false, false, false, false)
     };
 

@@ -8,6 +8,7 @@ public sealed record CollectTaskCreated(
     long AggregateId,
     string AggregateType,
     string TaskNo,
+    string? PhysicalPortId,
     string RecorderSerial,
     string RecorderName,
     long? OperatorUserId,

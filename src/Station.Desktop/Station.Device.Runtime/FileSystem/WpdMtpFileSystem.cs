@@ -8,7 +8,6 @@ using Station.Device.Detection;
 using Station.Device.FileSystem;
 using Station.Device.Runtime.Interop;
 using Vanara.PInvoke;
-using static Vanara.PInvoke.Ole32;
 
 namespace Station.Device.Runtime.FileSystem;
 
@@ -33,8 +32,14 @@ public sealed class WpdMtpFileSystem : IDeviceFileSystem
 
     public string GetRecorderRoot(DetectedDevice device) => device.Root;
 
-    public Task<IReadOnlyList<SourceFileInfo>> ScanAsync(DetectedDevice device, CancellationToken ct)
-        => Task.Run<IReadOnlyList<SourceFileInfo>>(() => ScanCore(device, ct), ct);
+    public Task<IReadOnlyList<SourceFileInfo>> ScanAsync(
+        DetectedDevice device,
+        IReadOnlyCollection<string>? extensions = null,
+        IReadOnlyCollection<string>? includePathPrefixes = null,
+        IReadOnlyCollection<string>? excludePathPrefixes = null,
+        CancellationToken ct = default)
+        => Task.Run<IReadOnlyList<SourceFileInfo>>(
+            () => ScanCore(device, extensions, includePathPrefixes, excludePathPrefixes, ct), ct);
 
     public Task CopyAsync(
         DetectedDevice device, SourceFileInfo file, string destinationPath,
@@ -117,19 +122,74 @@ public sealed class WpdMtpFileSystem : IDeviceFileSystem
         if (id is not null) DeleteObject(session.Content, id);
     }
 
+
+    public (long? AvailableBytes, long? TotalBytes) GetDeviceSpace(DetectedDevice device)
+    {
+        if (!OperatingSystem.IsWindows()) return (null, null);
+
+        try
+        {
+            var pnpId = ExtractPnpId(device.Root);
+            using var session = OpenDevice(pnpId, readOnly: true);
+
+            long total = 0, free = 0;
+            foreach (var storageId in session.StorageIds)
+            {
+                try
+                {
+                    var values = session.Properties.GetValues(storageId, session.SpaceKeys);
+
+                    var capacity = values.GetUnsignedLargeIntegerValue(
+                        PortableDeviceApi.WPD_STORAGE_CAPACITY);
+                    var freeBytes = values.GetUnsignedLargeIntegerValue(
+                        PortableDeviceApi.WPD_STORAGE_FREE_SPACE_IN_BYTES);
+
+                    total += (long)capacity;
+                    free += (long)freeBytes;
+                }
+                catch
+                {
+                    // 单个存储对象不可读，跳过
+                }
+            }
+
+            if (total <= 0) return (null, null);
+            return (free, total);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "WPD MTP 读取设备空间失败：{Root}", device.Root);
+            return (null, null);
+        }
+    }
+
     // ---------- 核心 ----------
 
-    private IReadOnlyList<SourceFileInfo> ScanCore(DetectedDevice device, CancellationToken ct)
+    private IReadOnlyList<SourceFileInfo> ScanCore(
+    DetectedDevice device,
+    IReadOnlyCollection<string>? extensions,
+    IReadOnlyCollection<string>? includePathPrefixes,
+    IReadOnlyCollection<string>? excludePathPrefixes,
+    CancellationToken ct)
     {
         var pnpId = ExtractPnpId(device.Root);
         using var session = OpenDevice(pnpId, readOnly: true);
 
         var list = new List<SourceFileInfo>();
-        foreach (var storageId in session.StorageIds)
-            WalkObjects(session, storageId, pnpId, list, ct);
 
-        if (session.StorageIds.Count == 0)
-            WalkObjects(session, PortableDeviceApi.WPD_DEVICE_OBJECT_ID, pnpId, list, ct);
+        if (session.StorageIds.Count > 0)
+        {
+            foreach (var storageId in session.StorageIds)
+            {
+                WalkObjects(session, storageId, pnpId, list, ct,
+                    extensions, includePathPrefixes, excludePathPrefixes);
+            }
+        }
+        else
+        {
+            WalkObjects(session, PortableDeviceApi.WPD_DEVICE_OBJECT_ID, pnpId, list, ct,
+                extensions, includePathPrefixes, excludePathPrefixes);
+        }
 
         return list;
     }
@@ -185,7 +245,10 @@ public sealed class WpdMtpFileSystem : IDeviceFileSystem
     private void WalkObjects(
         WpdSession session, string parentId, string pnpId,
         List<SourceFileInfo> files, CancellationToken ct,
-        Stack<string>? stack = null, bool matched = false)
+        IReadOnlyCollection<string>? extensions,
+        IReadOnlyCollection<string>? includePathPrefixes,
+        IReadOnlyCollection<string>? excludePathPrefixes,
+        Stack<string>? stack = null)
     {
         var isTopStorage = stack is null && session.IsStorageId(parentId);
         stack ??= new Stack<string>();
@@ -205,10 +268,14 @@ public sealed class WpdMtpFileSystem : IDeviceFileSystem
 
                 if (IsStorage(values))
                 {
+                    // 存储层不剪枝：其子容器再往下才做剪枝
                     var sn = GetStorageName(values);
                     var pushed = !string.IsNullOrWhiteSpace(sn);
                     if (pushed) stack.Push(sn!);
-                    WalkObjects(session, objectId, pnpId, files, ct, stack, matched);
+
+                    WalkObjects(session, objectId, pnpId, files, ct,
+                        extensions, includePathPrefixes, excludePathPrefixes, stack);
+
                     if (pushed) stack.Pop();
                     continue;
                 }
@@ -218,17 +285,27 @@ public sealed class WpdMtpFileSystem : IDeviceFileSystem
                     var fn = GetObjectName(values);
                     var pushed = !string.IsNullOrWhiteSpace(fn);
                     if (pushed) stack.Push(fn!);
-                    WalkObjects(session, objectId, pnpId, files, ct, stack, true);   // 全进
+
+                    var currentRel = string.Join("/", stack.Reverse());
+                    if (ScanFilter.ShouldDescend(currentRel, includePathPrefixes))
+                    {
+                        WalkObjects(session, objectId, pnpId, files, ct,
+                            extensions, includePathPrefixes, excludePathPrefixes, stack);
+                    }
+
                     if (pushed) stack.Pop();
                     continue;
                 }
 
-                if (!matched) continue;
-
+                // 文件
                 var name = GetObjectName(values);
                 if (string.IsNullOrWhiteSpace(name)) continue;
 
                 var relativePath = BuildPath(stack, name);
+
+                if (!ScanFilter.IsPathAllowed(relativePath, includePathPrefixes, excludePathPrefixes)) continue;
+                if (!ScanFilter.IsExtensionAllowed(name, extensions)) continue;
+
                 var size = (long)SafeGetUInt64(values, PortableDeviceApi.PKEY_GenericObj_ObjectSize);
                 var modified = SafeGetDate(values) ?? DateTime.UtcNow;
 
@@ -444,6 +521,10 @@ public sealed class WpdMtpFileSystem : IDeviceFileSystem
         private readonly PortableDeviceApi.IPortableDeviceKeyCollection _scanKeys;
         private readonly Dictionary<string, string> _storageNames;
 
+        private readonly PortableDeviceApi.IPortableDeviceKeyCollection _spaceKeys;
+      
+
+
         public WpdSession(PortableDeviceApi.IPortableDevice device)
         {
             Device = device;
@@ -451,6 +532,7 @@ public sealed class WpdMtpFileSystem : IDeviceFileSystem
             Properties = Content.Properties();
             Resources = Content.Transfer();
             _scanKeys = BuildScanKeys();
+            _spaceKeys = BuildSpaceKeys();
             (var ids, var names) = EnumerateStorages(Content, Properties, _scanKeys);
             StorageIds = ids;
             _storageNames = names;
@@ -462,6 +544,7 @@ public sealed class WpdMtpFileSystem : IDeviceFileSystem
         public PortableDeviceApi.IPortableDeviceResources Resources { get; }
         public IReadOnlyList<string> StorageIds { get; }
         public PortableDeviceApi.IPortableDeviceKeyCollection ScanKeys => _scanKeys;
+        public PortableDeviceApi.IPortableDeviceKeyCollection SpaceKeys => _spaceKeys;
 
         public bool IsStorageId(string id)
         {
@@ -520,10 +603,19 @@ public sealed class WpdMtpFileSystem : IDeviceFileSystem
             return (ids, names);
         }
 
+        private static PortableDeviceApi.IPortableDeviceKeyCollection BuildSpaceKeys()
+        {
+            var keys = (PortableDeviceApi.IPortableDeviceKeyCollection)
+                new PortableDeviceApi.PortableDeviceKeyCollection();
+            keys.Add(PortableDeviceApi.WPD_STORAGE_CAPACITY);
+            keys.Add(PortableDeviceApi.WPD_STORAGE_FREE_SPACE_IN_BYTES);
+            return keys;
+        }
         public void Dispose()
         {
             try { Device.Close(); } catch { }
             try { Marshal.ReleaseComObject(_scanKeys); } catch { }
+            try { Marshal.ReleaseComObject(_spaceKeys); } catch { }
             try { Marshal.ReleaseComObject(Resources); } catch { }
             try { Marshal.ReleaseComObject(Properties); } catch { }
             try { Marshal.ReleaseComObject(Content); } catch { }

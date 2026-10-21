@@ -3,12 +3,22 @@ using Station.Domain.Collecting;
 
 namespace Station.Application.Collecting.Dtos;
 
+/// <summary>
+/// 采集任务 DTO（读模型）。
+/// </summary>
 public sealed record CollectTaskDto(
     long TaskId,
     string TaskNo,
+    string? DeviceKey,
+
+    long RecorderId,
+    string RecorderCode,
     string RecorderName,
+
     string? RecorderSerial,
     ProtocolType Protocol,
+    string? PhysicalPortId,
+
     long? OperatorUserId,
     string? OperatorUserName,
     string? OperatorDeptName,
@@ -30,4 +40,5 @@ public sealed record CollectTaskDto(
     string? UploadError,
     DateTime? StartedAt,
     DateTime? CompletedAt,
-    string? ErrorMessage);
+    string? ErrorMessage,
+    DateTime CreateAt);           // 新增，末尾默认值

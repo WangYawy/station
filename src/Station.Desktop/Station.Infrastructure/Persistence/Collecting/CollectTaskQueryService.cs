@@ -15,13 +15,13 @@ public sealed class CollectTaskQueryService : ICollectTaskQueryService
         => await _db.Queryable<CollectTaskPo>()
             .Where(x => x.Id == taskId)
             .Select(x => new CollectTaskDto(
-                x.Id, x.TaskNo, x.RecorderName, x.RecorderSerial, x.Protocol,
+                x.Id, x.TaskNo, x.DeviceKey, x.RecorderId, x.RecorderCode, x.RecorderName, x.RecorderSerial, x.Protocol, x.PhysicalPortId,
                 x.OperatorUserId, "", "", x.DeptId, "", x.Status, x.IsAuto,
                 x.TotalFiles, x.CollectedFiles, x.SkippedFiles, x.FailedFiles,
                 x.TotalBytes, x.CollectedBytes, x.SpeedBytesPerSecond,
                 x.IsEmergency,
                 x.SyncStatus, x.UploadedFiles, x.UploadedBytes, x.UploadError,
-                x.StartedAt, x.CompletedAt, x.ErrorMessage))
+                x.StartedAt, x.CompletedAt, x.ErrorMessage, x.CreatedAt))
             .FirstAsync(ct);
 
     public async Task<IReadOnlyList<CollectTaskDto>> GetRecentAsync(
@@ -33,13 +33,13 @@ public sealed class CollectTaskQueryService : ICollectTaskQueryService
             .OrderBy(x => x.CreatedAt, OrderByType.Desc)
             .Take(count)
             .Select(x => new CollectTaskDto(
-                x.Id, x.TaskNo, x.RecorderName, x.RecorderSerial, x.Protocol,
+                x.Id, x.TaskNo, x.DeviceKey, x.RecorderId, x.RecorderCode, x.RecorderName, x.RecorderSerial, x.Protocol, x.PhysicalPortId,
                 x.OperatorUserId, "", "", x.DeptId, "", x.Status, x.IsAuto,
                 x.TotalFiles, x.CollectedFiles, x.SkippedFiles, x.FailedFiles,
                 x.TotalBytes, x.CollectedBytes, x.SpeedBytesPerSecond,
                 x.IsEmergency,
                 x.SyncStatus, x.UploadedFiles, x.UploadedBytes, x.UploadError,
-                x.StartedAt, x.CompletedAt, x.ErrorMessage))
+                x.StartedAt, x.CompletedAt, x.ErrorMessage, x.CreatedAt))
             .ToListAsync(ct);
     }
 
@@ -52,13 +52,13 @@ public sealed class CollectTaskQueryService : ICollectTaskQueryService
                      || x.Status == CollectTaskStatus.Paused)
             .OrderBy(x => x.CreatedAt, OrderByType.Desc)
             .Select(x => new CollectTaskDto(
-                x.Id, x.TaskNo, x.RecorderName, x.RecorderSerial, x.Protocol,
+                x.Id, x.TaskNo, x.DeviceKey, x.RecorderId, x.RecorderCode, x.RecorderName, x.RecorderSerial, x.Protocol, x.PhysicalPortId,
                 x.OperatorUserId, "", "", x.DeptId, "", x.Status, x.IsAuto,
                 x.TotalFiles, x.CollectedFiles, x.SkippedFiles, x.FailedFiles,
                 x.TotalBytes, x.CollectedBytes, x.SpeedBytesPerSecond,
                 x.IsEmergency,
                 x.SyncStatus, x.UploadedFiles, x.UploadedBytes, x.UploadError,
-                x.StartedAt, x.CompletedAt, x.ErrorMessage))
+                x.StartedAt, x.CompletedAt, x.ErrorMessage, x.CreatedAt))
             .ToListAsync(ct);
     }
 
